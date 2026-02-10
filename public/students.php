@@ -1,6 +1,7 @@
 <?php
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
+require_once '../includes/permissions.php';
 
 // Require manager login
 requireManagerLogin();
@@ -11,36 +12,30 @@ $conn = getDbConnection();
 
 // Handle student action if requested
 if (isset($_GET['action']) && isset($_GET['id'])) {
-    $student_id = $_GET['id'];
+    $student_id = (int)$_GET['id'];
     
-    // Ensure the student belongs to this manager's accommodation
-    $check_sql = "SELECT id FROM students WHERE id = ? AND accommodation_id = ?";
-    $check_stmt = $conn->prepare($check_sql);
-    $check_stmt->bind_param("ii", $student_id, $accommodation_id);
-    $check_stmt->execute();
-    $check_result = $check_stmt->get_result();
+    // Use RBAC permission check
+    if (!canEditStudent($student_id)) {
+        denyAccess('You do not have permission to manage this student', BASE_URL . '/students.php');
+    }
     
-    if ($check_result->num_rows > 0) {
-        if ($_GET['action'] == 'activate') {
-            $stmt = $conn->prepare("UPDATE students SET status = 'active' WHERE id = ?");
-            $stmt->bind_param("i", $student_id);
-            $stmt->execute();
-            redirect(BASE_URL . '/students.php', 'Student activated successfully.', 'success');
-        } 
-        elseif ($_GET['action'] == 'deactivate') {
-            $stmt = $conn->prepare("UPDATE students SET status = 'inactive' WHERE id = ?");
-            $stmt->bind_param("i", $student_id);
-            $stmt->execute();
-            redirect(BASE_URL . '/students.php', 'Student deactivated successfully.', 'success');
-        }
-        elseif ($_GET['action'] == 'delete') {
-            $stmt = $conn->prepare("DELETE FROM students WHERE id = ?");
-            $stmt->bind_param("i", $student_id);
-            $stmt->execute();
-            redirect(BASE_URL . '/students.php', 'Student deleted successfully.', 'success');
-        }
-    } else {
-        redirect(BASE_URL . '/students.php', 'Student not found or does not belong to your accommodation.', 'danger');
+    if ($_GET['action'] == 'activate') {
+        $stmt = $conn->prepare("UPDATE students SET status = 'active' WHERE id = ?");
+        $stmt->bind_param("i", $student_id);
+        $stmt->execute();
+        redirect(BASE_URL . '/students.php', 'Student activated successfully.', 'success');
+    } 
+    elseif ($_GET['action'] == 'deactivate') {
+        $stmt = $conn->prepare("UPDATE students SET status = 'inactive' WHERE id = ?");
+        $stmt->bind_param("i", $student_id);
+        $stmt->execute();
+        redirect(BASE_URL . '/students.php', 'Student deactivated successfully.', 'success');
+    }
+    elseif ($_GET['action'] == 'delete') {
+        $stmt = $conn->prepare("DELETE FROM students WHERE id = ?");
+        $stmt->bind_param("i", $student_id);
+        $stmt->execute();
+        redirect(BASE_URL . '/students.php', 'Student deleted successfully.', 'success');
     }
 }
 

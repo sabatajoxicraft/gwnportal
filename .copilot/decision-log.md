@@ -148,12 +148,71 @@ If you need to change locked configs:
 
 ---
 
+### [DECISION-003] Resource-Based Access Control (RBAC) Implementation
+- **Date**: 2025-02-10
+- **Status**: Active
+- **Category**: Security | Architecture
+- **Decision**: Implement fine-grained RBAC permissions in `includes/permissions.php` complementing existing role-based checks
+- **Context**: CodeScout analysis revealed gaps in resource-level permission checking. While 67% of pages had role checks (isAdmin, requireManagerLogin, etc.), there was no validation for resource ownership (e.g., can this owner edit THIS accommodation?).
+- **Options Considered**:
+  1. **Extend functions.php** - Add permission functions to existing file
+     - Pro: Single file
+     - Con: File already 480+ lines, mixing concerns
+  2. **New permissions.php module** - Separate file for RBAC (CHOSEN)
+     - Pro: Clear separation of concerns, modular
+     - Pro: Easier to test and maintain
+     - Con: Additional include required
+- **Implementation**:
+  - **Resource Ownership Checks** (7 functions):
+    - `canViewUser($user_id)` - View profile access
+    - `canEditUser($user_id)` - Edit profile access
+    - `canEditAccommodation($accommodation_id)` - Accommodation ownership
+    - `canManageStudents($accommodation_id)` - Student management rights
+    - `canEditStudent($student_id)` - Individual student editing
+    - `canCreateCodes($accommodation_id)` - Onboarding code creation
+    - `canViewAccommodationStudents($accommodation_id)` - Student list viewing
+  - **Accommodation Access Helpers** (5 functions):
+    - `getUserAccommodations($user_id)` - All accessible accommodations
+    - `getManagerAccommodations($manager_id)` - Manager assignments
+    - `getOwnerAccommodations($owner_id)` - Owner's properties
+    - `getStudentAccommodation($student_user_id)` - Student enrollment
+    - `isAccommodationOwner($accommodation_id, $owner_id)` - Ownership check
+    - `isManagerOfAccommodation($accommodation_id, $manager_id)` - Assignment check
+  - **Generic Permission Helpers** (5 functions):
+    - `hasPermissionToResource($resource_type, $resource_id, $permission)` - Unified checker
+    - `denyAccess($message, $redirect_to, $log_attempt)` - Centralized denial with logging
+    - `requirePermission($resource_type, $resource_id, $permission)` - Enforce or deny
+    - `isAdmin()`, `isOwner()`, `isManager()`, `isStudent()` - Role shortcuts
+    - `getAccommodationWithOwner($accommodation_id)` - Convenience getter
+- **Security Principles Applied**:
+  - Admin bypass: Admin role always returns true (by design)
+  - Prepared statements: All queries use parameterized queries
+  - Integer validation: All IDs cast to (int) before use
+  - Session validation: Uses `$_SESSION['user_id']` and `$_SESSION['user_role']`
+  - Error handling: Returns false on errors, never throws exceptions
+  - Logging: Access denials logged to activity_log table
+- **Files Modified**:
+  - `includes/permissions.php` (NEW - Complete RBAC system)
+  - `public/edit-accommodation.php` (Uses canEditAccommodation())
+  - `public/students.php` (Uses canEditStudent())
+  - `public/manager/edit_student.php` (Uses canEditStudent())
+- **Rationale**: 
+  - Separation of concerns: Role checks (functions.php) vs resource checks (permissions.php)
+  - DRY principle: Centralized permission logic prevents code duplication
+  - Security in depth: Two layers of access control (role + resource)
+- **Consequences**: 
+  - New pages should include permissions.php and use permission functions
+  - Existing pages should be migrated to use new functions over time
+  - Permission denials are logged for security auditing
+
+---
+
 <!-- Copy template above for new decisions -->
 
 ## Decision Index by Category
 
 ### Architecture
-- (None yet)
+- [DECISION-003] Resource-Based Access Control (RBAC) Implementation
 
 ### Tech Stack
 - [DECISION-001] M0.5 Configuration Freeze
@@ -166,3 +225,4 @@ If you need to change locked configs:
 
 ### Security
 - [DECISION-002] CSRF Protection Implementation
+- [DECISION-003] Resource-Based Access Control (RBAC) Implementation

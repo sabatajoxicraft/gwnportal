@@ -2,14 +2,13 @@
 require_once '../../includes/config.php';
 require_once '../../includes/db.php';
 require_once '../../includes/functions.php';
+require_once '../../includes/permissions.php';
 
 // Ensure database connection is available
 $conn = getDbConnection();
 
-// Require login and manager role
-if (!isLoggedIn() || $_SESSION['user_role'] !== 'manager') {
-    redirect(BASE_URL . '/login.php', 'Please login as a manager to access this page', 'warning');
-}
+// Require login (manager, owner, or admin can edit students)
+requireLogin();
 
 // Initialize variables
 $pageTitle = "Edit Student Details";
@@ -20,24 +19,28 @@ $student = [];
 $manager_id = $_SESSION['user_id'] ?? 0;
 $student_id = intval($_GET['id'] ?? 0);
 
-// Validate that student exists and belongs to manager's accommodation
+// Use RBAC permission check
+if (!canEditStudent($student_id)) {
+    denyAccess('You do not have permission to edit this student', BASE_URL . '/manager/students.php');
+}
+
+// Get student details
 $stmt = safeQueryPrepare($conn, "SELECT u.*, s.room_number, s.accommodation_id, s.id as student_id, 
                                 a.name as accommodation_name
                               FROM users u 
                               JOIN students s ON u.id = s.user_id
                               JOIN accommodations a ON s.accommodation_id = a.id
-                              JOIN user_accommodation ua ON ua.accommodation_id = a.id
-                              WHERE s.id = ? AND ua.user_id = ? AND u.role_id = 4");
+                              WHERE s.id = ? AND u.role_id = 4");
 
 if ($stmt === false) {
     $error = "System error when preparing statement.";
 } else {
-    $stmt->bind_param("ii", $student_id, $manager_id);
+    $stmt->bind_param("i", $student_id);
     $stmt->execute();
     $result = $stmt->get_result();
     
     if ($result->num_rows === 0) {
-        redirect(BASE_URL . '/manager/students.php', 'Student not found or you do not have permission to edit this student', 'danger');
+        redirect(BASE_URL . '/manager/students.php', 'Student not found', 'danger');
     }
     
     $student = $result->fetch_assoc();

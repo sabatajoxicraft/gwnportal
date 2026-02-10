@@ -2,32 +2,26 @@
 // filepath: c:\xampp\htdocs\wifi\web\public\owner\edit-accommodation.php
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
+require_once '../includes/permissions.php';
 require_once '../includes/db.php';
 
-// Require owner login
-requireOwnerLogin();
+// Require login (owner or admin)
+requireLogin();
 
-$owner_id = $_SESSION['user_id'];
 $conn = getDbConnection();
 
 // Get accommodation ID from query param
 $accommodation_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
-// Verify this accommodation belongs to the owner
-$stmt = safeQueryPrepare($conn, "SELECT id, name FROM accommodations WHERE id = ? AND owner_id = ?");
-if ($stmt === false) {
-    $error = "Database error. Please try again later.";
-} else {
-    $stmt->bind_param("ii", $accommodation_id, $owner_id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    
-    // Check if accommodation exists and belongs to this owner
-    if ($result->num_rows === 0) {
-        redirect(BASE_URL . '/accommodations.php', 'Accommodation not found or you do not have permission to edit it.', 'danger');
-    }
-    
-    $accommodation = $result->fetch_assoc();
+// Check permission using RBAC
+if (!canEditAccommodation($accommodation_id)) {
+    denyAccess('You do not have permission to edit this accommodation', BASE_URL . '/accommodations.php');
+}
+
+// Get accommodation details
+$accommodation = getAccommodationWithOwner($accommodation_id);
+if (!$accommodation) {
+    redirect(BASE_URL . '/accommodations.php', 'Accommodation not found.', 'danger');
 }
 
 // Process form submission
