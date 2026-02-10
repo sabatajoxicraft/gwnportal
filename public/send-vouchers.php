@@ -24,6 +24,7 @@ $is_processing = false;
 
 // Process form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireCsrfToken();
     $month = $_POST['month'] ?? '';
     
     if (empty($month)) {
@@ -120,6 +121,7 @@ require_once '../includes/components/navigation.php';
                         </div>
                     <?php else: ?>
                         <form method="post" action="" id="send-vouchers-form">
+                            <?php echo csrfField(); ?>
                             <?php if (isset($error)): ?>
                                 <div class="alert alert-danger"><?= $error ?></div>
                             <?php endif; ?>

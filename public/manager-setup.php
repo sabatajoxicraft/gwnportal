@@ -31,6 +31,7 @@ if ($checkResult['count'] > 0) {
 
 // Handle onboarding code entry
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_manager_code'])) {
+    requireCsrfToken();
     $code = trim($_POST['manager_code'] ?? '');
     
     if (empty($code)) {
@@ -126,6 +127,7 @@ require_once '../includes/components/header.php';
                             <p class="text-muted">Your administrator should have provided you with a manager onboarding code. Enter it below to be assigned to your accommodation.</p>
                             
                             <form method="post" action="">
+                                <?php echo csrfField(); ?>
                                 <div class="mb-3">
                                     <label for="manager_code" class="form-label">Manager Onboarding Code</label>
                                     <input type="text" class="form-control form-control-lg text-center text-uppercase" 

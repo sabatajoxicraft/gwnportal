@@ -34,6 +34,7 @@ $voucher_result = null;
 
 // Process form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireCsrfToken();
     $month = $_POST['month'] ?? '';
     
     if (empty($month)) {
@@ -134,6 +135,7 @@ require_once '../includes/components/header.php';
                                 </div>
                             <?php else: ?>
                                 <form method="post" action="" id="send-voucher-form">
+                                    <?php echo csrfField(); ?>
                                     <div class="mb-3">
                                         <label for="month" class="form-label">Select Month</label>
                                         <select class="form-select" id="month" name="month" required>

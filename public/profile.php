@@ -32,6 +32,7 @@ $success = '';
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireCsrfToken();
     // Check which form was submitted
     if (isset($_POST['update_profile'])) {
         // Basic profile update
@@ -152,6 +153,7 @@ require_once '../includes/components/header.php';
                 </div>
                 <div class="card-body">
                     <form method="post">
+                        <?php echo csrfField(); ?>
                         <input type="hidden" name="update_profile" value="1">
                         <div class="mb-3">
                             <label for="first_name" class="form-label">First Name</label>
@@ -181,6 +183,7 @@ require_once '../includes/components/header.php';
                 </div>
                 <div class="card-body">
                     <form method="post">
+                        <?php echo csrfField(); ?>
                         <input type="hidden" name="change_password" value="1">
                         <div class="mb-3">
                             <label for="current_password" class="form-label">Current Password</label>

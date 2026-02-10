@@ -23,6 +23,7 @@ $conn = getDbConnection();
 
 // Process form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireCsrfToken();
     $name = trim($_POST['name'] ?? '');
     $owner_id = (int)($_POST['owner_id'] ?? 0);
     
@@ -93,6 +94,7 @@ require_once '../../includes/components/navigation.php';
             <?php endif; ?>
             
             <form method="post" action="">
+                <?php echo csrfField(); ?>
                 <div class="mb-3">
                     <label for="name" class="form-label">Accommodation Name</label>
                     <input type="text" class="form-control" id="name" name="name" value="<?= htmlspecialchars($accommodation['name']) ?>" required>

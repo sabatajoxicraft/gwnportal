@@ -18,6 +18,7 @@ $debug = []; // Debug array to track login process
 
 // Check for login attempt
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireCsrfToken();
     $username = $_POST['username'] ?? '';
     $password = $_POST['password'] ?? '';
     
@@ -186,6 +187,7 @@ require_once '../includes/components/header.php';
                     <?php endif; ?>
                     
                     <form method="post" action="">
+                        <?php echo csrfField(); ?>
                         <div class="mb-4">
                             <label for="username" class="form-label">Username</label>
                             <div class="input-group">

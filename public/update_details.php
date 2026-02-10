@@ -54,6 +54,7 @@ if ($stmt === false) {
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireCsrfToken();
     // Get form data
     $email = trim($_POST['email'] ?? '');
     $phone = trim($_POST['phone_number'] ?? '');
@@ -185,6 +186,7 @@ require_once '../includes/components/header.php';
                     <?php endif; ?>
                     
                     <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>">
+                        <?php echo csrfField(); ?>
                         <div class="mb-3">
                             <label for="email" class="form-label">Email Address</label>
                             <input type="email" class="form-control" id="email" name="email" 

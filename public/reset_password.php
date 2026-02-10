@@ -26,6 +26,7 @@ $success = false;
 
 // Process form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireCsrfToken();
     $currentPassword = $_POST['current_password'] ?? '';
     $newPassword = $_POST['new_password'] ?? '';
     $confirmPassword = $_POST['confirm_password'] ?? '';
@@ -102,6 +103,7 @@ require_once '../includes/components/header.php';
                         <?php endif; ?>
                         
                         <form method="post">
+                            <?php echo csrfField(); ?>
                             <div class="mb-3">
                                 <label for="current_password" class="form-label">Current Password</label>
                                 <input type="password" class="form-control" id="current_password" name="current_password" required>

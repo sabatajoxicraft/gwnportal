@@ -257,6 +257,7 @@ require_once '../../includes/components/navigation.php';
     <div class="modal-dialog">
         <div class="modal-content">
             <form action="reset-password.php" method="post">
+                <?php echo csrfField(); ?>
                 <input type="hidden" name="user_id" value="<?= $user_id ?>">
                 <div class="modal-header">
                     <h5 class="modal-title">Reset Password</h5>

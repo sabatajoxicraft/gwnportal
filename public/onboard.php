@@ -26,6 +26,7 @@ $conn = getDbConnection();
 
 // Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireCsrfToken();
     // Step 1: Validate onboarding code
     if (isset($_POST['validate_code'])) {
         $code = trim($_POST['code']);
@@ -237,6 +238,7 @@ require_once '../includes/components/header.php';
                     <?php if ($step == 1): ?>
                         <!-- Step 1: Enter Onboarding Code -->
                         <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>">
+                            <?php echo csrfField(); ?>
                             <div class="mb-4 text-center">
                                 <p>Enter the onboarding code provided to you.</p>
                             </div>
@@ -262,6 +264,7 @@ require_once '../includes/components/header.php';
                             <?php endif; ?>
                         </div>
                         <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF']) . '?step=2' ?>">
+                            <?php echo csrfField(); ?>
                             <div class="row mb-3">
                                 <div class="col">
                                     <label for="first_name" class="form-label">First Name</label>

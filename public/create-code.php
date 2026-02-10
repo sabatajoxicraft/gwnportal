@@ -65,6 +65,7 @@ else if ($user_role === 'manager') {
 
 // Process form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireCsrfToken();
     // If manager has only one accommodation, use that ID directly
     if ($user_role === 'manager' && $single_accommodation) {
         $accommodation_id = $single_accommodation['id'];
@@ -180,6 +181,7 @@ require_once '../includes/components/navigation.php';
                 </div>
                 <div class="card-body">
                     <form method="post" action="">
+                        <?php echo csrfField(); ?>
                         <?php if ($user_role === 'manager' && $single_accommodation): ?>
                             <!-- For managers with only one accommodation -->
                             <div class="mb-3">

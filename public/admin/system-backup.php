@@ -15,6 +15,7 @@ $success = '';
 
 // Handle backup actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireCsrfToken();
     $action = $_POST['action'] ?? '';
     
     if ($action === 'create_backup') {
@@ -157,6 +158,7 @@ require_once '../../includes/components/navigation.php';
                 </div>
                 <div class="card-body">
                     <form method="post" action="">
+                        <?php echo csrfField(); ?>
                         <input type="hidden" name="action" value="create_backup">
                         
                         <div class="mb-3">
@@ -275,6 +277,7 @@ require_once '../../includes/components/navigation.php';
                                                             <div class="modal-footer">
                                                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                                                                 <form method="post">
+                                                                    <?php echo csrfField(); ?>
                                                                     <input type="hidden" name="action" value="delete_backup">
                                                                     <input type="hidden" name="filename" value="<?= htmlspecialchars($backup['name']) ?>">
                                                                     <button type="submit" class="btn btn-danger">Delete</button>

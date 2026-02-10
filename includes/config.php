@@ -90,6 +90,9 @@ function displayFlashMessage() {
     }
 }
 
+// Load CSRF protection (must be after session start)
+require_once __DIR__ . '/csrf.php';
+
 // Load accommodation handler for managers (must be after session start and DB connection)
 if (isset($_SESSION['user_id']) && isset($_SESSION['user_role'])) {
     require_once __DIR__ . '/accommodation-handler.php';

@@ -156,6 +156,7 @@ require_once '../includes/components/header.php';
                                                     </td>
                                                     <td class="text-center">
                                                         <form method="post" action="managers.php" onsubmit="return confirm('Are you sure you want to unassign this manager?');" class="d-inline">
+                                                            <?php echo csrfField(); ?>
                                                             <input type="hidden" name="manager_id" value="<?= $manager['id'] ?>">
                                                             <input type="hidden" name="accommodation_id" value="<?= $accommodation['id'] ?>">
                                                             <button type="submit" name="unassign_manager" class="btn btn-sm btn-outline-danger" title="Unassign">

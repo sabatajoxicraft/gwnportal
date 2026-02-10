@@ -28,6 +28,7 @@ $success = false;
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireCsrfToken();
     $username = $_POST['username'] ?? '';
     $email = $_POST['email'] ?? '';
     $firstName = $_POST['first_name'] ?? '';
@@ -72,6 +73,7 @@ require_once '../../includes/components/header.php';
                     <?php endif; ?>
 
                     <form method="post">
+                        <?php echo csrfField(); ?>
                         <div class="mb-3">
                             <label for="username" class="form-label">Username</label>
                             <input type="text" class="form-control" id="username" name="username" value="<?= htmlspecialchars($user['username']) ?>" required>

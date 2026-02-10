@@ -15,6 +15,7 @@ $message = '';
 $message_type = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    requireCsrfToken();
     $accommodation_id = $_POST['accommodation_id'] ?? 0;
     $action = $_POST['action'] ?? '';
     
@@ -150,6 +151,7 @@ require_once '../../includes/components/navigation.php';
                                                     <div class="modal-footer">
                                                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                                                         <form method="post" action="">
+                                                            <?php echo csrfField(); ?>
                                                             <input type="hidden" name="accommodation_id" value="<?= $accommodation['id'] ?>">
                                                             <input type="hidden" name="action" value="delete">
                                                             <button type="submit" class="btn btn-danger">Delete</button>

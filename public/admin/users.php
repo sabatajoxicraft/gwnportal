@@ -12,6 +12,7 @@ requireRole('admin');
 
 // Handle user actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    requireCsrfToken();
     $user_id = $_POST['user_id'] ?? 0;
     
     if ($_POST['action'] === 'status' && !empty($_POST['status'])) {
@@ -217,6 +218,7 @@ require_once '../../includes/components/navigation.php';
                                                 <li><hr class="dropdown-divider"></li>
                                                 <li>
                                                     <form action="" method="post" class="dropdown-item p-0" style="cursor: pointer;">
+                                                        <?php echo csrfField(); ?>
                                                         <input type="hidden" name="user_id" value="<?= $user['id'] ?>">
                                                         <input type="hidden" name="action" value="status">
                                                         <?php if ($user['status'] !== 'active'): ?>

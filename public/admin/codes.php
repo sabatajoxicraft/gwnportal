@@ -12,6 +12,7 @@ requireRole('admin');
 
 // Handle code actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    requireCsrfToken();
     $code_id = $_POST['code_id'] ?? 0;
     $action = $_POST['action'] ?? '';
     
@@ -256,6 +257,7 @@ require_once '../../includes/components/navigation.php';
                                                     <i class="bi bi-clipboard"></i>
                                                 </button>
                                                 <form method="post" style="display:inline;">
+                                                    <?php echo csrfField(); ?>
                                                     <input type="hidden" name="code_id" value="<?= $code['id'] ?>">
                                                     <input type="hidden" name="action" value="expire">
                                                     <button type="submit" class="btn btn-outline-warning" onclick="return confirm('Mark this code as expired?')">
@@ -263,6 +265,7 @@ require_once '../../includes/components/navigation.php';
                                                     </button>
                                                 </form>
                                                 <form method="post" style="display:inline;">
+                                                    <?php echo csrfField(); ?>
                                                     <input type="hidden" name="code_id" value="<?= $code['id'] ?>">
                                                     <input type="hidden" name="action" value="delete">
                                                     <button type="submit" class="btn btn-outline-danger" onclick="return confirm('Are you sure you want to delete this code?')">

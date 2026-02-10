@@ -1,20 +1,21 @@
-# Current Milestone: M0.5 - Scaffold Validation
+# Current Milestone: M1 - Core Infrastructure
 
-**Phase:** M0.5 (Mandatory - validates tech stack works before feature implementation)  
+**Phase:** M1 (Weeks 1-2)  
 **Started:** 2026-02-10  
-**Status:** In Progress  
+**Status:** Ready to Begin  
 
 ## Objectives
-- Verify existing PHP 8.2 + MySQL 8.0 + Bootstrap 5 setup works
-- Configure GitHub Actions CI/CD
-- Achieve GREEN CI build (gate requirement)
-- Lock down working configuration versions
+- Harden authentication system (CSRF, session security)
+- Implement complete RBAC permission enforcement
+- Standardize error handling and logging
+- Validate and optimize database schema
 
-## Tasks
-- [ ] M0.5-T1: Verify Existing Setup
-- [ ] M0.5-T2: Configure CI/CD  
-- [ ] M0.5-T3: ✅ **GATE: CI BUILD GREEN**
-- [ ] M0.5-T4: Lock Configs
-
-## Previous Milestone
+## Previous Milestones
+- **M0.5 (Scaffold Validation):** ✅ Complete - CI GREEN, configs locked
 - **M0 (PRD Definition):** ✅ Complete - Approved 2026-02-10
+
+## M0.5 Achievements
+- ✅ PHP 8.2, MySQL 8.0, Docker setup verified
+- ✅ GitHub Actions CI/CD configured (ci.yml, docker.yml)
+- ✅ **GATE PASSED:** CI and Docker Build both GREEN
+- ✅ Configuration versions locked in decision-log.md

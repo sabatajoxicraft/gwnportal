@@ -7,6 +7,7 @@ $message_sent = false;
 $error = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireCsrfToken();
     $name = $_POST['name'] ?? '';
     $email = $_POST['email'] ?? '';
     $phone = $_POST['phone'] ?? '';
@@ -134,6 +135,7 @@ require_once '../includes/components/header.php';
                                     <?php endif; ?>
                                     
                                     <form method="post" action="" class="mt-3">
+                                        <?php echo csrfField(); ?>
                                         <div class="mb-3">
                                             <label for="name" class="form-label">Your Name *</label>
                                             <input type="text" class="form-control" id="name" name="name" required>

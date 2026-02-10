@@ -207,6 +207,7 @@ switch ($userRole) {
         
         // Handle wifi request submission
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_wifi'])) {
+            requireCsrfToken();
             // Get student's accommodation id
             $accommodation_id = $user['accommodation_id'] ?? 0;
             if ($accommodation_id) {
@@ -600,6 +601,7 @@ require_once '../includes/components/header.php';
                             </div>
                             <!-- New Request WiFi Access Form -->
                             <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>">
+                                <?php echo csrfField(); ?>
                                 <input type="hidden" name="request_wifi" value="1">
                                 <button type="submit" class="btn btn-primary">Request WiFi Access</button>
                             </form>

@@ -15,6 +15,7 @@ $error = '';
 
 // Process settings update
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireCsrfToken();
     // Handle different setting forms based on section
     $section = $_POST['section'] ?? '';
     
@@ -176,6 +177,7 @@ require_once '../../includes/components/navigation.php';
                         </div>
                         <div class="card-body">
                             <form method="post" action="">
+                                <?php echo csrfField(); ?>
                                 <input type="hidden" name="section" value="app">
                                 
                                 <div class="mb-3">
@@ -207,6 +209,7 @@ require_once '../../includes/components/navigation.php';
                             <p>Create a backup of the current database. This may take a while for large databases.</p>
                             
                             <form method="post" action="">
+                                <?php echo csrfField(); ?>
                                 <input type="hidden" name="section" value="database">
                                 <button type="submit" class="btn btn-primary">Create Backup</button>
                             </form>
@@ -283,6 +286,7 @@ require_once '../../includes/components/navigation.php';
                         <div class="card-body">
                             <h6>Change Admin Password</h6>
                             <form method="post" action="">
+                                <?php echo csrfField(); ?>
                                 <input type="hidden" name="section" value="security">
                                 
                                 <div class="mb-3">

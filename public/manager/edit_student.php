@@ -45,6 +45,7 @@ if ($stmt === false) {
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireCsrfToken();
     // Get form data
     $email = trim($_POST['email'] ?? '');
     $username = trim($_POST['username'] ?? '');
@@ -220,6 +221,7 @@ require_once '../../includes/components/header.php';
                     <?php endif; ?>
                     
                     <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF'] . '?id=' . $student_id) ?>">
+                        <?php echo csrfField(); ?>
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <label for="first_name" class="form-label">First Name</label>

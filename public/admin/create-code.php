@@ -34,6 +34,7 @@ if ($userRole === 'admin') {
 
 // Process form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireCsrfToken();
     $accommodation_id = (int)($_POST['accommodation_id'] ?? 0);
     $role_id = (int)($_POST['role_id'] ?? 0);
     $count = (int)($_POST['count'] ?? 1);
@@ -170,6 +171,7 @@ require_once '../../includes/components/navigation.php';
                     <?php endif; ?>
                     
                     <form method="post" action="">
+                        <?php echo csrfField(); ?>
                         <div class="mb-3">
                             <label for="accommodation_id" class="form-label">Accommodation *</label>
                             <select class="form-select" id="accommodation_id" name="accommodation_id" required>

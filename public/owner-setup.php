@@ -31,6 +31,7 @@ if ($checkResult['count'] > 0) {
 
 // Handle accommodation creation
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_accommodation'])) {
+    requireCsrfToken();
     $accommodation_name = trim($_POST['accommodation_name'] ?? '');
     
     if (empty($accommodation_name)) {
@@ -93,6 +94,7 @@ require_once '../includes/components/header.php';
                     <?php endif; ?>
 
                     <form method="post" action="">
+                        <?php echo csrfField(); ?>
                         <div class="mb-4">
                             <h5>Create Your First Accommodation</h5>
                             <p class="text-muted">Enter the name of your accommodation (e.g., "De Beers Diamond Lodge").</p>

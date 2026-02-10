@@ -11,6 +11,7 @@ $conn = getDbConnection();
 
 // Handle unassign manager action
 if (isset($_POST['unassign_manager']) && isset($_POST['manager_id']) && isset($_POST['accommodation_id'])) {
+    requireCsrfToken();
     $manager_id = (int)$_POST['manager_id'];
     $accommodation_id_unassign = (int)$_POST['accommodation_id'];
 
@@ -76,6 +77,7 @@ if ($accommodation_id > 0) {
 
 // Handle adding a new manager (only when viewing a specific accommodation)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $specific_accommodation && isset($_POST['add_manager'])) {
+    requireCsrfToken();
     $user_id = isset($_POST['user_id']) ? (int)$_POST['user_id'] : 0;
     
     if ($user_id <= 0) {
@@ -120,6 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $specific_accommodation && isset($_
 
 // Handle creating a new manager account
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_manager'])) {
+    requireCsrfToken();
     $username = trim($_POST['username'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $first_name = trim($_POST['first_name'] ?? '');
@@ -481,6 +484,7 @@ require_once '../includes/components/header.php';
                                             </td>
                                             <td>
                                                 <form method="post" onsubmit="return confirm('Are you sure you want to unassign this manager?');">
+                                                    <?php echo csrfField(); ?>
                                                     <input type="hidden" name="manager_id" value="<?= $manager['manager_id'] ?>">
                                                     <input type="hidden" name="accommodation_id" value="<?= $manager['accommodation_id'] ?>">
                                                     <button type="submit" name="unassign_manager" class="btn btn-sm btn-outline-danger">
@@ -550,6 +554,7 @@ require_once '../includes/components/header.php';
                                                 <a href="?accommodation_id=<?= $accommodation_id ?>&action=activate&manager_id=<?= $manager['manager_id'] ?>" class="btn btn-sm btn-success">Activate</a>
                                             <?php endif; ?>
                                             <form method="post" onsubmit="return confirm('Are you sure you want to unassign this manager?');" style="display:inline;">
+                                                <?php echo csrfField(); ?>
                                                 <input type="hidden" name="manager_id" value="<?= $manager['manager_id'] ?>">
                                                 <input type="hidden" name="accommodation_id" value="<?= $accommodation_id ?>">
                                                 <button type="submit" name="unassign_manager" class="btn btn-sm btn-outline-danger">
@@ -581,6 +586,7 @@ require_once '../includes/components/header.php';
     <div class="modal-dialog">
         <div class="modal-content">
             <form method="post" action="">
+                <?php echo csrfField(); ?>
                 <div class="modal-header">
                     <h5 class="modal-title" id="addManagerModalLabel">Add Manager to <?= htmlspecialchars($accommodation['name']) ?></h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -624,6 +630,7 @@ require_once '../includes/components/header.php';
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <form method="post" action="">
+            <?php echo csrfField(); ?>
                 <div class="modal-header">
                     <h5 class="modal-title" id="createManagerModalLabel">Create New Manager Account</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>

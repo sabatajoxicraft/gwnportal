@@ -11,6 +11,7 @@ $success = false;
 $error = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireCsrfToken();
     // Form validation
     $name = trim($_POST['name'] ?? '');
     $email = trim($_POST['email'] ?? '');
@@ -60,6 +61,7 @@ require_once '../includes/components/header.php';
                         <p class="lead">Have questions about our WiFi services? Get in touch with our team!</p>
                         
                         <form method="post" action="">
+                            <?php echo csrfField(); ?>
                             <div class="row mb-3">
                                 <div class="col-md-6">
                                     <label for="name" class="form-label">Your Name <span class="text-danger">*</span></label>
