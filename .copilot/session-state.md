@@ -9,9 +9,9 @@
 
 ## Current Position
 - **Active Milestone**: M1 - Core Infrastructure (see current-milestone.md)
-- **Last Completed Task**: M1-T1 (CSRF protection implementation ✅)
-- **Next Task**: M1-T2 (Complete permissions.php RBAC functions)
-- **Files Modified**: includes/csrf.php (new), includes/config.php, 32+ form files, decision-log.md
+- **Last Completed Task**: M1-T3 (Configure session security ✅)
+- **Next Task**: M1-T4 (Consolidate duplicate pages)
+- **Files Modified**: includes/session-config.php (new), includes/config.php, login.php, logout.php, env.example
 
 ## Work In Progress
 None - M0.5 fully complete, ready for M1
