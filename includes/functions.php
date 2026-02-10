@@ -432,6 +432,32 @@ function resetLoginAttempts($username) {
 }
 
 /**
+ * Regenerate session ID on login or privilege change
+ * Prevents session fixation attacks
+ * 
+ * @return void
+ */
+function regenerateSessionOnLogin() {
+    // Regenerate session ID and delete old session
+    session_regenerate_id(true);
+    
+    // Reset session timing markers
+    $_SESSION['CREATED'] = time();
+    $_SESSION['LAST_ACTIVITY'] = time();
+}
+
+/**
+ * Regenerate session on privilege/role change
+ * Should be called when user role is elevated or changed
+ * 
+ * @return void
+ */
+function regenerateSessionOnPrivilegeChange() {
+    session_regenerate_id(true);
+    $_SESSION['CREATED'] = time();
+}
+
+/**
  * Get the appropriate Bootstrap badge class for a user role
  * @param string $role The user role name
  * @return string The CSS class for the badge

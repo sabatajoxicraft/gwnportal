@@ -1,7 +1,51 @@
 <?php
+/**
+ * GWN Portal Configuration
+ * 
+ * Session security configured in session-config.php
+ */
+
+// Apply session security configuration BEFORE starting session
+require_once __DIR__ . '/session-config.php';
+
 // Start session if not already started
 if (session_status() == PHP_SESSION_NONE) {
     session_start();
+}
+
+// Session timeout check - only for authenticated users
+if (isset($_SESSION['user_id']) && isset($_SESSION['LAST_ACTIVITY'])) {
+    if ((time() - $_SESSION['LAST_ACTIVITY']) > SESSION_TIMEOUT) {
+        // Last request was more than SESSION_TIMEOUT seconds ago
+        session_unset();
+        session_destroy();
+        
+        // Start a new session for the redirect flash message
+        session_start();
+        $_SESSION['flash'] = [
+            'type' => 'warning',
+            'message' => 'Your session has expired due to inactivity. Please login again.'
+        ];
+        
+        header("Location: " . (defined('BASE_URL') ? BASE_URL : '') . "/login.php");
+        exit();
+    }
+}
+
+// Update last activity timestamp for logged-in users
+if (isset($_SESSION['user_id'])) {
+    $_SESSION['LAST_ACTIVITY'] = time();
+}
+
+// Session hijacking prevention - regenerate session ID periodically
+if (isset($_SESSION['user_id'])) {
+    if (!isset($_SESSION['CREATED'])) {
+        $_SESSION['CREATED'] = time();
+    } else if (time() - $_SESSION['CREATED'] > SESSION_REGENERATE_INTERVAL) {
+        // Regenerate session ID periodically (every hour by default)
+        session_regenerate_id(true);
+        $_SESSION['CREATED'] = time();
+    }
 }
 
 // Load environment variables from .env file

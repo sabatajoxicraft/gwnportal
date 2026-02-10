@@ -207,6 +207,56 @@ If you need to change locked configs:
 
 ---
 
+### [DECISION-004] Session Security Hardening
+- **Date**: 2026-02-10
+- **Status**: Active
+- **Category**: Security
+- **Decision**: Implement comprehensive session security measures including timeout, regeneration, and secure cookie flags
+- **Context**: Security gap identified in M0 PRD - session timeout not configured, secure cookies only in production consideration
+- **Implementation**:
+  - **Session Configuration** (`includes/session-config.php`):
+    - `session.cookie_httponly = 1` - Prevent XSS access to cookies
+    - `session.cookie_samesite = Strict` - CSRF protection
+    - `session.use_strict_mode = 1` - Reject uninitialized session IDs
+    - `session.cookie_secure = 0` - Set to 1 in production (HTTPS only)
+    - `session.use_only_cookies = 1` - No session IDs in URLs
+    - `session.sid_length = 48` - Longer session IDs
+    - `session.sid_bits_per_character = 6` - More entropy
+  - **Session Timeout** (30 minutes idle):
+    - `session.gc_maxlifetime = 1800` - Server-side cleanup
+    - `session.cookie_lifetime = 0` - Browser session only
+    - Automatic redirect to login with timeout message
+  - **Session Regeneration**:
+    - On login: `regenerateSessionOnLogin()` - Prevents session fixation
+    - Periodic: Every hour (SESSION_REGENERATE_INTERVAL)
+    - On privilege change: `regenerateSessionOnPrivilegeChange()`
+  - **Environment Configuration**:
+    - SESSION_TIMEOUT, SESSION_REGENERATE_INTERVAL
+    - SESSION_COOKIE_SECURE, SESSION_COOKIE_SAMESITE
+- **Files Modified**:
+  - `includes/session-config.php` (NEW - Environment-aware session settings)
+  - `includes/config.php` (Session timeout check and periodic regeneration)
+  - `includes/functions.php` (Added regenerateSessionOnLogin, regenerateSessionOnPrivilegeChange)
+  - `public/login.php` (Calls regenerateSessionOnLogin after auth)
+  - `public/logout.php` (Improved session cleanup)
+  - `env.example` (Added session security environment variables)
+- **Security Measures**:
+  - Session fixation prevention via regeneration on login
+  - Session hijacking prevention via periodic regeneration
+  - Idle timeout protection (30 min default)
+  - XSS protection via httponly cookies
+  - CSRF protection via SameSite=Strict
+- **Rationale**: 
+  - Defense in depth approach
+  - Environment-aware for dev/production differences
+  - Follows OWASP session management guidelines
+- **Consequences**: 
+  - Users will be logged out after 30 minutes of inactivity
+  - Session IDs regenerate hourly for active users
+  - Production deployments should set SESSION_COOKIE_SECURE=1
+
+---
+
 <!-- Copy template above for new decisions -->
 
 ## Decision Index by Category
@@ -226,3 +276,4 @@ If you need to change locked configs:
 ### Security
 - [DECISION-002] CSRF Protection Implementation
 - [DECISION-003] Resource-Based Access Control (RBAC) Implementation
+- [DECISION-004] Session Security Hardening

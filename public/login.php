@@ -74,6 +74,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_SESSION['user_name'] = $user['first_name'];
                     $_SESSION['user_role'] = $user['role_name'];
                     
+                    // Regenerate session ID to prevent session fixation
+                    regenerateSessionOnLogin();
+                    
                     // Role-specific session data
                     handleRoleSpecificData($conn, $user);
                     
