@@ -1,0 +1,187 @@
+name: Docker Build & Test
+
+on:
+  push:
+    branches: [ "main", "master", "develop" ]
+  pull_request:
+    branches: [ "main", "master", "develop" ]
+
+jobs:
+  docker-build:
+    name: Docker Build Test
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        push: false
+        tags: gwn-portal:test
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Create .env file for Docker
+      run: |
+        cat > .env << EOF
+        DB_ROOT_PASSWORD=rootpassword
+        DB_USER=gwn_user
+        DB_PASSWORD=gwn_password
+        DEFAULT_URL=https://test-gwn-manager.example.com
+        ID=test_app_id
+        Key=test_secret_key
+        Access_token=
+        ALLOWED_DEVICES=3
+        TWILIO_ACCOUNT_SID=ACtest
+        TWILIO_AUTH_TOKEN=test_token
+        TWILIO_PHONE_NUMBER=+1234567890
+        TWILIO_WHATSAPP_NO=+1234567890
+        TWILIO_MESSAGE_SID=MGtest
+        TWILIO_WHATSAPP_TEMPLATE_SID=HXtest
+        TWILIO_SMS_TEMPLATE_SID=HXtest
+        TWILIO_MESSAGE_TEMPLATE=Hi {0}, your WiFi voucher for {1} is: {2}. Valid for the entire month!
+        CLIENT_ID=test_azure_client_id
+        CLIENT_SECRET=test_azure_client_secret
+        TENANT_ID=test_azure_tenant_id
+        FILE_ID=test_file_id
+        FILE_NAME=student_records.xlsx
+        FOLDER_PATH=/test/path
+        AUTHORITY_URL=https://login.microsoftonline.com/test_tenant_id
+        EOF
+
+    - name: Start Docker Compose services
+      run: |
+        docker-compose up -d
+        echo "Waiting for services to be healthy..."
+        sleep 30
+
+    - name: Check container status
+      run: |
+        echo "=== Container Status ==="
+        docker-compose ps
+        echo ""
+        echo "=== Database Container Logs ==="
+        docker-compose logs gwn-db | tail -20
+        echo ""
+        echo "=== Application Container Logs ==="
+        docker-compose logs gwn-app | tail -20
+
+    - name: Verify MySQL service health
+      run: |
+        echo "Checking MySQL health..."
+        docker-compose exec -T gwn-db mysqladmin ping -h localhost -uroot -prootpassword
+        if [ $? -eq 0 ]; then
+          echo "✓ MySQL is healthy"
+        else
+          echo "✗ MySQL health check failed"
+          exit 1
+        fi
+
+    - name: Verify database creation
+      run: |
+        echo "Verifying database exists..."
+        docker-compose exec -T gwn-db mysql -uroot -prootpassword -e "SHOW DATABASES LIKE 'gwn_wifi_system';"
+
+    - name: Test application responds on port 3040
+      run: |
+        echo "Testing application endpoint..."
+        MAX_RETRIES=10
+        RETRY_COUNT=0
+        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3040/ || echo "000")
+          echo "Attempt $((RETRY_COUNT + 1))/$MAX_RETRIES: HTTP Status $HTTP_CODE"
+          
+          if [ "$HTTP_CODE" != "000" ] && [ "$HTTP_CODE" != "502" ] && [ "$HTTP_CODE" != "503" ]; then
+            echo "✓ Application is responding (HTTP $HTTP_CODE)"
+            exit 0
+          fi
+          
+          RETRY_COUNT=$((RETRY_COUNT + 1))
+          if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+            echo "Waiting 5 seconds before retry..."
+            sleep 5
+          fi
+        done
+        
+        echo "✗ Application failed to respond after $MAX_RETRIES attempts"
+        echo "=== Application Container Logs ==="
+        docker-compose logs gwn-app
+        exit 1
+
+    - name: Test PHPMyAdmin responds on port 3041
+      run: |
+        echo "Testing PHPMyAdmin endpoint..."
+        HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3041/ || echo "000")
+        echo "PHPMyAdmin HTTP Status: $HTTP_CODE"
+        
+        if [ "$HTTP_CODE" == "200" ]; then
+          echo "✓ PHPMyAdmin is responding"
+        else
+          echo "⚠ PHPMyAdmin returned HTTP $HTTP_CODE (non-critical)"
+        fi
+
+    - name: Verify Apache configuration
+      run: |
+        echo "Checking Apache configuration..."
+        docker-compose exec -T gwn-app apache2ctl -t || echo "⚠ Apache config check failed"
+
+    - name: Check file permissions
+      run: |
+        echo "Checking file permissions..."
+        docker-compose exec -T gwn-app ls -la /var/www/html/ | head -10
+
+    - name: Stop Docker Compose services
+      if: always()
+      run: |
+        echo "Stopping services..."
+        docker-compose down -v
+        echo "✓ Services stopped and volumes removed"
+
+  docker-security-scan:
+    name: Docker Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Build Docker image for scanning
+      run: docker build -t gwn-portal:scan .
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'gwn-portal:scan'
+        format: 'table'
+        exit-code: '0'
+        ignore-unfixed: true
+        vuln-type: 'os,library'
+        severity: 'CRITICAL,HIGH'
+
+  build-summary:
+    name: Build Summary
+    runs-on: ubuntu-latest
+    needs: [docker-build, docker-security-scan]
+    if: always()
+    steps:
+    - name: Check build status
+      run: |
+        if [ "${{ needs.docker-build.result }}" == "success" ]; then
+          echo "✓ Docker build and tests passed"
+        else
+          echo "✗ Docker build or tests failed"
+          exit 1
+        fi
+        
+        if [ "${{ needs.docker-security-scan.result }}" == "success" ]; then
+          echo "✓ Security scan completed"
+        else
+          echo "⚠ Security scan encountered issues"
+        fi

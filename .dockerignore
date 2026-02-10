@@ -1,0 +1,36 @@
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Documentation
+docs/
+*.md
+
+# Temporary files
+*.tmp
+*.bak
+*~
+
+# Admin credentials (will be regenerated)
+admin_credentials.txt

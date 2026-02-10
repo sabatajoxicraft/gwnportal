@@ -1,0 +1,144 @@
+name: CI
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
+
+jobs:
+  test:
+    name: PHP 8.2 Tests
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: rootpassword
+          MYSQL_DATABASE: gwn_wifi_system
+          MYSQL_USER: gwn_user
+          MYSQL_PASSWORD: gwn_password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup PHP 8.2
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.2'
+        extensions: mysqli, pdo, pdo_mysql
+        coverage: none
+
+    - name: Verify PHP version
+      run: php -v
+
+    - name: Check MySQL connection
+      run: |
+        mysql --host=127.0.0.1 --port=3306 -uroot -prootpassword -e "SHOW DATABASES;"
+
+    - name: Create .env file
+      run: |
+        cat > .env << EOF
+        DEFAULT_URL=https://test-gwn-manager.example.com
+        ID=test_app_id
+        Key=test_secret_key
+        Access_token=
+        ALLOWED_DEVICES=3
+        TWILIO_ACCOUNT_SID=ACtest
+        TWILIO_AUTH_TOKEN=test_token
+        TWILIO_PHONE_NUMBER=+1234567890
+        TWILIO_WHATSAPP_NO=+1234567890
+        TWILIO_MESSAGE_SID=MGtest
+        TWILIO_WHATSAPP_TEMPLATE_SID=HXtest
+        TWILIO_SMS_TEMPLATE_SID=HXtest
+        TWILIO_MESSAGE_TEMPLATE=Hi {0}, your WiFi voucher for {1} is: {2}. Valid for the entire month!
+        CLIENT_ID=test_azure_client_id
+        CLIENT_SECRET=test_azure_client_secret
+        TENANT_ID=test_azure_tenant_id
+        FILE_ID=test_file_id
+        FILE_NAME=student_records.xlsx
+        FOLDER_PATH=/test/path
+        AUTHORITY_URL=https://login.microsoftonline.com/test_tenant_id
+        EOF
+
+    - name: Lint PHP files
+      run: |
+        echo "Linting PHP files..."
+        find . -name "*.php" -not -path "./vendor/*" -exec php -l {} \; | grep -v "No syntax errors"
+        if [ $? -eq 0 ]; then
+          echo "✓ All PHP files are syntactically valid"
+        else
+          echo "✗ PHP syntax errors found"
+          exit 1
+        fi
+
+    - name: Initialize database schema
+      env:
+        DB_HOST: 127.0.0.1
+        DB_USER: gwn_user
+        DB_PASS: gwn_password
+        DB_NAME: gwn_wifi_system
+        DB_ROOT_PASSWORD: rootpassword
+      run: |
+        echo "Testing database schema initialization..."
+        if [ -f "db/schema.sql" ]; then
+          mysql --host=127.0.0.1 --port=3306 -ugwn_user -pgwn_password gwn_wifi_system < db/schema.sql
+          echo "✓ Database schema applied successfully"
+        else
+          echo "⚠ No schema.sql file found, skipping"
+        fi
+
+    - name: Verify database tables
+      run: |
+        echo "Verifying database tables..."
+        TABLES=$(mysql --host=127.0.0.1 --port=3306 -ugwn_user -pgwn_password gwn_wifi_system -e "SHOW TABLES;" | tail -n +2)
+        if [ -n "$TABLES" ]; then
+          echo "✓ Database tables created:"
+          echo "$TABLES"
+        else
+          echo "⚠ No tables found in database"
+        fi
+
+    - name: Security check - Detect hardcoded credentials
+      run: |
+        echo "Running security checks..."
+        if grep -rn "password.*=.*['\"].*['\"]" --include="*.php" --exclude="setup_db.php" . | grep -v "getenv\|env.example\|README" ; then
+          echo "⚠ Warning: Possible hardcoded credentials found"
+        else
+          echo "✓ No obvious hardcoded credentials detected"
+        fi
+
+    - name: Check for SQL injection patterns
+      run: |
+        echo "Checking for SQL injection vulnerabilities..."
+        UNSAFE=$(grep -rn '\$_\(GET\|POST\|REQUEST\)\[.*\]' --include="*.php" . | grep -v "htmlspecialchars\|mysqli_real_escape_string\|prepare" || true)
+        if [ -n "$UNSAFE" ]; then
+          echo "⚠ Warning: Potential SQL injection points found:"
+          echo "$UNSAFE"
+        else
+          echo "✓ No obvious SQL injection vulnerabilities detected"
+        fi
+
+  lint-summary:
+    name: Lint Summary
+    runs-on: ubuntu-latest
+    needs: test
+    if: always()
+    steps:
+    - name: Check test status
+      run: |
+        if [ "${{ needs.test.result }}" == "success" ]; then
+          echo "✓ All checks passed"
+        else
+          echo "✗ Some checks failed"
+          exit 1
+        fi

@@ -1,0 +1,546 @@
+/* Custom Colorful Styles for WiFi Management System */
+
+:root {
+	/* Color Theme */
+	--primary-color: #4e54c8;
+	--primary-gradient: linear-gradient(to right, #4e54c8, #8f94fb);
+	--secondary-color: #ff8c00;
+	--secondary-gradient: linear-gradient(to right, #ff8c00, #ffaf4b);
+	--success-color: #2ecc71;
+	--success-gradient: linear-gradient(to right, #2ecc71, #7bed9f);
+	--info-color: #3498db;
+	--info-gradient: linear-gradient(to right, #3498db, #79d2fb);
+	--warning-color: #f39c12;
+	--warning-gradient: linear-gradient(to right, #f39c12, #ffc048);
+	--danger-color: #e74c3c;
+	--danger-gradient: linear-gradient(to right, #e74c3c, #ff7675);
+	--dark-color: #2d3436;
+	--dark-gradient: linear-gradient(to right, #2d3436, #636e72);
+	--light-color: #f5f6fa;
+	--light-gradient: linear-gradient(to right, #f5f6fa, #dfe6e9);
+	--admin-color: #9b59b6;
+	--admin-gradient: linear-gradient(to right, #9b59b6, #cd84f1);
+	--owner-color: #00cec9;
+	--owner-gradient: linear-gradient(to right, #00cec9, #55efc4);
+	--manager-color: #0984e3;
+	--manager-gradient: linear-gradient(to right, #0984e3, #74b9ff);
+	--student-color: #26de81;
+	--student-gradient: linear-gradient(to right, #26de81, #78e08f);
+	--body-bg: #f8f9fe;
+}
+
+/* General Body Styling */
+body {
+	background-color: var(--body-bg);
+	font-family: "Nunito", sans-serif;
+}
+
+/* Navbar Styling */
+.navbar {
+	background-image: var(--primary-gradient) !important;
+	box-shadow: 0 2px 15px rgba(0, 0, 0, 0.1);
+	padding: 0.8rem 1rem;
+}
+
+.navbar-brand {
+	font-weight: 700;
+	letter-spacing: 0.5px;
+}
+
+.navbar-dark .navbar-nav .nav-link {
+	color: rgba(255, 255, 255, 0.85);
+	transition: all 0.3s ease;
+	border-radius: 4px;
+	padding: 0.5rem 1rem;
+	margin: 0 0.2rem;
+}
+
+.navbar-dark .navbar-nav .nav-link:hover {
+	color: white;
+	background-color: rgba(255, 255, 255, 0.15);
+	transform: translateY(-2px);
+}
+
+.navbar-dark .navbar-nav .nav-link.active {
+	color: white;
+	background-color: rgba(255, 255, 255, 0.2);
+	font-weight: bold;
+}
+
+/* Role-specific navbar colors */
+.navbar.admin-navbar {
+	background-image: var(--admin-gradient) !important;
+}
+
+.navbar.owner-navbar {
+	background-image: var(--owner-gradient) !important;
+}
+
+.navbar.manager-navbar {
+	background-image: var(--manager-gradient) !important;
+}
+
+.navbar.student-navbar {
+	background-image: var(--student-gradient) !important;
+}
+
+/* Card Styling */
+.card {
+	border: none;
+	border-radius: 10px;
+	overflow: hidden;
+	box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+	transition: all 0.3s ease;
+	margin-bottom: 1.5rem;
+}
+
+.card:hover {
+	transform: translateY(-5px);
+	box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+.card-header {
+	background: var(--primary-gradient);
+	color: white;
+	font-weight: 600;
+	padding: 1rem 1.5rem;
+	border-bottom: none;
+}
+
+.card-header.bg-primary {
+	background: var(--primary-gradient) !important;
+}
+
+.card-header.bg-success {
+	background: var(--success-gradient) !important;
+}
+
+.card-header.bg-info {
+	background: var(--info-gradient) !important;
+}
+
+.card-header.bg-warning {
+	background: var(--warning-gradient) !important;
+	color: #fff;
+}
+
+.card-header.bg-danger {
+	background: var(--danger-gradient) !important;
+}
+
+/* Role-specific card headers */
+.card-header.admin-header {
+	background: var(--admin-gradient) !important;
+}
+
+.card-header.owner-header {
+	background: var(--owner-gradient) !important;
+}
+
+.card-header.manager-header {
+	background: var(--manager-gradient) !important;
+}
+
+.card-header.student-header {
+	background: var(--student-gradient) !important;
+}
+
+/* Button Styling */
+.btn {
+	border-radius: 30px;
+	padding: 0.5rem 1.5rem;
+	font-weight: 600;
+	transition: all 0.3s ease;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	font-size: 0.85rem;
+}
+
+.btn:hover {
+	transform: translateY(-2px);
+	box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.btn-primary {
+	background-image: var(--primary-gradient);
+	border: none;
+}
+
+.btn-success {
+	background-image: var(--success-gradient);
+	border: none;
+}
+
+.btn-info {
+	background-image: var(--info-gradient);
+	border: none;
+	color: white;
+}
+
+.btn-warning {
+	background-image: var(--warning-gradient);
+	border: none;
+}
+
+.btn-danger {
+	background-image: var(--danger-gradient);
+	border: none;
+}
+
+.btn-outline-primary {
+	color: var(--primary-color);
+	border-color: var(--primary-color);
+}
+
+.btn-outline-primary:hover {
+	background-color: var(--primary-color);
+	color: white;
+	border-color: var(--primary-color);
+}
+
+/* Badge Styling */
+.badge {
+	padding: 0.5em 0.8em;
+	font-weight: 600;
+	border-radius: 30px;
+}
+
+.bg-primary {
+	background-image: var(--primary-gradient) !important;
+}
+
+.bg-success {
+	background-image: var(--success-gradient) !important;
+}
+
+.bg-info {
+	background-image: var(--info-gradient) !important;
+}
+
+.bg-warning {
+	background-image: var(--warning-gradient) !important;
+}
+
+.bg-danger {
+	background-image: var(--danger-gradient) !important;
+}
+
+/* Role-specific badges */
+.badge.role-admin {
+	background-image: var(--admin-gradient) !important;
+}
+
+.badge.role-owner {
+	background-image: var(--owner-gradient) !important;
+}
+
+.badge.role-manager {
+	background-image: var(--manager-gradient) !important;
+}
+
+.badge.role-student {
+	background-image: var(--student-gradient) !important;
+}
+
+/* Dashboard Stat Cards */
+.stat-card {
+	position: relative;
+	transition: all 0.3s ease;
+	border-radius: 10px;
+	overflow: hidden;
+}
+
+.stat-card .icon {
+	position: absolute;
+	right: 10px;
+	bottom: 10px;
+	font-size: 3rem;
+	opacity: 0.1;
+	transition: all 0.3s ease;
+}
+
+.stat-card:hover .icon {
+	transform: scale(1.2);
+	opacity: 0.2;
+}
+
+/* Dashboard Cards */
+.dashboard-card {
+	border-radius: 10px;
+	overflow: hidden;
+	box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+}
+
+.dashboard-card-header {
+	padding: 1.2rem;
+	font-weight: 600;
+	color: white;
+}
+
+.dashboard-card-admin .dashboard-card-header {
+	background-image: var(--admin-gradient);
+}
+
+.dashboard-card-owner .dashboard-card-header {
+	background-image: var(--owner-gradient);
+}
+
+.dashboard-card-manager .dashboard-card-header {
+	background-image: var(--manager-gradient);
+}
+
+.dashboard-card-student .dashboard-card-header {
+	background-image: var(--student-gradient);
+}
+
+/* Form Styling */
+.form-control {
+	border-radius: 30px;
+	padding: 0.5rem 1rem;
+	border: 1px solid #e1e1e1;
+}
+
+.form-control:focus {
+	box-shadow: 0 0 0 3px rgba(78, 84, 200, 0.1);
+	border-color: var(--primary-color);
+}
+
+/* Table Styling */
+.table {
+	border-collapse: separate;
+	border-spacing: 0;
+}
+
+.table thead th {
+	background-color: rgba(78, 84, 200, 0.1);
+	border-bottom: none;
+	color: var(--primary-color);
+	font-weight: 600;
+}
+
+.table-hover tbody tr:hover {
+	background-color: rgba(78, 84, 200, 0.03);
+}
+
+/* Animation for loading states */
+@keyframes pulse {
+	0% {
+		transform: scale(1);
+	}
+	50% {
+		transform: scale(1.05);
+	}
+	100% {
+		transform: scale(1);
+	}
+}
+
+.loading {
+	animation: pulse 1.5s infinite;
+}
+
+/* Footer Styling */
+footer {
+	background-color: var(--dark-color);
+	color: white;
+	padding: 2rem 0;
+}
+
+/* Jumbotron Styling */
+.jumbotron {
+	background-image: var(--primary-gradient);
+	color: white;
+	border-radius: 10px;
+	padding: 3rem 2rem;
+	box-shadow: 0 5px 25px rgba(0, 0, 0, 0.1);
+}
+
+/* Login Page */
+.login-card {
+	max-width: 400px;
+	margin: 0 auto;
+	border-radius: 15px;
+	overflow: hidden;
+	box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
+.login-header {
+	background-image: var(--primary-gradient);
+	color: white;
+	font-weight: 700;
+	padding: 2rem;
+	text-align: center;
+}
+
+/* Dark mode toggle */
+.dark-mode-toggle {
+	position: fixed;
+	bottom: 20px;
+	right: 20px;
+	width: 50px;
+	height: 50px;
+	border-radius: 50%;
+	background-image: var(--dark-gradient);
+	color: white;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	cursor: pointer;
+	box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+	z-index: 1000;
+	transition: all 0.3s ease;
+}
+
+.dark-mode-toggle:hover {
+	transform: scale(1.1);
+}
+
+/* Alert Styling */
+.alert {
+	border-radius: 10px;
+	border: none;
+	padding: 1rem 1.5rem;
+}
+
+.alert-success {
+	background-image: var(--success-gradient);
+	color: white;
+}
+
+.alert-info {
+	background-image: var(--info-gradient);
+	color: white;
+}
+
+.alert-warning {
+	background-image: var(--warning-gradient);
+	color: white;
+}
+
+.alert-danger {
+	background-image: var(--danger-gradient);
+	color: white;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+}
+
+::-webkit-scrollbar-track {
+	background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+	background: var(--primary-color);
+	border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: var(--secondary-color);
+}
+
+/* Animated Background for Login/Register Pages */
+.animated-bg {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	z-index: -1;
+	overflow: hidden;
+}
+
+.animated-bg .bg-bubble {
+	position: absolute;
+	border-radius: 50%;
+	background: rgba(255, 255, 255, 0.1);
+	animation: float 8s infinite;
+}
+
+.animated-bg .bg-bubble:nth-child(1) {
+	width: 80px;
+	height: 80px;
+	left: 10%;
+	top: 20%;
+	animation-delay: 0s;
+}
+
+.animated-bg .bg-bubble:nth-child(2) {
+	width: 40px;
+	height: 40px;
+	left: 30%;
+	top: 80%;
+	animation-delay: 1s;
+}
+
+.animated-bg .bg-bubble:nth-child(3) {
+	width: 100px;
+	height: 100px;
+	left: 70%;
+	top: 10%;
+	animation-delay: 2s;
+}
+
+.animated-bg .bg-bubble:nth-child(4) {
+	width: 60px;
+	height: 60px;
+	left: 80%;
+	top: 70%;
+	animation-delay: 3s;
+}
+
+@keyframes float {
+	0% {
+		transform: translateY(0) rotate(0deg);
+		opacity: 0.8;
+	}
+	50% {
+		transform: translateY(-20px) rotate(180deg);
+		opacity: 0.4;
+	}
+	100% {
+		transform: translateY(0) rotate(360deg);
+		opacity: 0.8;
+	}
+}
+
+/* Dropdown menu styling - Ensure clickable */
+.dropdown-menu {
+	z-index: 1100;
+	min-width: 200px;
+}
+
+.dropdown-item {
+	cursor: pointer;
+	transition: all 0.2s ease;
+	text-decoration: none;
+	padding: 0.5rem 1rem;
+	display: block;
+	width: 100%;
+	text-align: left;
+	border: none;
+	background: none;
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus {
+	background-color: #f8f9fa;
+	color: #0c63e4;
+	text-decoration: none;
+}
+
+.dropdown-item.active {
+	background-color: #e7f1ff;
+	color: #0c63e4;
+	font-weight: 600;
+}
+
+.dropdown-header {
+	padding: 0.5rem 1rem;
+	margin-bottom: 0;
+	font-size: 0.875rem;
+	color: #6c757d;
+	font-weight: 600;
+}

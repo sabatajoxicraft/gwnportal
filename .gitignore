@@ -1,0 +1,45 @@
+# Environment Variables (SECRETS - NEVER commit)
+.env
+.env.local
+.env.*.local
+
+# OS Files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+env/
+.venv/
+
+# IDE/Editor
+.vscode/
+.vs/
+.idea/
+*.swp
+
+# Dependencies
+vendor/
+node_modules/
+composer.lock
+
+# User Uploads
+uploads/*
+!uploads/.gitkeep
+
+# Testing/Logs
+test.py
+*.log
+*.xlsx
+.coverage
+.pytest_cache/
+
+# Build artifacts
+dist/
+build/

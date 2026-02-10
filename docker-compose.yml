@@ -1,0 +1,56 @@
+services:
+  gwn-db:
+    image: mysql:8.0
+    container_name: gwn-portal-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: gwn_wifi_system
+      MYSQL_USER: ${DB_USER:-gwn_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-gwn_password}
+    ports:
+      - "3306:3306"
+    volumes:
+      - gwn-portal-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  gwn-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gwn-portal-app
+    restart: unless-stopped
+    ports:
+      - "3040:80"
+    environment:
+      DB_HOST: gwn-db
+      DB_USER: ${DB_USER:-gwn_user}
+      DB_PASS: ${DB_PASSWORD:-gwn_password}
+      DB_PASSWORD: ${DB_PASSWORD:-gwn_password}
+      DB_NAME: gwn_wifi_system
+    depends_on:
+      gwn-db:
+        condition: service_healthy
+    volumes:
+      - .:/var/www/html
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: gwn-portal-phpmyadmin
+    restart: unless-stopped
+    ports:
+      - "3041:80"
+    environment:
+      PMA_HOST: gwn-db
+      PMA_PORT: 3306
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword}
+    depends_on:
+      gwn-db:
+        condition: service_healthy
+
+volumes:
+  gwn-portal-db-data:
