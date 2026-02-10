@@ -72,12 +72,13 @@ jobs:
 
     - name: Lint PHP files
       run: |
-        echo "Linting PHP files..."
-        find . -name "*.php" -not -path "./vendor/*" -exec php -l {} \; | grep -v "No syntax errors"
-        if [ $? -eq 0 ]; then
-          echo "✓ All PHP files are syntactically valid"
+        echo "Checking PHP syntax for all .php files..."
+        ERROR_OUTPUT=$(find . -name "*.php" -not -path "./vendor/*" -exec php -l {} \; 2>&1 | grep -i "parse error\|fatal error" || true)
+        if [ -z "$ERROR_OUTPUT" ]; then
+          echo "✅ All PHP files are syntactically valid"
         else
-          echo "✗ PHP syntax errors found"
+          echo "❌ PHP syntax errors found:"
+          echo "$ERROR_OUTPUT"
           exit 1
         fi
 

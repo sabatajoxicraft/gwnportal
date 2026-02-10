@@ -58,25 +58,25 @@ jobs:
 
     - name: Start Docker Compose services
       run: |
-        docker-compose up -d
+        docker compose up -d
         echo "Waiting for services to be healthy..."
         sleep 30
 
     - name: Check container status
       run: |
         echo "=== Container Status ==="
-        docker-compose ps
+        docker compose ps
         echo ""
         echo "=== Database Container Logs ==="
-        docker-compose logs gwn-db | tail -20
+        docker compose logs gwn-db | tail -20
         echo ""
         echo "=== Application Container Logs ==="
-        docker-compose logs gwn-app | tail -20
+        docker compose logs gwn-app | tail -20
 
     - name: Verify MySQL service health
       run: |
         echo "Checking MySQL health..."
-        docker-compose exec -T gwn-db mysqladmin ping -h localhost -uroot -prootpassword
+        docker compose exec -T gwn-db mysqladmin ping -h localhost -uroot -prootpassword
         if [ $? -eq 0 ]; then
           echo "✓ MySQL is healthy"
         else
@@ -87,7 +87,7 @@ jobs:
     - name: Verify database creation
       run: |
         echo "Verifying database exists..."
-        docker-compose exec -T gwn-db mysql -uroot -prootpassword -e "SHOW DATABASES LIKE 'gwn_wifi_system';"
+        docker compose exec -T gwn-db mysql -uroot -prootpassword -e "SHOW DATABASES LIKE 'gwn_wifi_system';"
 
     - name: Test application responds on port 3040
       run: |
@@ -112,7 +112,7 @@ jobs:
         
         echo "✗ Application failed to respond after $MAX_RETRIES attempts"
         echo "=== Application Container Logs ==="
-        docker-compose logs gwn-app
+        docker compose logs gwn-app
         exit 1
 
     - name: Test PHPMyAdmin responds on port 3041
@@ -130,18 +130,18 @@ jobs:
     - name: Verify Apache configuration
       run: |
         echo "Checking Apache configuration..."
-        docker-compose exec -T gwn-app apache2ctl -t || echo "⚠ Apache config check failed"
+        docker compose exec -T gwn-app apache2ctl -t || echo "⚠ Apache config check failed"
 
     - name: Check file permissions
       run: |
         echo "Checking file permissions..."
-        docker-compose exec -T gwn-app ls -la /var/www/html/ | head -10
+        docker compose exec -T gwn-app ls -la /var/www/html/ | head -10
 
     - name: Stop Docker Compose services
       if: always()
       run: |
         echo "Stopping services..."
-        docker-compose down -v
+        docker compose down -v
         echo "✓ Services stopped and volumes removed"
 
   docker-security-scan:
