@@ -257,12 +257,75 @@ If you need to change locked configs:
 
 ---
 
+### [DECISION-005] Page Consolidation - Unified Role-Aware Pages
+- **Date**: 2026-02-10
+- **Status**: Active
+- **Category**: Architecture | Code Quality
+- **Decision**: Consolidate duplicate admin/owner/manager pages into unified role-aware files
+- **Context**: CodeScout analysis identified 6 duplicate page pairs (12 files) with same logic but different permission checks. This created 50% code duplication and maintenance burden.
+- **Options Considered**:
+  1. **Keep separate files** - Continue with admin/ and public/ split
+     - Pro: Clear separation by role
+     - Con: 50% code duplication, double maintenance effort
+  2. **Unified role-aware pages** - Single file with conditional rendering (CHOSEN)
+     - Pro: DRY principle, single source of truth
+     - Pro: Easier maintenance, consistent behavior
+     - Con: Slightly more complex conditional logic
+- **Implementation**:
+  - **Phase 1 Files Consolidated** (3 pairs → 3 unified):
+    - `public/create-accommodation.php` + `public/admin/create-accommodation.php` → `public/accommodations/create.php`
+    - `public/accommodations.php` + `public/admin/accommodations.php` → `public/accommodations/index.php`
+    - `public/codes.php` + `public/admin/codes.php` → `public/codes/index.php`
+  - **Role Detection**: Uses `$_SESSION['user_role']` with `$isAdmin` boolean flag
+  - **Permission Enforcement**: `requireRole(['owner', 'admin'])` or `requireRole(['manager', 'admin'])`
+  - **Conditional Features**:
+    - Admin: Owner selection dropdown, delete capability, all-records view, pagination, advanced filters
+    - Owner: Self as owner, manager management modals, owned-records view
+    - Manager: Accommodation-scoped view, simple tab-based filtering
+  - **Redirects Added**: Old file paths redirect to new unified paths
+  - **Navigation Updated**: `includes/components/navigation.php` links updated
+- **New Directory Structure**:
+  ```
+  public/
+  ├── accommodations/
+  │   ├── index.php      (unified list - admin/owner)
+  │   └── create.php     (unified create - admin/owner)
+  └── codes/
+      └── index.php      (unified list - admin/manager)
+  ```
+- **Backward Compatibility**: Old file paths (e.g., `/public/accommodations.php`) now contain 301 redirects to new locations
+- **Files Modified**:
+  - `public/accommodations/create.php` (NEW - unified)
+  - `public/accommodations/index.php` (UPDATED - unified)
+  - `public/codes/index.php` (NEW - unified)
+  - `includes/components/navigation.php` (UPDATED - new paths)
+  - `public/create-accommodation.php` (REDIRECT)
+  - `public/accommodations.php` (REDIRECT)
+  - `public/codes.php` (REDIRECT)
+  - `public/admin/create-accommodation.php` (REDIRECT)
+  - `public/admin/accommodations.php` (REDIRECT)
+  - `public/admin/codes.php` (REDIRECT)
+- **Rationale**: 
+  - Eliminates 50% code duplication
+  - Single source of truth for each feature
+  - Easier to maintain and update
+  - Consistent behavior across roles
+  - RESTful-style directory structure
+- **Consequences**: 
+  - All accommodation management now via `/accommodations/` path
+  - All codes management now via `/codes/` path
+  - Old URLs still work via redirects
+  - Future consolidation should follow this pattern
+
+---
+
 <!-- Copy template above for new decisions -->
 
 ## Decision Index by Category
 
 ### Architecture
 - [DECISION-003] Resource-Based Access Control (RBAC) Implementation
+- [DECISION-005] Page Consolidation - Unified Role-Aware Pages
 
 ### Tech Stack
 - [DECISION-001] M0.5 Configuration Freeze
@@ -277,3 +340,6 @@ If you need to change locked configs:
 - [DECISION-002] CSRF Protection Implementation
 - [DECISION-003] Resource-Based Access Control (RBAC) Implementation
 - [DECISION-004] Session Security Hardening
+
+### Code Quality
+- [DECISION-005] Page Consolidation - Unified Role-Aware Pages

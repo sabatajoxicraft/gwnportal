@@ -46,12 +46,12 @@ if (isLoggedIn()) {
                 'icon' => 'bi-people'
             ];
             $navItems['accommodations'] = [
-                'url' => BASE_URL . '/admin/accommodations.php',
+                'url' => BASE_URL . '/accommodations/',
                 'text' => 'Accommodations',
-                'icon' => 'bi bi-building' // Updated from bi-building to bi-buildings
+                'icon' => 'bi bi-building'
             ];
             $navItems['codes'] = [
-                'url' => BASE_URL . '/admin/codes.php',
+                'url' => BASE_URL . '/codes/',
                 'text' => 'Onboarding Codes',
                 'icon' => 'bi-qr-code'
             ];
@@ -59,7 +59,7 @@ if (isLoggedIn()) {
             
         case 'owner':
             $navItems['accommodations'] = [
-                'url' => BASE_URL . '/accommodations.php',
+                'url' => BASE_URL . '/accommodations/',
                 'text' => 'Accommodations',
                 'icon' => 'bi bi-building'
             ];
@@ -77,7 +77,7 @@ if (isLoggedIn()) {
                 'icon' => 'bi-people'
             ];
             $navItems['codes'] = [
-                'url' => BASE_URL . '/codes.php',
+                'url' => BASE_URL . '/codes/',
                 'text' => 'Onboarding Codes',
                 'icon' => 'bi-qr-code'
             ];
