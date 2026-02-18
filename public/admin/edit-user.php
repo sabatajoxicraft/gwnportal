@@ -44,6 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($stmt->execute()) {
             $success = true;
+            logActivity($conn, $_SESSION['user_id'], 'edit_user', "Updated user '{$username}' (ID {$userId})", $_SERVER['REMOTE_ADDR']);
             $user = getUserDetails($userId); // Refresh user details
         } else {
             $error = 'Error updating user: ' . $conn->error;

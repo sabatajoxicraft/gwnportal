@@ -8,10 +8,57 @@
 // Apply session security configuration BEFORE starting session
 require_once __DIR__ . '/session-config.php';
 
+// Load role constants (used throughout application)
+require_once __DIR__ . '/constants/roles.php';
+
+// Load message constants (error/success/warning messages)
+require_once __DIR__ . '/constants/messages.php';
+
 // Start session if not already started
 if (session_status() == PHP_SESSION_NONE) {
     session_start();
 }
+
+// PSR-4 autoloader for services and utilities
+spl_autoload_register(static function ($className) {
+    // Try services directory first
+    $path = __DIR__ . '/services/' . $className . '.php';
+    if (is_file($path)) {
+        require_once $path;
+        return;
+    }
+    
+    // Try utilities directory
+    $path = __DIR__ . '/utilities/' . $className . '.php';
+    if (is_file($path)) {
+        require_once $path;
+        return;
+    }
+});
+
+// Load utility classes directly (used throughout app)
+require_once __DIR__ . '/utilities/Response.php';
+require_once __DIR__ . '/utilities/FormHelper.php';
+require_once __DIR__ . '/utilities/ErrorHandler.php';
+require_once __DIR__ . '/utilities/PermissionHelper.php';
+require_once __DIR__ . '/utilities/ActivityDashboardWidget.php';
+
+// Initialize error handling in development mode
+ErrorHandler::init(false);  // Set to false for development, true for production
+
+// ============================================================================
+// SECURITY HEADERS (M1-T7)
+// ============================================================================
+// Prevent clickjacking attacks
+header('X-Frame-Options: DENY');
+// Prevent MIME-type sniffing
+header('X-Content-Type-Options: nosniff');
+// Enable XSS filter in older browsers
+header('X-XSS-Protection: 1; mode=block');
+// Referrer policy - don't leak URLs to external sites
+header('Referrer-Policy: strict-origin-when-cross-origin');
+// Basic Content Security Policy
+header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://cdn.jsdelivr.net; img-src 'self' data: https://api.qrserver.com;");
 
 // Session timeout check - only for authenticated users
 if (isset($_SESSION['user_id']) && isset($_SESSION['LAST_ACTIVITY'])) {
@@ -103,6 +150,26 @@ define('BASE_URL', $appUrl === '' ? '' : $appUrl);
 define('CODE_EXPIRY_DAYS', $_ENV['CODE_EXPIRY_DAYS'] ?? 7);
 define('CODE_LENGTH', $_ENV['CODE_LENGTH'] ?? 8);
 
+// Twilio Configuration
+define('TWILIO_ACCOUNT_SID', getenv('TWILIO_ACCOUNT_SID') ?: '');
+define('TWILIO_AUTH_TOKEN', getenv('TWILIO_AUTH_TOKEN') ?: '');
+define('TWILIO_PHONE_NUMBER', getenv('TWILIO_PHONE_NUMBER') ?: '');
+define('TWILIO_WHATSAPP_NO', getenv('TWILIO_WHATSAPP_NO') ?: '');
+define('TWILIO_MESSAGING_SERVICE_SID', getenv('TWILIO_MESSAGING_SERVICE_SID') ?: '');
+define('TWILIO_WA_VOUCHER_TEMPLATE_SID', getenv('TWILIO_WA_VOUCHER_TEMPLATE_SID') ?: '');
+define('TWILIO_SMS_VOUCHER_TEMPLATE_SID', getenv('TWILIO_SMS_VOUCHER_TEMPLATE_SID') ?: '');
+define('TWILIO_SMS_LOGIN_TEMPLATE_SID', getenv('TWILIO_SMS_LOGIN_TEMPLATE_SID') ?: '');
+
+// GWN Cloud API Configuration
+define('GWN_API_URL', getenv('GWN_API_URL') ?: '');
+define('GWN_APP_ID', getenv('GWN_APP_ID') ?: '');
+define('GWN_SECRET_KEY', getenv('GWN_SECRET_KEY') ?: '');
+define('GWN_NETWORK_ID', getenv('GWN_NETWORK_ID') ?: '');
+define('GWN_ALLOWED_DEVICES', getenv('GWN_ALLOWED_DEVICES') ?: '2');
+
+// Python integration
+define('PYTHON_SCRIPT_PATH', getenv('PYTHON_SCRIPT_PATH') ?: (getenv('PYTHON_SCRIPT') ?: ''));
+
 // Path settings
 define('PUBLIC_PATH', __DIR__ . '/../public');
 define('INCLUDES_PATH', __DIR__);
@@ -127,8 +194,8 @@ function redirect($location, $message = null, $type = 'info') {
 // Function to display flash messages
 function displayFlashMessage() {
     if (isset($_SESSION['flash'])) {
-        $message = $_SESSION['flash']['message'];
-        $type = $_SESSION['flash']['type'];
+        $message = htmlspecialchars($_SESSION['flash']['message'], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $type = htmlspecialchars($_SESSION['flash']['type'], ENT_QUOTES | ENT_HTML5, 'UTF-8');
         echo "<div class='alert alert-$type'>$message</div>";
         unset($_SESSION['flash']);
     }

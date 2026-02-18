@@ -71,6 +71,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($stmt->execute()) {
                     $user_id = $stmt->insert_id;
                     
+                    logActivity($conn, $_SESSION['user_id'], 'create_user', "Created user '{$username}' (ID {$user_id}) with role ID {$role_id}", $_SERVER['REMOTE_ADDR']);
+                    
+                    // Notify other admins
+                    $currentUserId = $_SESSION['user_id'];
+                    $stmt_admins = safeQueryPrepare($conn, "SELECT id FROM users WHERE role_id = (SELECT id FROM roles WHERE name = 'admin') AND id != ?");
+                    $stmt_admins->bind_param("i", $currentUserId);
+                    $stmt_admins->execute();
+                    $res_admins = $stmt_admins->get_result();
+                    while ($adm = $res_admins->fetch_assoc()) {
+                        createNotification($adm['id'], "New user created: $username", 'new_student', $currentUserId);
+                    }
+
                     // Send credentials if requested
                     if ($send_credentials && !empty($email)) {
                         $role_name = '';
@@ -131,9 +143,6 @@ $activePage = "users";
 
 // Include header
 require_once '../../includes/components/header.php';
-
-// Include navigation
-require_once '../../includes/components/navigation.php';
 ?>
 
 <div class="container mt-4">

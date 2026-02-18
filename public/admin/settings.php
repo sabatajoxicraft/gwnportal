@@ -39,6 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $env_content = preg_replace('/CODE_EXPIRY_DAYS=.*/', 'CODE_EXPIRY_DAYS=' . $code_expiry_days, $env_content);
                 
                 if (file_put_contents($env_file, $env_content)) {
+                    logActivity($conn ?? getDbConnection(), $_SESSION['user_id'], 'update_settings', "Updated app settings: APP_NAME={$app_name}, CODE_EXPIRY_DAYS={$code_expiry_days}", $_SERVER['REMOTE_ADDR']);
                     $success = 'Application settings updated successfully. Changes will take effect after page reload.';
                 } else {
                     $error = 'Failed to update application settings. Please check file permissions.';
@@ -72,6 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exec($command, $output, $return_var);
         
         if ($return_var === 0) {
+            logActivity(getDbConnection(), $_SESSION['user_id'], 'database_backup', "Created DB backup: {$backup_filename}", $_SERVER['REMOTE_ADDR']);
             $success = 'Database backup created successfully: ' . $backup_filename;
         } else {
             $error = 'Failed to create database backup. Error code: ' . $return_var;
@@ -108,6 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->bind_param("si", $hashed_password, $admin_id);
                 
                 if ($stmt->execute()) {
+                    logActivity($conn, $_SESSION['user_id'], 'admin_password_change', "Admin changed their password", $_SERVER['REMOTE_ADDR']);
                     $success = 'Password updated successfully';
                 } else {
                     $error = 'Failed to update password: ' . $conn->error;
@@ -133,9 +136,6 @@ $activePage = "settings";
 
 // Include header
 require_once '../../includes/components/header.php';
-
-// Include navigation
-require_once '../../includes/components/navigation.php';
 ?>
 
 <div class="container mt-4">

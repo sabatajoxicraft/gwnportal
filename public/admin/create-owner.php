@@ -77,6 +77,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($stmt->execute()) {
                         $owner_id = $stmt->insert_id;
                         
+                        logActivity($conn, $_SESSION['user_id'], 'create_owner', "Created owner '{$first_name} {$last_name}' (ID {$owner_id})", $_SERVER['REMOTE_ADDR']);
+                        
                         // Send credentials to the owner if requested
                         if ($send_credentials && !empty($email)) {
                             $subject = "Your " . APP_NAME . " Account Credentials";
@@ -117,9 +119,6 @@ $activePage = "users";
 
 // Include header
 require_once '../../includes/components/header.php';
-
-// Include navigation
-require_once '../../includes/components/navigation.php';
 ?>
 
 <div class="container mt-4">

@@ -1,551 +1,698 @@
 <?php
-require_once '../includes/config.php';
-require_once '../includes/db.php';
-require_once '../includes/functions.php';
+/**
+ * Dashboard Page
+ * Role-based dashboard with activity feeds and statistics
+ * 
+ * Refactored to use service-oriented architecture:
+ * - PermissionHelper for access control
+ * - QueryService for dashboards data
+ * - AccommodationService for accommodation details
+ * - StudentService for student statistics
+ * - DeviceManagementService for device info
+ * - ActivityLogger for activity tracking
+ * - ActivityDashboardWidget for rendering
+ */
 
-// Ensure database connection is available
-$conn = getDbConnection();
+// Include page template (provides $conn, $currentUserId, $currentUserRole)
+include '../includes/page-template.php';
 
-// Require login (redirects to login page if not logged in)
-if (!isLoggedIn()) {
-    redirect(BASE_URL . '/login.php', 'Please login to access your dashboard', 'warning');
+// Require login
+if (!isset($_SESSION['user_id'])) {
+    header('Location: login.php');
+    exit;
 }
 
-// Get user role and set appropriate title
-$userRole = $_SESSION['user_role'] ?? '';
-
-// Redirect admin users to admin dashboard
-if ($userRole === 'admin') {
-    redirect(BASE_URL . '/admin/dashboard.php');
-}
-
-// Get user ID
-$userId = $_SESSION['user_id'] ?? 0;
-
-// Check if manager/owner needs assignment before accessing dashboard
-if ($userRole === 'manager') {
-    // Check if manager has an assigned accommodation
-    $accommodationId = $_SESSION['accommodation_id'] ?? null;
-    
-    if (!$accommodationId) {
-        // Try to get accommodation from database
-        $stmtAcc = safeQueryPrepare($conn, "SELECT ua.accommodation_id FROM user_accommodation ua WHERE ua.user_id = ? LIMIT 1");
-        if ($stmtAcc) {
-            $stmtAcc->bind_param("i", $userId);
-            $stmtAcc->execute();
-            $rowAcc = $stmtAcc->get_result()->fetch_assoc();
-            
-            if ($rowAcc) {
-                $accommodationId = (int)$rowAcc['accommodation_id'];
-                $_SESSION['accommodation_id'] = $accommodationId;
-            } else {
-                // No accommodation assigned - redirect to assignment page
-                redirect(BASE_URL . '/manager-setup.php', 'You need to be assigned to an accommodation before accessing your dashboard.', 'warning');
-            }
-        }
-    }
-} elseif ($userRole === 'owner') {
-    // Check if owner has created any accommodations
-    $stmtAccom = safeQueryPrepare($conn, "SELECT COUNT(*) as count FROM accommodations WHERE owner_id = ?");
-    if ($stmtAccom) {
-        $stmtAccom->bind_param("i", $userId);
-        $stmtAccom->execute();
-        $result = $stmtAccom->get_result()->fetch_assoc();
-        
-        if ($result['count'] === 0) {
-            // No accommodations - redirect to setup
-            redirect(BASE_URL . '/owner-setup.php', 'You need to create an accommodation first.', 'warning');
-        }
-    }
-}
-
-$pageTitle = ucfirst($userRole) . " Dashboard";
+$pageTitle = "Dashboard";
 $activePage = "dashboard";
+$currentRole = $_SESSION['user_role'] ?? 'student';
 
-// Initialize variables for dashboard stats
-$stats = [];
-$recentActivity = [];
-
-
-// Role-specific dashboard data
-switch ($userRole) {
-    case 'owner':
-        // Owner dashboard stats
-        $stmt = safeQueryPrepare($conn, "SELECT COUNT(*) as count 
-                                         FROM accommodations WHERE owner_id = ?");
-        if ($stmt === false) {
-            $error = "Unable to load dashboard data. Please try again later.";
-        } else {
-            $stmt->bind_param("i", $userId);
-            $stmt->execute();
-            $stats = $stmt->get_result()->fetch_assoc();
-        }
+// Handle role-based access and redirect
+switch ($currentRole) {
+    case 'admin':
+        // Admin redirects to admin dashboard
+        header('Location: admin/dashboard.php');
+        exit;
         
-        // Get accommodations for this owner
-        $stmt_accom = safeQueryPrepare($conn, "SELECT * FROM accommodations WHERE owner_id = ?");
-        if ($stmt_accom === false) {
-            $error = "Unable to load accommodations. Please try again later.";
-        } else {
-            $stmt_accom->bind_param("i", $userId);
-            $stmt_accom->execute();
-            $accommodations = $stmt_accom->get_result()->fetch_all(MYSQLI_ASSOC);
-        }
-        break;
-
     case 'manager':
-        // Manager dashboard stats
-        
-        // Handle accommodation switch if requested
-        if (isset($_GET['switch_accommodation']) && !empty($_GET['switch_accommodation'])) {
-            $requestedAccomId = (int)$_GET['switch_accommodation'];
-            
-            // Verify manager has access to this accommodation
-            $verifyStmt = safeQueryPrepare($conn, "SELECT accommodation_id FROM user_accommodation WHERE user_id = ? AND accommodation_id = ?");
-            $verifyStmt->bind_param("ii", $userId, $requestedAccomId);
-            $verifyStmt->execute();
-            if ($verifyStmt->get_result()->num_rows > 0) {
-                $_SESSION['accommodation_id'] = $requestedAccomId;
-                $_SESSION['manager_id'] = $requestedAccomId;
-                redirect(BASE_URL . '/dashboard.php', 'Switched accommodation successfully', 'success');
-            }
+        // Manager must have accommodation assigned
+        if (empty($_SESSION['accommodation_id'])) {
+            header('Location: manager-setup.php');
+            exit;
         }
+        $accommodationId = $_SESSION['accommodation_id'];
+        break;
         
-        // Get all accommodations for this manager
-        $managerAccommodations = [];
-        $stmtAllAccom = safeQueryPrepare($conn, "SELECT a.id, a.name FROM accommodations a 
-                                                  JOIN user_accommodation ua ON a.id = ua.accommodation_id 
-                                                  WHERE ua.user_id = ? ORDER BY a.name");
-        if ($stmtAllAccom) {
-            $stmtAllAccom->bind_param("i", $userId);
-            $stmtAllAccom->execute();
-            $managerAccommodations = $stmtAllAccom->get_result()->fetch_all(MYSQLI_ASSOC);
-        }
-        
-        $accommodationId = $_SESSION['accommodation_id'] ?? $_SESSION['manager_id'] ?? 0;
-        if (!$accommodationId && count($managerAccommodations) > 0) {
-            // Use the first accommodation if none is selected
-            $accommodationId = $managerAccommodations[0]['id'];
-            $_SESSION['accommodation_id'] = $accommodationId;
-            $_SESSION['manager_id'] = $accommodationId;
-        }
-
-        // Get current accommodation details
-        $stmt = safeQueryPrepare($conn, "SELECT * FROM accommodations WHERE id = ?");
-        if ($stmt === false) {
-            $error = "Unable to load accommodation data. Please try again later.";
-        } else {
-            $stmt->bind_param("i", $accommodationId);
-            $stmt->execute();
-            $accommodation = $stmt->get_result()->fetch_assoc();
-        }
-        
-        // Count students
-        $stmt_students = safeQueryPrepare($conn, "SELECT 
-                                COUNT(*) as total,
-                                SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active,
-                                SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
-                                SUM(CASE WHEN status = 'inactive' THEN 1 ELSE 0 END) as inactive
-                                FROM students WHERE accommodation_id = ?");
-        if ($stmt_students === false) {
-            $error = "Unable to load student data. Please try again later.";
-        } else {
-            $stmt_students->bind_param("i", $accommodationId);
-            $stmt_students->execute();
-            $stats = $stmt_students->get_result()->fetch_assoc();
-        }
-        
-        // Get recent students with user details
-        $stmt_recent = safeQueryPrepare($conn, "SELECT s.id, s.status, s.created_at, u.first_name, u.last_name, u.email
-                                            FROM students s
-                                            JOIN users u ON s.user_id = u.id
-                                            WHERE s.accommodation_id = ?
-                                            ORDER BY s.created_at DESC LIMIT 5");
-        if ($stmt_recent === false) {
-            $error = "Unable to load recent students. Please try again later.";
-        } else {
-            $stmt_recent->bind_param("i", $accommodationId);
-            $stmt_recent->execute();
-            $recentStudents = $stmt_recent->get_result()->fetch_all(MYSQLI_ASSOC);
-        }
-        
-        // Count codes - Updated query to use the correct column
-        $stmt_codes = safeQueryPrepare($conn, "SELECT 
-                                COUNT(*) as total,
-                                SUM(CASE WHEN status = 'unused' THEN 1 ELSE 0 END) as unused
-                                FROM onboarding_codes WHERE created_by = ?");
-        if ($stmt_codes === false) {
-            $error = "Unable to load code data. Please try again later.";
-        } else {
-            $stmt_codes->bind_param("i", $userId); // Use the user ID instead of manager_id
-            $stmt_codes->execute();
-            $codeStats = $stmt_codes->get_result()->fetch_assoc();
+    case 'owner':
+        // Owner must have created accommodation(s)
+        $accommodations = QueryService::getUserAccommodations($conn, $_SESSION['user_id'], 'owner');
+        if (empty($accommodations)) {
+            header('Location: owner-setup.php');
+            exit;
         }
         break;
         
     case 'student':
-        // Student dashboard stats
-        $student_id = $_SESSION['student_id'] ?? 0;
-        
-        // Get student details including accommodation and user info
-        $stmt_student = safeQueryPrepare($conn, "SELECT s.*, a.id as accommodation_id, a.name as accommodation_name,
-                                            u.first_name, u.last_name, u.username, u.email, u.phone_number
-                                            FROM students s 
-                                            JOIN accommodations a ON s.accommodation_id = a.id 
-                                            JOIN users u ON s.user_id = u.id
-                                            WHERE s.user_id = ?");
-        if ($stmt_student !== false) {
-            $stmt_student->bind_param("i", $userId);
-            $stmt_student->execute();
-            $student_result = $stmt_student->get_result();
-            if ($student_result->num_rows > 0) {
-                $user = $student_result->fetch_assoc();
-                // Set session variables for student name and username
-                $_SESSION['user_name'] = $user['first_name'] . ' ' . $user['last_name'];
-                $_SESSION['username'] = $user['username'];
-            }
+        // Student must be registered
+        $student = StudentService::getStudentRecord($conn, $_SESSION['user_id']);
+        if (!$student) {
+            header('Location: onboard.php');
+            exit;
         }
+        $_SESSION['accommodation_id'] = $student['accommodation_id'];
+        $_SESSION['student_id'] = $student['id'];
+        // Redirect to dedicated student dashboard
+        header('Location: student/dashboard.php');
+        exit;
         
-        // Handle wifi request submission
-        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_wifi'])) {
-            requireCsrfToken();
-            // Get student's accommodation id
-            $accommodation_id = $user['accommodation_id'] ?? 0;
-            if ($accommodation_id) {
-                // Get a manager for that accommodation
-                $stmt_mgr = safeQueryPrepare($conn,
-                    "SELECT u.* FROM users u 
-                     JOIN user_accommodation ua ON u.id = ua.user_id 
-                     WHERE ua.accommodation_id = ? AND u.role_id = 3 LIMIT 1");
-                if ($stmt_mgr !== false) {
-                    $stmt_mgr->bind_param("i", $accommodation_id);
-                    $stmt_mgr->execute();
-                    $manager = $stmt_mgr->get_result()->fetch_assoc();
-                    if ($manager) {
-                        // Prepare the notification message
-                        $message = "Student " . $_SESSION['user_name'] . " (" . $_SESSION['username'] . ") has requested WiFi access.";
-                        
-                        // Insert notification
-                        $stmt_notif = safeQueryPrepare($conn,
-                          "INSERT INTO notifications (recipient_id, sender_id, message, type, read_status, created_at) 
-                           VALUES (?, ?, ?, ?, 0, NOW())");
-                        if ($stmt_notif !== false) {
-                            $type = "wifi_request";
-                            $stmt_notif->bind_param("iiss", $manager['id'], $userId, $message, $type);
-                            $stmt_notif->execute();
-                        }
-                        
-                        // Simulate sending SMS or WhatsApp based on manager's preference
-                        if ($manager['preferred_communication'] === 'WhatsApp' && function_exists('sendWhatsapp')) {
-                            sendWhatsapp($manager['whatsapp_number'], $message);
-                        } elseif (function_exists('sendSms')) {
-                            sendSms($manager['phone_number'], $message);
-                        }
-                        
-                        // Create a dashboard alert for the student
-                        $_SESSION['dashboard_alert'] = "Your WiFi access request has been sent to your accommodation manager.";
-                        
-                        // Log activity
-                        logActivity($conn, $userId, "WiFi Request", "Student requested WiFi access.");
-                    }
-                }
-            }
+    default:
+        header('Location: login.php');
+        exit;
+}
+
+// Handle accommodation switching for managers
+if ($currentRole === 'manager' && isset($_GET['switch_accommodation'])) {
+    $newAccommodationId = (int)($_GET['switch_accommodation'] ?? 0);
+    
+    // Verify manager has access to this accommodation
+    $managerAccommodations = QueryService::getUserAccommodations($conn, $_SESSION['user_id'], 'manager');
+    $hasAccess = false;
+    
+    foreach ($managerAccommodations as $accom) {
+        if ($accom['id'] == $newAccommodationId) {
+            $hasAccess = true;
+            break;
         }
-        
-        // Get vouchers
-        $stmt = safeQueryPrepare($conn, "SELECT * FROM voucher_logs 
-                                     WHERE user_id = ? 
-                                     ORDER BY sent_at DESC");
-        if ($stmt === false) {
-            $error = "Unable to load voucher data. Please try again later.";
-        } else {
-            $stmt->bind_param("i", $userId);
-            $stmt->execute();
-            $vouchers = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-        }
+    }
+    
+    if ($hasAccess) {
+        $_SESSION['accommodation_id'] = $newAccommodationId;
+        $_SESSION['accommodation_name'] = null; // Will be fetched below
+        header('Location: dashboard.php');
+        exit;
+    }
+}
+
+// Fetch dashboard data based on role
+$dashboardData = [];
+
+switch ($currentRole) {
+    case 'manager':
+        $dashboardData = getDashboardDataManager($conn, $_SESSION['user_id'], $accommodationId);
         break;
+        
+    case 'owner':
+        $dashboardData = getDashboardDataOwner($conn, $_SESSION['user_id']);
+        break;
+        
+    case 'student':
+        $dashboardData = getDashboardDataStudent($conn, $_SESSION['user_id']);
+        break;
+}
+
+/**
+ * Get dashboard data for manager
+ */
+function getDashboardDataManager($conn, $userId, $accommodationId) {
+    $data = [];
+    
+    // Get accommodation details
+    $accommodation = AccommodationService::getAccommodation($conn, $accommodationId);
+    $data['accommodation'] = $accommodation;
+    
+    // Get student statistics
+    $data['students'] = [
+        'total' => countStudentsByStatus($conn, $accommodationId),
+        'active' => countStudentsByStatus($conn, $accommodationId, 'active'),
+        'pending' => countStudentsByStatus($conn, $accommodationId, 'pending'),
+        'inactive' => countStudentsByStatus($conn, $accommodationId, 'inactive'),
+    ];
+    
+    // Get recent students
+    $data['recentStudents'] = getRecentStudents($conn, $accommodationId, 5);
+    
+    // Get code statistics
+    $data['codes'] = [
+        'total' => countCodes($conn, $userId),
+        'unused' => countCodes($conn, $userId, 'unused'),
+    ];
+    
+    // Get manager's accommodations (for switching)
+    $data['accommodations'] = QueryService::getUserAccommodations($conn, $userId, 'manager');
+    
+    // Get recent activity
+    $data['recentActivity'] = ActivityLogger::getAccommodationActivityLog($accommodationId, 10, 0);
+    
+    return $data;
+}
+
+/**
+ * Get dashboard data for owner
+ */
+function getDashboardDataOwner($conn, $userId) {
+    $data = [];
+    
+    // Get accommodations owned by this user
+    $data['accommodations'] = QueryService::getUserAccommodations($conn, $userId, 'owner');
+    
+    if (empty($data['accommodations'])) {
+        $data['accommodations'] = [];
+    }
+    
+    // Calculate statistics across all accommodations
+    $totalStudents = 0;
+    $totalManagers = 0;
+    $totalDevices = 0;
+    
+    foreach ($data['accommodations'] as $accommodation) {
+        $totalStudents += countStudentsByStatus($conn, $accommodation['id']);
+        $totalManagers += countAccommodationManagers($conn, $accommodation['id']);
+        $totalDevices += countAccommodationDevices($conn, $accommodation['id']);
+    }
+    
+    $data['stats'] = [
+        'accommodations' => count($data['accommodations']),
+        'students' => $totalStudents,
+        'managers' => $totalManagers,
+        'devices' => $totalDevices,
+    ];
+    
+    // Get recent activity across all accommodations
+    $data['recentActivity'] = ActivityLogger::getAllActivityLogs([], 10, 0);
+    
+    return $data;
+}
+
+/**
+ * Get dashboard data for student
+ */
+function getDashboardDataStudent($conn, $userId) {
+    $data = [];
+    
+    // Get student details
+    $student = StudentService::getStudentRecord($conn, $userId);
+    $data['student'] = $student;
+
+    // Get user details (for profile photo)
+    $data['user'] = QueryService::getUserWithRole($conn, $userId);
+    
+    // Get accommodation details
+    if ($student && isset($student['accommodation_id'])) {
+        $data['accommodation'] = AccommodationService::getAccommodation($conn, $student['accommodation_id']);
+    }
+    
+    // Get registered devices
+    $data['devices'] = DeviceManagementService::getUserDevices($conn, $userId);
+    
+    // Get recent student activity
+    $data['recentActivity'] = ActivityLogger::getActivityLog($userId, 5, 0);
+    
+    return $data;
+}
+
+// Helper functions
+function countStudentsByStatus($conn, $accommodationId, $status = null) {
+    $query = "SELECT COUNT(*) as count FROM students WHERE accommodation_id = ?";
+    $params = [$accommodationId];
+    $types = "i";
+    
+    if ($status) {
+        $query .= " AND status = ?";
+        $params[] = $status;
+        $types .= "s";
+    }
+    
+    $stmt = $conn->prepare($query);
+    if (!$stmt) return 0;
+    
+    $stmt->bind_param($types, ...$params);
+    $stmt->execute();
+    $result = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    
+    return (int)($result['count'] ?? 0);
+}
+
+function getRecentStudents($conn, $accommodationId, $limit = 5) {
+    $query = "SELECT s.id, s.status, s.created_at, s.room_number,
+              u.first_name, u.last_name, u.email,
+              COUNT(DISTINCT d.id) as device_count
+              FROM students s
+              JOIN users u ON s.user_id = u.id
+              LEFT JOIN user_devices d ON d.user_id = u.id
+              WHERE s.accommodation_id = ?
+              GROUP BY s.id, s.status, s.created_at, s.room_number, u.first_name, u.last_name, u.email
+              ORDER BY s.created_at DESC
+              LIMIT ?";
+    
+    $stmt = $conn->prepare($query);
+    if (!$stmt) return [];
+    
+    $stmt->bind_param("ii", $accommodationId, $limit);
+    $stmt->execute();
+    $students = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    
+    return $students ?: [];
+}
+
+function countCodes($conn, $userId, $status = null) {
+    $query = "SELECT COUNT(*) as count FROM onboarding_codes WHERE created_by = ?";
+    $params = [$userId];
+    $types = "i";
+    
+    if ($status) {
+        $query .= " AND status = ?";
+        $params[] = $status;
+        $types .= "s";
+    }
+    
+    $stmt = $conn->prepare($query);
+    if (!$stmt) return 0;
+    
+    $stmt->bind_param($types, ...$params);
+    $stmt->execute();
+    $result = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    
+    return (int)($result['count'] ?? 0);
+}
+
+function countAccommodationManagers($conn, $accommodationId) {
+    $query = "SELECT COUNT(*) as count FROM user_accommodation WHERE accommodation_id = ?";
+    $stmt = $conn->prepare($query);
+    if (!$stmt) return 0;
+    
+    $stmt->bind_param("i", $accommodationId);
+    $stmt->execute();
+    $result = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    
+    return (int)($result['count'] ?? 0);
+}
+
+function countAccommodationDevices($conn, $accommodationId) {
+    $query = "SELECT COUNT(*) as count FROM user_devices d
+              JOIN students s ON d.user_id = s.user_id
+              WHERE s.accommodation_id = ?";
+    
+    $stmt = $conn->prepare($query);
+    if (!$stmt) return 0;
+    
+    $stmt->bind_param("i", $accommodationId);
+    $stmt->execute();
+    $result = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    
+    return (int)($result['count'] ?? 0);
 }
 
 require_once '../includes/components/header.php';
 ?>
 
-<?php if (isset($_SESSION['dashboard_alert'])): ?>
-    <div class="alert alert-success">
-        <i class="bi bi-check-circle me-2"></i>
-        <?= $_SESSION['dashboard_alert'] ?>
-    </div>
-    <?php unset($_SESSION['dashboard_alert']); ?>
-<?php endif; ?>
-
-<?php if (isset($error)): ?>
-    <div class="alert alert-danger"><?= $error ?></div>
-<?php endif; ?>
-
-<div class="container mt-4">
-    <div class="row mb-4">
-        <div class="col-md-12">
-            <div class="card">
-                <div class="card-body">
-                    <h2 class="mb-0">Welcome to your Dashboard<?= isset($_SESSION['user_name']) ? ', ' . $_SESSION['user_name'] : '' ?></h2>
-                    <p class="text-muted">Here's an overview of your <?= ucfirst($userRole) ?> account</p>
-                </div>
+<div class="container-fluid py-4">
+    <?php if ($currentRole === 'manager'): ?>
+        <!-- Manager Dashboard -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <h1 class="h3 mb-1">
+                    <i class="bi bi-speedometer2"></i> Manager Dashboard
+                </h1>
+                <p class="text-muted mb-3">
+                    <?= htmlspecialchars($dashboardData['accommodation']['name'] ?? 'Accommodation', ENT_QUOTES, 'UTF-8') ?>
+                </p>
             </div>
         </div>
-    </div>
-
-    <?php if ($userRole === 'owner'): ?>
-        <!-- Owner Dashboard Content -->
-        <div class="row mb-4">
-            <div class="col-md-4">
-                <div class="card stat-card bg-info text-white">
-                    <div class="card-body">
-                        <h5 class="card-title"><?= $stats['count'] ?? 0 ?></h5>
-                        <p class="mb-0">My Accommodations</p>
-                        <div class="icon"><i class="bi bi-building"></i></div>
+        
+        <!-- Accommodation Switcher (if multiple) -->
+        <?php if (count($dashboardData['accommodations']) > 1): ?>
+            <div class="row mb-3">
+                <div class="col-12">
+                    <div class="btn-group" role="group">
+                        <?php foreach ($dashboardData['accommodations'] as $accom): ?>
+                            <a href="?switch_accommodation=<?= $accom['id'] ?>" 
+                               class="btn btn-outline-primary<?= ($accom['id'] == $accommodationId) ? ' active' : '' ?>">
+                                <?= htmlspecialchars($accom['name'], ENT_QUOTES, 'UTF-8') ?>
+                            </a>
+                        <?php endforeach; ?>
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
-                <div class="card stat-card bg-success text-white">
+        <?php endif; ?>
+        
+        <!-- Statistics Cards -->
+        <div class="row mb-4">
+            <div class="col-md-3 mb-3">
+                <div class="card text-center">
                     <div class="card-body">
-                        <?php
-                            // Count all manager users assigned to accommodations owned by this owner
-                            $stmt = safeQueryPrepare($conn,
-                                "SELECT COUNT(DISTINCT ua.user_id) AS total
-                                 FROM user_accommodation ua
-                                 JOIN accommodations a ON ua.accommodation_id = a.id
-                                 JOIN users u ON ua.user_id = u.id
-                                 JOIN roles r ON u.role_id = r.id
-                                 WHERE a.owner_id = ? AND r.name = 'manager'"
-                            );
-                            $total_managers = 0;
-                            if ($stmt !== false) {
-                                $stmt->bind_param("i", $userId);
-                                $stmt->execute();
-                                $result = $stmt->get_result();
-                                if ($row = $result->fetch_assoc()) {
-                                    $total_managers = $row['total'];
-                                }
-                            }
-                        ?>
-                        <h5 class="card-title"><?= $total_managers ?></h5>
-                        <p class="mb-0">My Managers</p>
-                        <div class="icon"><i class="bi bi-people"></i></div>
+                        <h5 class="card-title text-muted">Active Students</h5>
+                        <h2 class="text-primary"><?= $dashboardData['students']['active'] ?></h2>
+                        <small class="text-muted">/<?= $dashboardData['students']['total'] ?> total</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title text-muted">Pending Students</h5>
+                        <h2 class="text-warning"><?= $dashboardData['students']['pending'] ?></h2>
+                        <small class="text-muted">Awaiting activation</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title text-muted">Codes Available</h5>
+                        <h2 class="text-success"><?= $dashboardData['codes']['unused'] ?></h2>
+                        <small class="text-muted">/<?= $dashboardData['codes']['total'] ?> total</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title text-muted">
+                            <a href="accommodations.php" class="text-decoration-none">Manage</a>
+                        </h5>
+                        <small><a href="students.php" class="btn btn-sm btn-outline-primary">View Students</a></small>
                     </div>
                 </div>
             </div>
         </div>
         
+        <!-- Recent Students -->
         <div class="row mb-4">
-            <div class="col-md-6">
-                <div class="card h-100">
-                    <div class="card-header">
-                        My Accommodations
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0"><i class="bi bi-people"></i> Recent Students</h5>
                     </div>
-                    <div class="list-group list-group-flush">
-                        <?php if (isset($accommodations) && count($accommodations) > 0): ?>
-                            <?php foreach ($accommodations as $accommodation): ?>
-                                <div class="list-group-item">
-                                    <div class="d-flex w-100 justify-content-between">
-                                        <h5 class="mb-1"><?= htmlspecialchars($accommodation['name']) ?></h5>
-                                        <a href="<?= BASE_URL ?>/edit-accommodation.php?id=<?= $accommodation['id'] ?>" class="btn btn-sm btn-outline-primary">Manage</a>
-                                    </div>
-                                </div>
-                            <?php endforeach; ?>
+                    <div class="card-body p-0">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Room</th>
+                                    <th>Status</th>
+                                    <th>Devices</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($dashboardData['recentStudents'] as $student): ?>
+                                    <tr>
+                                        <td><strong><?= htmlspecialchars($student['first_name'] . ' ' . $student['last_name'], ENT_QUOTES, 'UTF-8') ?></strong></td>
+                                        <td><?= htmlspecialchars($student['email'], ENT_QUOTES, 'UTF-8') ?></td>
+                                        <td><?= htmlspecialchars($student['room_number'] ?? 'N/A', ENT_QUOTES, 'UTF-8') ?></td>
+                                        <td>
+                                            <span class="badge bg-<?= ($student['status'] === 'active') ? 'success' : (($student['status'] === 'pending') ? 'warning' : 'danger') ?>">
+                                                <?= ucfirst($student['status']) ?>
+                                            </span>
+                                        </td>
+                                        <td><small><?= $student['device_count'] ?> device(s)</small></td>
+                                        <td>
+                                            <a href="student-details.php?student_id=<?= $student['id'] ?>" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Recent Activity -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0"><i class="bi bi-clock-history"></i> Recent Activity</h5>
+                    </div>
+                    <div class="card-body">
+                        <?php if (!empty($dashboardData['recentActivity'])): ?>
+                            <ul class="list-group list-group-flush">
+                                <?php foreach (array_slice($dashboardData['recentActivity'], 0, 10) as $activity): ?>
+                                    <li class="list-group-item">
+                                        <small class="text-muted"><?= htmlspecialchars($activity['action_type'] ?? 'N/A', ENT_QUOTES, 'UTF-8') ?></small>
+                                        <br>
+                                        <small><?= htmlspecialchars($activity['action_details'] ?? 'No details', ENT_QUOTES, 'UTF-8') ?></small>
+                                        <br>
+                                        <small class="text-muted"><?= $activity['created_at'] ?? 'N/A' ?></small>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
                         <?php else: ?>
-                            <div class="list-group-item">No accommodations found</div>
+                            <p class="text-muted">No recent activity</p>
                         <?php endif; ?>
                     </div>
                 </div>
             </div>
-            <div class="col-md-6">
-                <div class="card h-100">
-                    <div class="card-header">
-                        My Managers
+        </div>
+        
+    <?php elseif ($currentRole === 'owner'): ?>
+        <!-- Owner Dashboard -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <h1 class="h3 mb-3"><i class="bi bi-building"></i> Owner Dashboard</h1>
+            </div>
+        </div>
+        
+        <!-- Overview Stats -->
+        <div class="row mb-4">
+            <div class="col-md-3 mb-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title text-muted">Accommodations</h5>
+                        <h2 class="text-primary"><?= $dashboardData['stats']['accommodations'] ?></h2>
                     </div>
-                    <div class="list-group list-group-flush">
-                        <?php
-                        // Get distinct managers for this owner
-                        $distinct_managers = [];
-                        $stmt_distinct = safeQueryPrepare($conn,
-                            "SELECT DISTINCT u.id, u.username, u.first_name, u.last_name, u.status,
-                                    COUNT(DISTINCT ua.accommodation_id) AS accommodation_count
-                             FROM users u
-                             JOIN roles r ON u.role_id = r.id
-                             JOIN user_accommodation ua ON u.id = ua.user_id
-                             JOIN accommodations a ON ua.accommodation_id = a.id
-                             WHERE a.owner_id = ? AND r.name = 'manager'
-                             GROUP BY u.id, u.username, u.first_name, u.last_name, u.status
-                             ORDER BY u.first_name, u.last_name");
-                        if ($stmt_distinct !== false) {
-                            $stmt_distinct->bind_param("i", $userId);
-                            $stmt_distinct->execute();
-                            $distinct_managers = $stmt_distinct->get_result()->fetch_all(MYSQLI_ASSOC);
-                        }
-                        ?>
-                        <?php if (!empty($distinct_managers)): ?>
-                            <?php foreach ($distinct_managers as $manager): ?>
-                                <div class="list-group-item">
-                                    <div class="d-flex w-100 justify-content-between">
-                                        <h5 class="mb-1"><?= htmlspecialchars($manager['first_name'] . ' ' . $manager['last_name']) ?></h5>
-                                        <span class="badge <?= $manager['status'] === 'active' ? 'bg-success' : 'bg-warning' ?>">
-                                            <?= ucfirst($manager['status']) ?>
-                                        </span>
-                                    </div>
-                                    <p class="mb-1">
-                                        <small class="text-muted">
-                                            <i class="bi bi-person-badge"></i> <?= htmlspecialchars($manager['username']) ?>
-                                            <span class="ms-2"><i class="bi bi-buildings"></i> Managing <?= $manager['accommodation_count'] ?> accommodation<?= $manager['accommodation_count'] !== 1 ? 's' : '' ?></span>
-                                        </small>
-                                    </p>
-                                </div>
-                            <?php endforeach; ?>
-                        <?php else: ?>
-                            <div class="list-group-item">
-                                <p class="mb-1">No managers found</p>
-                                <a href="managers.php" class="btn btn-sm btn-primary mt-2">Add Managers</a>
-                            </div>
-                        <?php endif; ?>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title text-muted">Total Students</h5>
+                        <h2 class="text-success"><?= $dashboardData['stats']['students'] ?></h2>
                     </div>
-                    <?php if (!empty($distinct_managers)): ?>
-                        <div class="card-footer">
-                            <a href="managers.php" class="btn btn-sm btn-primary">Manage All Managers</a>
-                        </div>
-                    <?php endif; ?>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title text-muted">Managers</h5>
+                        <h2 class="text-info"><?= $dashboardData['stats']['managers'] ?></h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title text-muted">Devices</h5>
+                        <h2 class="text-warning"><?= $dashboardData['stats']['devices'] ?></h2>
+                    </div>
                 </div>
             </div>
         </div>
         
-    <?php elseif ($userRole === 'manager'): ?>
-        <!-- Manager Dashboard Content with colorful cards -->
+        <!-- Accommodations List -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="bi bi-list"></i> Your Accommodations</h5>
+                        <a href="create-accommodation.php" class="btn btn-sm btn-primary">
+                            <i class="bi bi-plus"></i> New Accommodation
+                        </a>
+                    </div>
+                    <div class="card-body p-0">
+                        <?php if (!empty($dashboardData['accommodations'])): ?>
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Address</th>
+                                        <th>Students</th>
+                                        <th>Managers</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($dashboardData['accommodations'] as $accom): ?>
+                                        <tr>
+                                            <td><strong><?= htmlspecialchars($accom['name'], ENT_QUOTES, 'UTF-8') ?></strong></td>
+                                            <td><?= htmlspecialchars($accom['address'] ?? 'N/A', ENT_QUOTES, 'UTF-8') ?></td>
+                                            <td><?= countStudentsByStatus($conn, $accom['id']) ?></td>
+                                            <td><?= countAccommodationManagers($conn, $accom['id']) ?></td>
+                                            <td><span class="badge bg-success">Active</span></td>
+                                            <td>
+                                                <a href="view-accommodation.php?id=<?= $accom['id'] ?>" class="btn btn-sm btn-outline-primary">
+                                                    <i class="bi bi-eye"></i>
+                                                </a>
+                                                <a href="edit-accommodation.php?id=<?= $accom['id'] ?>" class="btn btn-sm btn-outline-secondary">
+                                                    <i class="bi bi-pencil"></i>
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        <?php else: ?>
+                            <div class="p-4 text-center text-muted">
+                                <p>No accommodations yet. <a href="create-accommodation.php">Create one now</a></p>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
         
+    <?php elseif ($currentRole === 'student'): ?>
+        <!-- Student Dashboard -->
         <div class="row mb-4">
-            <div class="col-md-8">
-                <div class="dashboard-card dashboard-card-manager">
-                    <div class="dashboard-card-header d-flex justify-content-between align-items-center">
-                        <div>Accommodation Details</div>
-                        <i class="bi bi-building-fill"></i>
-                    </div>
-                    <div class="card-body">
-                        <h5 class="p-2 m-2"><?= htmlspecialchars($accommodation['name'] ?? 'No accommodation assigned') ?></h5>
-                    </div>
-                </div>
-                
-                <div class="card mt-4">
-                    <div class="card-header">Student Statistics</div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-3">
-                                <h5><?= $stats['total'] ?? 0 ?></h5>
-                                <p class="text-muted">Total Students</p>
+            <div class="col-12">
+                <h1 class="h3 mb-3"><i class="bi bi-person-circle"></i> Student Dashboard</h1>
+            </div>
+        </div>
+        
+        <!-- Student Info -->
+        <?php if (!empty($dashboardData['student'])): ?>
+            <?php
+                $studentPhotoUrl = '';
+                if (!empty($dashboardData['user']['profile_photo'])) {
+                    $relativePath = ltrim($dashboardData['user']['profile_photo'], '/');
+                    $publicPath = PUBLIC_PATH . '/' . $relativePath;
+                    if (file_exists($publicPath)) {
+                        $studentPhotoUrl = BASE_URL . '/' . $relativePath;
+                    }
+                }
+                $studentDisplayName = trim((string)($dashboardData['user']['first_name'] ?? ''));
+                $studentLastName = trim((string)($dashboardData['user']['last_name'] ?? ''));
+                if ($studentLastName !== '') {
+                    $studentDisplayName .= ($studentDisplayName !== '' ? ' ' : '') . $studentLastName;
+                }
+                if ($studentDisplayName === '') {
+                    $studentDisplayName = $_SESSION['user_name'] ?? 'Student';
+                }
+            ?>
+            <div class="row mb-4">
+                <div class="col-md-4 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Registration</h5>
+                            <div class="d-flex align-items-center gap-3 mb-3">
+                                <?php if (!empty($studentPhotoUrl)): ?>
+                                    <img src="<?= htmlspecialchars($studentPhotoUrl, ENT_QUOTES, 'UTF-8') ?>"
+                                         alt="Student photo"
+                                         style="width: 56px; height: 56px; object-fit: cover; border-radius: 50%;">
+                                <?php else: ?>
+                                    <div class="d-flex align-items-center justify-content-center bg-light"
+                                         style="width: 56px; height: 56px; border-radius: 50%;">
+                                        <i class="bi bi-person" aria-hidden="true"></i>
+                                    </div>
+                                <?php endif; ?>
+                                <div>
+                                    <div class="fw-semibold"><?= htmlspecialchars($studentDisplayName, ENT_QUOTES, 'UTF-8') ?></div>
+                                    <div class="text-muted small">Student</div>
+                                </div>
                             </div>
-                            <div class="col-md-3">
-                                <h5><?= $stats['active'] ?? 0 ?></h5>
-                                <p class="text-muted">Active Students</p>
-                            </div>
-                            <div class="col-md-3">
-                                <h5><?= $stats['pending'] ?? 0 ?></h5>
-                                <p class="text-muted">Pending Students</p>
-                            </div>
-                            <div class="col-md-3">
-                                <h5><?= $stats['inactive'] ?? 0 ?></h5>
-                                <p class="text-muted">Inactive Students</p>
-                            </div>
+                            <p class="mb-1"><strong>Status:</strong></p>
+                            <p class="mb-3">
+                                <span class="badge bg-<?= ($dashboardData['student']['status'] === 'active') ? 'success' : 'warning' ?>">
+                                    <?= ucfirst($dashboardData['student']['status']) ?>
+                                </span>
+                            </p>
+                            <p class="mb-1"><strong>Room:</strong></p>
+                            <p class="mb-0"><?= htmlspecialchars($dashboardData['student']['room_number'] ?? 'N/A', ENT_QUOTES, 'UTF-8') ?></p>
                         </div>
                     </div>
                 </div>
                 
-                <!-- Voucher Code Statistics -->
-                <div class="card mt-4">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <div>Voucher Code Statistics</div>
-                        <i class="bi bi-qr-code"></i>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-4">
-                                <div class="text-center p-3 bg-light rounded">
-                                    <h3 class="text-primary"><?= $codeStats['total'] ?? 0 ?></h3>
-                                    <p class="mb-0">Total Codes Generated</p>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="text-center p-3 bg-light rounded">
-                                    <h3 class="text-success"><?= $codeStats['unused'] ?? 0 ?></h3>
-                                    <p class="mb-0">Available Codes</p>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="text-center p-3 bg-light rounded">
-                                    <h3 class="text-info"><?= ($codeStats['total'] ?? 0) - ($codeStats['unused'] ?? 0) ?></h3>
-                                    <p class="mb-0">Used Codes</p>
-                                </div>
-                            </div>
+                <div class="col-md-4 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Devices</h5>
+                            <p class="mb-1"><strong>Registered:</strong></p>
+                            <h3 class="text-primary mb-3"><?= count($dashboardData['devices']) ?></h3>
+                            <a href="student-details.php" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-phone"></i> Manage Devices
+                            </a>
                         </div>
-                        <div class="text-end mt-3">
-                            <a href="<?= BASE_URL ?>/codes.php" class="btn btn-sm btn-outline-primary">
-                                <i class="bi bi-plus-circle me-1"></i> Generate New Codes
+                    </div>
+                </div>
+                
+                <div class="col-md-4 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Accommodation</h5>
+                            <p class="mb-1"><strong>Location:</strong></p>
+                            <p class="mb-0">
+                                <?= htmlspecialchars($dashboardData['accommodation']['name'] ?? 'Unknown', ENT_QUOTES, 'UTF-8') ?>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
+        
+        <?php if (empty($dashboardData['devices'])): ?>
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0"><i class="bi bi-wifi"></i> Request Your WiFi Voucher</h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="mb-3 text-muted">
+                                You do not have WiFi access yet. Request your voucher first to get online.
+                            </p>
+                            <a href="student/request-voucher.php" class="btn btn-primary">
+                                <i class="bi bi-ticket-perforated me-1"></i> Request Voucher
                             </a>
                         </div>
                     </div>
                 </div>
             </div>
-            
-            <div class="col-md-4">
-                <div class="card">
-                    <div class="card-header">Quick Actions</div>
-                    <div class="list-group list-group-flush">
-                        <a href="<?= BASE_URL ?>/students.php" class="list-group-item list-group-item-action">
-                            <i class="bi bi-people me-2"></i> Manage Students
-                        </a>
-                        <a href="<?= BASE_URL ?>/codes.php" class="list-group-item list-group-item-action">
-                            <i class="bi bi-qr-code me-2"></i> Onboarding Codes
-                        </a>
-                        <a href="<?= BASE_URL ?>/send-vouchers.php" class="list-group-item list-group-item-action">
-                            <i class="bi bi-wifi me-2"></i> Send WiFi Vouchers
-                        </a>
-                        <a href="<?= BASE_URL ?>/export-students.php" class="list-group-item list-group-item-action">
-                            <i class="bi bi-file-earmark-excel me-2"></i> Export Student Data
-                        </a>
-                        <a href="<?= BASE_URL ?>/onboard.php" class="list-group-item list-group-item-action">
-                            <i class="bi bi-person-plus me-2"></i> Onboard New Manager
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Recent students -->
-        <?php if (isset($recentStudents) && count($recentStudents) > 0): ?>
+        <?php else: ?>
+            <!-- Registered Devices -->
             <div class="row mb-4">
-                <div class="col-md-12">
+                <div class="col-12">
                     <div class="card">
-                        <div class="card-header">Recent Students</div>
-                        <div class="table-responsive">
+                        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0"><i class="bi bi-phone"></i> Your Devices</h5>
+                            <a href="student-details.php?action=add_device" class="btn btn-sm btn-primary">
+                                <i class="bi bi-plus"></i> Add Device
+                            </a>
+                        </div>
+                        <div class="card-body p-0">
                             <table class="table table-hover mb-0">
-                                <thead>
+                                <thead class="table-light">
                                     <tr>
-                                        <th>Name</th>
-                                        <th>Email</th>
-                                        <th>Status</th>
-                                        <th>Registered</th>
-                                        <th>Action</th>
+                                        <th>Device Name</th>
+                                        <th>MAC Address</th>
+                                        <th>Added</th>
+                                        <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php foreach ($recentStudents as $student): ?>
-                                    <tr>
-                                        <td><?= htmlspecialchars($student['first_name'] . ' ' . $student['last_name']) ?></td>
-                                        <td><?= htmlspecialchars($student['email']) ?></td>
-                                        <td>
-                                            <span class="badge <?= $student['status'] == 'active' ? 'bg-success' : ($student['status'] == 'pending' ? 'bg-warning' : 'bg-danger') ?>">
-                                                <?= ucfirst($student['status']) ?>
-                                            </span>
-                                        </td>
-                                        <td><?= date('M j, Y', strtotime($student['created_at'])) ?></td>
-                                        <td>
-                                            <a href="<?= BASE_URL ?>/student-details.php?id=<?= $student['id'] ?>" class="btn btn-sm btn-outline-primary">View</a>
-                                        </td>
-                                    </tr>
+                                    <?php foreach ($dashboardData['devices'] as $device): ?>
+                                        <tr>
+                                            <td><?= htmlspecialchars($device['device_name'] ?? 'N/A', ENT_QUOTES, 'UTF-8') ?></td>
+                                            <td><code><?= htmlspecialchars($device['mac_address'] ?? 'N/A', ENT_QUOTES, 'UTF-8') ?></code></td>
+                                            <td><small><?= $device['created_at'] ?? 'N/A' ?></small></td>
+                                            <td>
+                                                <form method="POST" action="student-details.php" style="display:inline;">
+                                                    <input type="hidden" name="action" value="delete_device">
+                                                    <input type="hidden" name="device_id" value="<?= $device['id'] ?>">
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this device?')">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </form>
+                                            </td>
+                                        </tr>
                                     <?php endforeach; ?>
                                 </tbody>
                             </table>
@@ -555,81 +702,6 @@ require_once '../includes/components/header.php';
             </div>
         <?php endif; ?>
         
-    <?php elseif ($userRole === 'student'): ?>
-        <!-- Student Dashboard Content with colorful cards -->
-        <div class="row mb-4">
-            <div class="col-md-8">
-                <div class="dashboard-card dashboard-card-student">
-                    <div class="dashboard-card-header d-flex justify-content-between align-items-center">
-                        <div>Your WiFi Vouchers</div>
-                        <i class="bi bi-wifi"></i>
-                    </div>
-                    <?php if (isset($vouchers) && count($vouchers) > 0): ?>
-                        <div class="table-responsive">
-                            <table class="table table-hover mb-0">
-                                <thead>
-                                    <tr>
-                                        <th>Voucher Code</th>
-                                        <th>Month</th>
-                                        <th>Sent Via</th>
-                                        <th>Sent At</th>
-                                        <th>Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($vouchers as $voucher): ?>
-                                        <tr>
-                                            <td><strong><?= htmlspecialchars($voucher['voucher_code']) ?></strong></td>
-                                            <td><?= htmlspecialchars($voucher['voucher_month']) ?></td>
-                                            <td><?= htmlspecialchars($voucher['sent_via']) ?></td>
-                                            <td><?= $voucher['sent_at'] ? date('M j, Y H:i', strtotime($voucher['sent_at'])) : 'Pending' ?></td>
-                                            <td>
-                                                <span class="badge <?= ($voucher['status'] === 'sent' ? 'bg-success' : ($voucher['status'] === 'failed' ? 'bg-danger' : 'bg-warning')) ?>">
-                                                    <?= ucfirst($voucher['status']) ?>
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    <?php else: ?>
-                        <div class="card-body">
-                            <div class="alert alert-info">
-                                <i class="bi bi-info-circle-fill me-2"></i>
-                                You don't have any vouchers yet. Please contact your accommodation manager if you need WiFi access.
-                            </div>
-                            <!-- New Request WiFi Access Form -->
-                            <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>">
-                                <?php echo csrfField(); ?>
-                                <input type="hidden" name="request_wifi" value="1">
-                                <button type="submit" class="btn btn-primary">Request WiFi Access</button>
-                            </form>
-                        </div>
-                    <?php endif; ?>
-                </div>
-            </div>
-            
-            <div class="col-md-4">
-                <div class="dashboard-card dashboard-card-student">
-                    <div class="dashboard-card-header d-flex justify-content-between align-items-center">
-                        <div>Account Actions</div>
-                        <i class="bi bi-gear"></i>
-                    </div>
-                    <div class="list-group list-group-flush">
-                        <a href="<?= BASE_URL ?>/profile.php" class="list-group-item list-group-item-action">
-                            <i class="bi bi-person me-2"></i> Update Profile
-                        </a>
-                        <a href="<?= BASE_URL ?>/update_details.php" class="list-group-item list-group-item-action">
-                            <i class="bi bi-phone me-2"></i> Update Contact Details
-                        </a>
-                        <a href="<?= BASE_URL ?>/help.php" class="list-group-item list-group-item-action">
-                            <i class="bi bi-question-circle me-2"></i> Help & Support
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
     <?php endif; ?>
 </div>
 

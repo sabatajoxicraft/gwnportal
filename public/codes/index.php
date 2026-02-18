@@ -165,16 +165,22 @@ if ($isAdmin) {
     
 } else {
     // Manager query (simple)
-    $sql_where = "WHERE accommodation_id = ?";
+    $sql_where = "WHERE oc.accommodation_id = ?";
     if ($status_filter == 'unused' || $filter == 'unused') {
-        $sql_where .= " AND status = 'unused'";
+        $sql_where .= " AND oc.status = 'unused'";
     } else if ($status_filter == 'used' || $filter == 'used') {
-        $sql_where .= " AND status = 'used'";
+        $sql_where .= " AND oc.status = 'used'";
     } else if ($status_filter == 'expired' || $filter == 'expired') {
-        $sql_where .= " AND status = 'expired'";
+        $sql_where .= " AND oc.status = 'expired'";
     }
     
-    $sql = "SELECT * FROM onboarding_codes $sql_where ORDER BY created_at DESC";
+    $sql = "SELECT oc.*, 
+                   u.first_name AS user_first_name, 
+                   u.last_name AS user_last_name
+            FROM onboarding_codes oc
+            LEFT JOIN users u ON oc.used_by = u.id
+            $sql_where 
+            ORDER BY oc.created_at DESC";
     $stmt = safeQueryPrepare($conn, $sql);
     $codes = [];
     if ($stmt !== false) {
@@ -206,13 +212,8 @@ if ($isAdmin) {
 $pageTitle = $isAdmin ? "Manage Onboarding Codes" : "Voucher Codes";
 $activePage = "codes";
 
-// Include header
+// Include header (which includes navigation automatically)
 require_once '../../includes/components/header.php';
-
-// Include navigation for admin
-if ($isAdmin) {
-    require_once '../../includes/components/navigation.php';
-}
 ?>
 
 <div class="container mt-4">
@@ -382,10 +383,13 @@ if ($isAdmin) {
                                     <td><?= $code['expires_at'] ? date('M j, Y', strtotime($code['expires_at'])) : 'Never' ?></td>
                                     <?php if (!$isAdmin): ?>
                                     <td>
-                                        <?php if (!empty($code['used_by'])): ?>
-                                            <?= htmlspecialchars($code['used_by']) ?>
+                                        <?php if (!empty($code['user_first_name']) || !empty($code['user_last_name'])): ?>
+                                            <span class="text-primary">
+                                                <i class="bi bi-person-check me-1"></i>
+                                                <?= htmlspecialchars(trim($code['user_first_name'] . ' ' . $code['user_last_name'])) ?>
+                                            </span>
                                         <?php else: ?>
-                                            N/A
+                                            <span class="text-muted">Not used yet</span>
                                         <?php endif; ?>
                                     </td>
                                     <?php endif; ?>

@@ -39,12 +39,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $firstName = $_POST['first_name'] ?? '';
         $lastName = $_POST['last_name'] ?? '';
         $email = $_POST['email'] ?? '';
+        $phone = trim($_POST['phone_number'] ?? '');
+        $whatsappNumber = trim($_POST['whatsapp_number'] ?? '');
+        $preferredCommunication = $_POST['preferred_communication'] ?? 'WhatsApp';
         
         if (empty($firstName) || empty($lastName) || empty($email)) {
             $error = 'All fields are required';
         } else {
-            $stmt = safeQueryPrepare($conn, "UPDATE users SET first_name = ?, last_name = ?, email = ? WHERE id = ?");
-            $stmt->bind_param("sssi", $firstName, $lastName, $email, $userId);
+            $stmt = safeQueryPrepare($conn, "UPDATE users SET first_name = ?, last_name = ?, email = ?, phone_number = ?, whatsapp_number = ?, preferred_communication = ? WHERE id = ?");
+            $stmt->bind_param("ssssssi", $firstName, $lastName, $email, $phone, $whatsappNumber, $preferredCommunication, $userId);
             
             if ($stmt->execute()) {
                 // Update session name
@@ -167,6 +170,54 @@ require_once '../includes/components/header.php';
                             <label for="email" class="form-label">Email Address</label>
                             <input type="email" class="form-control" id="email" name="email" value="<?= htmlspecialchars($user['email']) ?>" required>
                         </div>
+                        <div class="mb-3">
+                            <label for="phone_number" class="form-label">Phone Number</label>
+                            <input type="text" class="form-control" id="phone_number" name="phone_number" 
+                                value="<?= htmlspecialchars($user['phone_number'] ?? '') ?>" placeholder="+27...">
+                        </div>
+                        <div class="mb-3">
+                            <label for="whatsapp_number" class="form-label">WhatsApp Number</label>
+                            <input type="text" class="form-control" id="whatsapp_number" name="whatsapp_number" 
+                                value="<?= htmlspecialchars($user['whatsapp_number'] ?? '') ?>" placeholder="+27...">
+                            <small class="form-text text-muted" id="whatsapp_hint" style="display:none;">WhatsApp number is required when WhatsApp is your preferred method.</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Preferred Communication Method</label>
+                            <div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="preferred_communication" 
+                                        id="pref_whatsapp" value="WhatsApp" <?= ($user['preferred_communication'] ?? 'WhatsApp') === 'WhatsApp' ? 'checked' : '' ?>>
+                                    <label class="form-check-label" for="pref_whatsapp">WhatsApp</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="preferred_communication" 
+                                        id="pref_sms" value="SMS" <?= ($user['preferred_communication'] ?? '') === 'SMS' ? 'checked' : '' ?>>
+                                    <label class="form-check-label" for="pref_sms">SMS</label>
+                                </div>
+                            </div>
+                        </div>
+                        <script>
+                        document.addEventListener('DOMContentLoaded', function() {
+                            var waField = document.getElementById('whatsapp_number');
+                            var phoneField = document.getElementById('phone_number');
+                            if (phoneField && waField && !waField.value && phoneField.value) {
+                                waField.value = phoneField.value;
+                            }
+                            phoneField.addEventListener('change', function() {
+                                if (!waField.value) waField.value = phoneField.value;
+                            });
+                            function toggleHint() {
+                                var hint = document.getElementById('whatsapp_hint');
+                                var isWa = document.getElementById('pref_whatsapp').checked;
+                                hint.style.display = (isWa && !waField.value) ? 'block' : 'none';
+                            }
+                            document.querySelectorAll('input[name="preferred_communication"]').forEach(function(r) {
+                                r.addEventListener('change', toggleHint);
+                            });
+                            waField.addEventListener('input', toggleHint);
+                            toggleHint();
+                        });
+                        </script>
                         <div class="mb-3">
                             <label for="username" class="form-label">Username</label>
                             <input type="text" class="form-control" id="username" value="<?= htmlspecialchars($user['username']) ?>" disabled>

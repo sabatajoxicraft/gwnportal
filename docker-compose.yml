@@ -32,6 +32,19 @@ services:
       DB_PASS: ${DB_PASSWORD:-gwn_password}
       DB_PASSWORD: ${DB_PASSWORD:-gwn_password}
       DB_NAME: gwn_wifi_system
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER:-}
+      TWILIO_WHATSAPP_NO: ${TWILIO_WHATSAPP_NO:-}
+      TWILIO_MESSAGING_SERVICE_SID: ${TWILIO_MESSAGING_SERVICE_SID:-}
+      TWILIO_WA_VOUCHER_TEMPLATE_SID: ${TWILIO_WA_VOUCHER_TEMPLATE_SID:-}
+      TWILIO_SMS_VOUCHER_TEMPLATE_SID: ${TWILIO_SMS_VOUCHER_TEMPLATE_SID:-}
+      TWILIO_SMS_LOGIN_TEMPLATE_SID: ${TWILIO_SMS_LOGIN_TEMPLATE_SID:-}
+      GWN_API_URL: ${GWN_API_URL:-}
+      GWN_APP_ID: ${GWN_APP_ID:-}
+      GWN_SECRET_KEY: ${GWN_SECRET_KEY:-}
+      GWN_NETWORK_ID: ${GWN_NETWORK_ID:-}
+      GWN_ALLOWED_DEVICES: ${GWN_ALLOWED_DEVICES:-2}
     depends_on:
       gwn-db:
         condition: service_healthy
@@ -39,7 +52,9 @@ services:
       - .:/var/www/html
 
   phpmyadmin:
-    image: phpmyadmin:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.phpmyadmin
     container_name: gwn-portal-phpmyadmin
     restart: unless-stopped
     ports:

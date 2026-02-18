@@ -34,6 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->bind_param("sii", $name, $owner_id, $accommodation_id);
         
         if ($stmt->execute()) {
+            logActivity($conn, $_SESSION['user_id'], 'edit_accommodation', "Updated accommodation '{$name}' (ID {$accommodation_id})", $_SERVER['REMOTE_ADDR']);
             $success = 'Accommodation updated successfully.';
         } else {
             $error = 'Failed to update accommodation: ' . $conn->error;
@@ -66,9 +67,6 @@ $activePage = "accommodations";
 
 // Include header
 require_once '../../includes/components/header.php';
-
-// Include navigation
-require_once '../../includes/components/navigation.php';
 ?>
 
 <div class="container mt-4">

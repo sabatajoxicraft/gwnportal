@@ -9,8 +9,9 @@ if (!function_exists('safeQueryPrepare')) {
     require_once __DIR__ . '/functions.php';
 }
 
-// Only run for managers
-if (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'manager') {
+// Run for managers and owners (roles that manage multiple accommodations)
+$handlerRole = $_SESSION['user_role'] ?? '';
+if (in_array($handlerRole, ['manager', 'owner'])) {
     $userId = $_SESSION['user_id'] ?? 0;
     
     if ($userId) {
@@ -20,8 +21,13 @@ if (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'manager') {
         if (isset($_GET['switch_accommodation']) && !empty($_GET['switch_accommodation'])) {
             $requestedAccomId = (int)$_GET['switch_accommodation'];
             
-            // Verify manager has access to this accommodation
-            $verifyStmt = safeQueryPrepare($conn, "SELECT accommodation_id FROM user_accommodation WHERE user_id = ? AND accommodation_id = ?");
+            // Verify user has access to this accommodation
+            if ($handlerRole === 'manager') {
+                $verifyStmt = safeQueryPrepare($conn, "SELECT accommodation_id FROM user_accommodation WHERE user_id = ? AND accommodation_id = ?");
+            } else {
+                // Owner: check accommodations.owner_id
+                $verifyStmt = safeQueryPrepare($conn, "SELECT id AS accommodation_id FROM accommodations WHERE owner_id = ? AND id = ?");
+            }
             if ($verifyStmt) {
                 $verifyStmt->bind_param("ii", $userId, $requestedAccomId);
                 $verifyStmt->execute();
@@ -45,7 +51,11 @@ if (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'manager') {
         
         // Load current accommodation context if not set
         if (!isset($_SESSION['accommodation_id']) || empty($_SESSION['accommodation_id'])) {
-            $stmtAcc = safeQueryPrepare($conn, "SELECT ua.accommodation_id FROM user_accommodation ua WHERE ua.user_id = ? LIMIT 1");
+            if ($handlerRole === 'manager') {
+                $stmtAcc = safeQueryPrepare($conn, "SELECT ua.accommodation_id FROM user_accommodation ua WHERE ua.user_id = ? LIMIT 1");
+            } else {
+                $stmtAcc = safeQueryPrepare($conn, "SELECT id AS accommodation_id FROM accommodations WHERE owner_id = ? LIMIT 1");
+            }
             if ($stmtAcc) {
                 $stmtAcc->bind_param("i", $userId);
                 $stmtAcc->execute();
@@ -56,10 +66,14 @@ if (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'manager') {
             }
         }
         
-        // Load manager's accommodations list for navigation
-        $stmtAllAccom = safeQueryPrepare($conn, "SELECT a.id, a.name FROM accommodations a 
-                                                  JOIN user_accommodation ua ON a.id = ua.accommodation_id 
-                                                  WHERE ua.user_id = ? ORDER BY a.name");
+        // Load user's accommodations list for navigation
+        if ($handlerRole === 'manager') {
+            $stmtAllAccom = safeQueryPrepare($conn, "SELECT a.id, a.name FROM accommodations a 
+                                                      JOIN user_accommodation ua ON a.id = ua.accommodation_id 
+                                                      WHERE ua.user_id = ? ORDER BY a.name");
+        } else {
+            $stmtAllAccom = safeQueryPrepare($conn, "SELECT id, name FROM accommodations WHERE owner_id = ? ORDER BY name");
+        }
         if ($stmtAllAccom) {
             $stmtAllAccom->bind_param("i", $userId);
             $stmtAllAccom->execute();

@@ -5,8 +5,8 @@ require_once '../includes/functions.php';
 // Require manager or owner login
 requireRole(['manager', 'owner']);
 
-$user_id = $_SESSION['user_id'];
-$user_role = $_SESSION['user_role'];
+$user_id = $_SESSION['user_id'] ?? 0;
+$user_role = $_SESSION['user_role'] ?? '';
 $conn = getDbConnection();
 
 $error = '';
@@ -76,82 +76,142 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $expiry_days = (int)($_POST['expiry_days'] ?? CODE_EXPIRY_DAYS);
     $send_method = $_POST['send_method'] ?? 'none';
     $recipient = trim($_POST['recipient'] ?? '');
-
-    // Validate input
-    if ($accommodation_id <= 0) {
-        $error = 'Please select an accommodation';
-    } else if ($count <= 0 || $count > 50) {
-        $error = 'Please enter a valid number of codes (1-50)';
-    } else if ($send_method !== 'none' && empty($recipient)) {
-        $error = 'Please enter recipient information';
-    } else {
-        // Calculate expiry date if specified
-        $expires_at = null;
-        if ($expiry_days > 0) {
-            $expires_at = date('Y-m-d H:i:s', strtotime("+$expiry_days days"));
-        }
+    
+    // Get student name if provided (only for student codes)
+    $student_first_name = trim($_POST['student_first_name'] ?? '');
+    $student_last_name = trim($_POST['student_last_name'] ?? '');
+    
+    // Handle profile photo upload
+    $profile_photo_path = null;
+    if (!empty($_POST['photo_data'])) {
+        $photo_data = $_POST['photo_data'];
         
-        // Generate code
-        $code = generateUniqueCode();
-        
-        // Insert code
-        $stmt = safeQueryPrepare($conn, "INSERT INTO onboarding_codes 
-                                   (code, created_by, accommodation_id, role_id, status, expires_at) 
-                                   VALUES (?, ?, ?, ?, 'unused', ?)");
-        $stmt->bind_param("siiis", $code, $user_id, $accommodation_id, $code_role_id, $expires_at);
-        
-        if ($stmt->execute()) {
-            $generated_codes[] = $code;
-            $success = "Invitation code generated successfully.";
+        // Validate base64 image data
+        if (preg_match('/^data:image\/(\w+);base64,/', $photo_data, $type)) {
+            $photo_data = substr($photo_data, strpos($photo_data, ',') + 1);
+            $type = strtolower($type[1]); // jpg, png, gif
             
-            // Handle sending of code
-            switch ($send_method) {
-                case 'email':
-                    if (filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
-                        $subject = "Your " . APP_NAME . " Invitation";
-                        $message = "Hello,\n\nYou have been invited to join " . APP_NAME . ".\n\n";
-                        $message .= "Your invitation code is: " . $code . "\n\n";
-                        $message .= "Please visit " . BASE_URL . "/register.php to create your account.\n\n";
-                        $message .= "This code will expire on " . ($expires_at ? date('F j, Y', strtotime($expires_at)) : 'never') . ".\n\n";
-                        $message .= "Regards,\n" . APP_NAME . " Team";
-                        
-                        if (mail($recipient, $subject, $message)) {
-                            $success .= " The code has been sent to " . $recipient;
-                        } else {
-                            $error = "Failed to send email. The code was generated but you'll need to share it manually.";
-                        }
-                    } else {
-                        $error = "Invalid email address. The code was generated but you'll need to share it manually.";
+            if (!in_array($type, ['jpg', 'jpeg', 'png', 'gif'])) {
+                $error = 'Invalid image type';
+            } else {
+                $photo_data = base64_decode($photo_data);
+                
+                if ($photo_data === false) {
+                    $error = 'Base64 decode failed';
+                } else {
+                    // Create uploads directory if it doesn't exist
+                    $upload_dir = PUBLIC_PATH . '/uploads/profile_photos';
+                    if (!is_dir($upload_dir)) {
+                        mkdir($upload_dir, 0755, true);
                     }
-                    break;
                     
-                case 'sms':
-                    // SMS implementation would go here
-                    $success .= " To send via SMS, use your phone to message the code to " . $recipient;
-                    break;
+                    // Generate unique filename
+                    $filename = 'profile_' . uniqid() . '_' . time() . '.' . $type;
+                    $filepath = $upload_dir . '/' . $filename;
                     
-                case 'whatsapp':
-                    // Generate WhatsApp link
-                    $whatsapp_message = urlencode("Your invitation code for " . APP_NAME . " is: " . $code);
-                    $whatsapp_url = "https://wa.me/" . preg_replace('/[^0-9]/', '', $recipient) . "?text=" . $whatsapp_message;
-                    $success .= " <a href='$whatsapp_url' target='_blank' class='btn btn-success mt-2'><i class='bi bi-whatsapp'></i> Send via WhatsApp</a>";
-                    break;
+                    // Save the file
+                    if (file_put_contents($filepath, $photo_data)) {
+                        $profile_photo_path = 'uploads/profile_photos/' . $filename;
+                    } else {
+                        $error = 'Failed to save profile photo';
+                    }
+                }
             }
+        }
+    }
+
+    // Validate input (only if no photo error)
+    if (empty($error)) {
+        if ($accommodation_id <= 0) {
+            $error = 'Please select an accommodation';
+        } else if ($count <= 0 || $count > 50) {
+            $error = 'Please enter a valid number of codes (1-50)';
+        } else if ($send_method !== 'none' && empty($recipient)) {
+            $error = 'Please enter recipient information';
+        } else if ($code_role_id === 4 && empty($student_first_name)) {
+            $error = 'Please enter student first name for identification';
         } else {
-            $error = 'Failed to generate code: ' . $conn->error;
+            // Calculate expiry date if specified
+            $expires_at = null;
+            if ($expiry_days > 0) {
+                $expires_at = date('Y-m-d H:i:s', strtotime("+$expiry_days days"));
+            }
+            
+            // Generate code
+            $code = generateUniqueCode();
+            
+            // Insert code with profile photo, phone number, and send method
+            $stmt = safeQueryPrepare($conn, "INSERT INTO onboarding_codes 
+                                       (code, created_by, accommodation_id, role_id, status, expires_at, profile_photo, student_first_name, student_last_name, phone_number, send_method) 
+                                       VALUES (?, ?, ?, ?, 'unused', ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param("siiissssss", $code, $user_id, $accommodation_id, $code_role_id, $expires_at, $profile_photo_path, $student_first_name, $student_last_name, $recipient, $send_method);
+            
+            if ($stmt->execute()) {
+                $generated_codes[] = $code;
+                $success = "Invitation code generated successfully.";
+                
+                if ($profile_photo_path) {
+                    $success .= " Student photo saved for verification.";
+                }
+                
+                // Handle sending of code
+                switch ($send_method) {
+                    case 'email':
+                        if (filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
+                            $subject = "Your " . APP_NAME . " Invitation";
+                            $message = "Hello,\n\nYou have been invited to join " . APP_NAME . ".\n\n";
+                            $message .= "Your invitation code is: " . $code . "\n\n";
+                            $message .= "Please visit " . BASE_URL . "/register.php to create your account.\n\n";
+                            $message .= "This code will expire on " . ($expires_at ? date('F j, Y', strtotime($expires_at)) : 'never') . ".\n\n";
+                            $message .= "Regards,\n" . APP_NAME . " Team";
+                            
+                            if (mail($recipient, $subject, $message)) {
+                                $success .= " The code has been sent to " . $recipient;
+                            } else {
+                                $error = "Failed to send email. The code was generated but you'll need to share it manually.";
+                            }
+                        } else {
+                            $error = "Invalid email address. The code was generated but you'll need to share it manually.";
+                        }
+                        break;
+                        
+                    case 'sms':
+                        // Send via Twilio SMS
+                        $sms_message = "Your invitation code for " . APP_NAME . " is: " . $code . "\n\n";
+                        $sms_message .= "Please visit " . BASE_URL . "/onboard.php to create your account.\n\n";
+                        $sms_message .= "This code will expire on " . ($expires_at ? date('F j, Y', strtotime($expires_at)) : 'never') . ".";
+                        
+                        if (sendSMS($recipient, $sms_message)) {
+                            $success .= " The code has been sent via SMS to " . $recipient;
+                        } else {
+                            $error = "Failed to send SMS. The code was generated but you'll need to share it manually.";
+                        }
+                        break;
+                        
+                    case 'whatsapp':
+                        // Send via Twilio WhatsApp
+                        $whatsapp_message = "Your invitation code for " . APP_NAME . " is: *" . $code . "*\n\n";
+                        $whatsapp_message .= "Please visit " . BASE_URL . " to create your account.\n\n";
+                        $whatsapp_message .= "This code will expire on " . ($expires_at ? date('F j, Y', strtotime($expires_at)) : 'never') . ".";
+                        
+                        if (sendWhatsApp($recipient, $whatsapp_message)) {
+                            $success .= " The code has been sent via WhatsApp to " . $recipient;
+                        } else {
+                            $error = "Failed to send WhatsApp message. The code was generated but you'll need to share it manually.";
+                        }
+                        break;
+                }
+            } else {
+                $error = 'Failed to generate code: ' . $conn->error;
+            }
         }
     }
 }
 
 require_once '../includes/components/header.php';
-require_once '../includes/components/navigation.php';
 ?>
 
 <div class="container mt-4">
-    <?php if ($user_role === 'manager'): ?>
-        <?php require_once '../includes/components/accommodation-switcher.php'; ?>
-    <?php endif; ?>
-    
     <?php if ($error): ?>
         <div class="alert alert-danger"><?= $error ?></div>
     <?php endif; ?>
@@ -209,6 +269,57 @@ require_once '../includes/components/navigation.php';
                             <div class="alert alert-info">
                                 <i class="bi bi-info-circle me-2"></i>
                                 <span>You are creating an invitation code for a new manager. They will use this code to register their account.</span>
+                            </div>
+                        <?php elseif ($user_role === 'manager' && $code_role_id === 4): ?>
+                            <!-- Student Identification Section -->
+                            <div class="card mb-3 border-primary">
+                                <div class="card-header bg-primary bg-opacity-10">
+                                    <h6 class="mb-0"><i class="bi bi-person-badge me-2"></i>Student Identification</h6>
+                                </div>
+                                <div class="card-body">
+                                    <p class="small text-muted mb-3">
+                                        Enter student details and capture their photo for verification purposes.
+                                    </p>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <label for="student_first_name" class="form-label">Student First Name *</label>
+                                            <input type="text" class="form-control" id="student_first_name" name="student_first_name" 
+                                                   value="<?= htmlspecialchars($_POST['student_first_name'] ?? '') ?>" required>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label for="student_last_name" class="form-label">Student Last Name</label>
+                                            <input type="text" class="form-control" id="student_last_name" name="student_last_name" 
+                                                   value="<?= htmlspecialchars($_POST['student_last_name'] ?? '') ?>">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">Student Photo (Optional)</label>
+                                        <div class="text-center mb-3">
+                                            <video id="camera" width="100%" height="auto" autoplay style="display:none; max-width: 400px; border-radius: 8px; border: 2px solid #dee2e6;"></video>
+                                            <canvas id="canvas" style="display:none;"></canvas>
+                                            <div id="photo-preview" style="display:none; position: relative;">
+                                                <img id="captured-photo" alt="Captured photo" style="max-width: 100%; max-height: 300px; border-radius: 8px; border: 2px solid #198754;" />
+                                                <button type="button" class="btn btn-sm btn-danger" id="retake-photo" style="position: absolute; top: 10px; right: 10px;">
+                                                    <i class="bi bi-x-circle me-1"></i> Retake
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="d-grid gap-2">
+                                            <button type="button" class="btn btn-outline-primary" id="start-camera">
+                                                <i class="bi bi-camera me-2"></i>Open Camera
+                                            </button>
+                                            <button type="button" class="btn btn-success" id="capture-photo" style="display:none;">
+                                                <i class="bi bi-camera-fill me-2"></i>Capture Photo
+                                            </button>
+                                        </div>
+                                        <input type="hidden" name="photo_data" id="photo_data">
+                                        <div class="form-text mt-2">
+                                            <i class="bi bi-info-circle me-1"></i>Take a photo of the student for visual identification and verification.
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         <?php endif; ?>
                         
@@ -381,6 +492,74 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     });
+    
+    // Camera capture functionality
+    const startCameraBtn = document.getElementById('start-camera');
+    const capturePhotoBtn = document.getElementById('capture-photo');
+    const retakePhotoBtn = document.getElementById('retake-photo');
+    const video = document.getElementById('camera');
+    const canvas = document.getElementById('canvas');
+    const photoPreview = document.getElementById('photo-preview');
+    const capturedPhoto = document.getElementById('captured-photo');
+    const photoDataInput = document.getElementById('photo_data');
+    let stream = null;
+    
+    if (startCameraBtn) {
+        startCameraBtn.addEventListener('click', async function() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: { ideal: 640 },
+                        height: { ideal: 480 },
+                        facingMode: 'user'
+                    } 
+                });
+                video.srcObject = stream;
+                video.style.display = 'block';
+                capturePhotoBtn.style.display = 'block';
+                startCameraBtn.style.display = 'none';
+                photoPreview.style.display = 'none';
+            } catch (err) {
+                alert('Error accessing camera: ' + err.message);
+                console.error('Camera error:', err);
+            }
+        });
+        
+        capturePhotoBtn.addEventListener('click', function() {
+            // Set canvas dimensions to match video
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            
+            // Draw video frame to canvas
+            const context = canvas.getContext('2d');
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            // Convert to base64
+            const photoData = canvas.toDataURL('image/jpeg', 0.9);
+            photoDataInput.value = photoData;
+            
+            // Show preview
+            capturedPhoto.src = photoData;
+            photoPreview.style.display = 'block';
+            
+            // Hide video and capture button
+            video.style.display = 'none';
+            capturePhotoBtn.style.display = 'none';
+            
+            // Stop camera stream
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+        });
+        
+        retakePhotoBtn.addEventListener('click', function() {
+            photoDataInput.value = '';
+            capturedPhoto.src = '';
+            photoPreview.style.display = 'none';
+            startCameraBtn.style.display = 'block';
+        });
+    }
 });
 </script>
 

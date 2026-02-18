@@ -59,10 +59,12 @@ $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $items_per_page = 10;
 $offset = ($page - 1) * $items_per_page;
 
-$sql = "SELECT u.*, r.name as role_name 
+$sql = "SELECT u.*, r.name as role_name, COUNT(DISTINCT ud.id) as device_count
         FROM users u 
         JOIN roles r ON u.role_id = r.id 
+        LEFT JOIN user_devices ud ON ud.user_id = u.id
         $where_clause
+        GROUP BY u.id, u.username, u.first_name, u.last_name, u.email, u.password, u.role_id, u.status, u.created_at, u.phone_number, u.whatsapp_number, u.preferred_communication, r.name
         ORDER BY u.created_at DESC
         LIMIT ? OFFSET ?";
 
@@ -112,9 +114,6 @@ $activePage = "users";
 
 // Include header
 require_once '../../includes/components/header.php';
-
-// Include navigation
-require_once '../../includes/components/navigation.php';
 ?>
 
 <div class="container mt-4">
@@ -175,6 +174,7 @@ require_once '../../includes/components/navigation.php';
                             <th>Email</th>
                             <th>Role</th>
                             <th>Status</th>
+                            <th>Devices</th>
                             <th>Created</th>
                             <th>Actions</th>
                         </tr>
@@ -204,6 +204,15 @@ require_once '../../includes/components/navigation.php';
                                             <span class="badge bg-warning">Pending</span>
                                         <?php else: ?>
                                             <span class="badge bg-danger">Inactive</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <?php if ($user['device_count'] > 0): ?>
+                                            <span class="badge bg-primary" title="<?= $user['device_count'] ?> device(s) registered">
+                                                <i class="bi bi-router"></i> <?= $user['device_count'] ?>
+                                            </span>
+                                        <?php else: ?>
+                                            <span class="text-muted">—</span>
                                         <?php endif; ?>
                                     </td>
                                     <td><?= date('M j, Y', strtotime($user['created_at'])) ?></td>

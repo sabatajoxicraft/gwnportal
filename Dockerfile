@@ -6,6 +6,9 @@ RUN docker-php-ext-install mysqli pdo pdo_mysql
 # Enable mod_rewrite
 RUN a2enmod rewrite
 
+# Add ServerName directive to suppress Apache warnings
+RUN echo "ServerName localhost" >> /etc/apache2/apache2.conf
+
 # Set working directory
 WORKDIR /var/www/html
 

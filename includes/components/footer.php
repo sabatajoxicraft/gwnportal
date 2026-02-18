@@ -19,11 +19,11 @@ $extraScripts = $extraScripts ?? [];
                 <div class="col-md-3">
                     <h6>Quick Links</h6>
                     <ul class="list-unstyled">
-                        <li><a href="<?= BASE_URL ?>/index.php" class="text-light">Home</a></li>
                         <?php if (isLoggedIn()): ?>
                             <li><a href="<?= BASE_URL ?>/dashboard.php" class="text-light">Dashboard</a></li>
                             <li><a href="<?= BASE_URL ?>/profile.php" class="text-light">My Profile</a></li>
                         <?php else: ?>
+                            <li><a href="<?= BASE_URL ?>/index.php" class="text-light">Home</a></li>
                             <li><a href="<?= BASE_URL ?>/login.php" class="text-light">Login</a></li>
                         <?php endif; ?>
                         <li><a href="<?= BASE_URL ?>/contact.php" class="text-light">Contact Us</a></li>

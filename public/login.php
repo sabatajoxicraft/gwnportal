@@ -1,240 +1,310 @@
 <?php
-require_once '../includes/config.php';
-require_once '../includes/db.php';
-require_once '../includes/functions.php';
+/**
+ * Login Page
+ * Authenticates users and initiates sessions using UserService
+ * 
+ * Refactored to use service-oriented architecture:
+ * - UserService::authenticate() for password verification
+ * - ActivityLogger for login tracking
+ * - Centralized error handling and logging
+ */
+
+// Include page template (provides $conn, $currentUserId, $currentUserRole)
+include '../includes/page-template.php';
 
 $pageTitle = "Login";
 
-// Ensure database connection is available
-$conn = getDbConnection();
-
 // Redirect if already logged in
-if (isLoggedIn()) {
-    redirect(getDashboardUrl());
+if (isset($_SESSION['user_id'])) {
+    header('Location: dashboard.php');
+    exit;
 }
 
-$error = '';
-$debug = []; // Debug array to track login process
+$loginError = '';
 
-// Check for login attempt
+/**
+ * Handle login form submission
+ */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    requireCsrfToken();
-    $username = $_POST['username'] ?? '';
-    $password = $_POST['password'] ?? '';
-    
-    // Add debug info about server environment
-    $debug['php_version'] = PHP_VERSION;
-    $debug['password_hash_algo'] = defined('PASSWORD_DEFAULT') ? PASSWORD_DEFAULT : 'unknown';
-    
-    if (empty($username)) {
-        $error = 'Please provide a username.';
+    // Validate CSRF token
+    if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
+        $loginError = 'Invalid security token. Please try again.';
+        ActivityLogger::logAuthEvent(null, 'login_failure', false, $_SERVER['REMOTE_ADDR'] ?? 'unknown', 'CSRF token invalid');
     } else {
-        // Check for too many failed attempts
-        if (checkLoginThrottle($username)) {
-            $error = 'Too many failed login attempts. Please try again later.';
+        $username = trim($_POST['username'] ?? '');
+        $password = $_POST['password'] ?? '';
+        
+        // Validate input
+        if (empty($username) || empty($password)) {
+            $loginError = 'Please provide both username and password.';
         } else {
-            // Query for user with this username (NO PASSWORD REQUIRED FOR TESTING)
-            $stmt = safeQueryPrepare($conn, 
-                "SELECT u.*, r.name as role_name 
-                 FROM users u 
-                 JOIN roles r ON u.role_id = r.id 
-                 WHERE u.username = ?");
-            $stmt->bind_param("s", $username);
-            $stmt->execute();
-            $result = $stmt->get_result();
+            // Use UserService to authenticate user
+            $user = UserService::authenticate($conn, $username, $password);
             
-            if ($result->num_rows === 1) {
-                $user = $result->fetch_assoc();
-                
-                // Skip password verification - allow login with username only
-                if (true) { // Always authenticate when user exists (password-less mode)
-                    $debug['hash_info'] = [
-                        'cost' => preg_match('/^\$2y\$(\d+)\$/', $user['password'], $matches) ? $matches[1] : 'unknown'
-                    ];
-                    
-                    // Generate a fresh hash for comparison
-                    $fresh_hash = createPasswordHash($password);
-                    $debug['fresh_hash_prefix'] = substr($fresh_hash, 0, 13) . '...';
-                    
-                    // Try password verification with logging
-                    $startTime = microtime(true);
-                    // Password-less login: Always succeed when user exists
-                    $debug['password_verified'] = true;
-                    
-                    // Check if this is a first login requiring password reset
-                    $needsReset = false;
-                    if (isset($user['password_reset_required']) && $user['password_reset_required'] == 1) {
-                        $needsReset = true;
-                        // Store in session that password reset is required
-                        $_SESSION['password_reset_required'] = true;
-                    }
-                    
-                    // Login successful - set session variables
+            if ($user) {
+                // Check if account is active
+                if ($user['status'] !== 'active') {
+                    $loginError = 'Your account is not active. Please contact your accommodation manager.';
+                    ActivityLogger::logAuthEvent(
+                        null,
+                        'login_failure',
+                        false,
+                        $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+                        'Account inactive: ' . $username
+                    );
+                } else {
+                    $roleName = strtolower($user['role_name'] ?? (getRoleName($user['role_id'] ?? null) ?? ''));
+                    $user['role_name'] = $roleName;
+
+                    // Set up session
                     $_SESSION['user_id'] = $user['id'];
-                    $_SESSION['user_name'] = $user['first_name'];
-                    $_SESSION['user_role'] = $user['role_name'];
+                    $_SESSION['user_name'] = $user['first_name'] ?? $user['username'];
+                    $_SESSION['user_role'] = $roleName ?: null;
+                    $_SESSION['role'] = $roleName ?: null;
+                    $_SESSION['role_id'] = $user['role_id'];
                     
-                    // Regenerate session ID to prevent session fixation
-                    regenerateSessionOnLogin();
+                    // Regenerate session ID for security
+                    session_regenerate_id(true);
                     
-                    // Role-specific session data
-                    handleRoleSpecificData($conn, $user);
+                    // Set up role-specific session data
+                    setupRoleSpecificSession($conn, $user);
                     
-                    // Log the successful login
-                    logActivity($conn, $user['id'], 'Login', 'User logged in successfully (password-less mode)', $_SERVER['REMOTE_ADDR']);
-                    
-                    // Reset failed attempts
-                    resetLoginAttempts($username);
+                    // Log successful login
+                    ActivityLogger::logAuthEvent(
+                        $user['id'],
+                        'login_success',
+                        true,
+                        $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+                        'User logged in successfully'
+                    );
                     
                     // Redirect to dashboard
-                    redirect(getDashboardUrl(), 'Login successful!', 'success');
+                    header('Location: dashboard.php');
+                    exit;
                 }
             } else {
-                // No user found
-                $debug['user_found'] = false;
-                recordFailedLogin($username);
-                $error = 'Invalid username or password.';
+                // Authentication failed - invalid credentials
+                $loginError = 'Invalid username or password.';
+                ActivityLogger::logAuthEvent(
+                    null,
+                    'login_failure',
+                    false,
+                    $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+                    'Failed login attempt: ' . $username
+                );
             }
         }
     }
 }
 
-// Helper function to handle role-specific data
-function handleRoleSpecificData($conn, $user) {
-    switch ($user['role_name']) {
-        case 'manager':
-            // Get manager's accommodation assignment (pick the first one if multiple)
-            $m_stmt = safeQueryPrepare($conn, "SELECT ua.accommodation_id, a.name
-                                               FROM user_accommodation ua
-                                               JOIN accommodations a ON ua.accommodation_id = a.id
-                                               WHERE ua.user_id = ?
-                                               ORDER BY a.name LIMIT 1");
-            if ($m_stmt) {
-                $m_stmt->bind_param("i", $user['id']);
-                $m_stmt->execute();
-                $manager = $m_stmt->get_result()->fetch_assoc();
-            }
+$showLoginHelper = getenv('SHOW_LOGIN_HELPER') === '1';
+$loginHelperUsers = [];
 
-            if (!empty($manager)) {
-                // Use accommodation_id as manager_id for downstream pages expecting this value
-                $_SESSION['manager_id'] = (int)$manager['accommodation_id'];
-                $_SESSION['accommodation_id'] = (int)$manager['accommodation_id'];
-                $_SESSION['manager_name'] = $user['first_name'];
-                $_SESSION['accommodation_name'] = $manager['name'];
-            }
-            break;
-            
-        case 'student':
-            // Get student details
-            $s_stmt = safeQueryPrepare($conn, "SELECT * FROM students WHERE user_id = ?");
-            $s_stmt->bind_param("i", $user['id']);
-            $s_stmt->execute();
-            $student = $s_stmt->get_result()->fetch_assoc();
-            
-            if ($student) {
-                $_SESSION['student_id'] = $student['id'];
-            }
-            break;
-            
-        case 'owner':
-            // Additional owner data if needed
-            $_SESSION['owner_id'] = $user['id'];
-            break;
+if ($showLoginHelper) {
+    $stmt = safeQueryPrepare(
+        $conn,
+        "SELECT u.username, u.status, r.name AS role_name FROM users u LEFT JOIN roles r ON u.role_id = r.id ORDER BY r.name, u.username"
+    );
+    if ($stmt) {
+        $stmt->execute();
+        $result = $stmt->get_result();
+        while ($row = $result->fetch_assoc()) {
+            $loginHelperUsers[] = $row;
+        }
+        $stmt->close();
     }
 }
 
-// Set active page for navigation
-$activePage = "login";
+/**
+ * Setup role-specific session data
+ * Called after successful authentication to populate role-specific session variables
+ * 
+ * @param mysqli $conn Database connection
+ * @param array $user User record from UserService::authenticate()
+ */
+function setupRoleSpecificSession($conn, $user) {
+    $roleName = strtolower($user['role_name'] ?? (getRoleName($user['role_id'] ?? null) ?? ''));
+    if ($roleName === 'manager') {
+        // Get manager's assigned accommodations
+        $accommodations = QueryService::getUserAccommodations($conn, $user['id'], 'manager');
+        if (!empty($accommodations)) {
+            $_SESSION['accommodation_id'] = $accommodations[0]['id'];
+            $_SESSION['accommodation_name'] = $accommodations[0]['name'];
+        }
+    } elseif ($roleName === 'student') {
+        // Get student record and set student-specific session data
+        $student = StudentService::getStudentRecord($conn, $user['id']);
+        if ($student) {
+            $_SESSION['student_id'] = $student['id'];
+            $_SESSION['accommodation_id'] = $student['accommodation_id'] ?? null;
+        }
+    } elseif ($roleName === 'owner') {
+        // Owner has access to all their accommodations
+        $_SESSION['owner_id'] = $user['id'];
+    }
+}
 
-// Add extra CSS for login page
-$extraCss = '<style>
-    body {
-        background-image: var(--primary-gradient);
-        height: 100vh;
+// Styling for login page
+$extraCss = '
+<style>
+    body.login-page {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+    }
+    .login-page-wrapper {
+        min-height: calc(100vh - 140px);
+        display: flex;
         align-items: center;
+        justify-content: center;
+        padding: 2rem 0;
+    }
+    .login-container {
+        max-width: 450px;
+        width: 100%;
+        padding: 0 15px;
     }
     .login-card {
-        box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 15px 45px rgba(0, 0, 0, 0.2);
+        border: none;
+        border-radius: 10px;
+        overflow: hidden;
     }
-    .debug-info {
-        font-size: 0.8rem;
-        background-color: #f8f9fa;
-        border: 1px solid #dee2e6;
-        border-radius: 5px;
-        padding: 10px;
-        margin-top: 15px;
+    .login-card .card-header {
+        padding: 2.5rem 1rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-bottom: none;
     }
-</style>';
+    .login-card .card-header h3 {
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+    .login-card .card-header p {
+        opacity: 0.95;
+        margin-bottom: 0;
+    }
+</style>
+';
+
+$bodyClass = 'login-page';
 
 require_once '../includes/components/header.php';
 ?>
 
-<div class="animated-bg">
-    <div class="bg-bubble"></div>
-    <div class="bg-bubble"></div>
-    <div class="bg-bubble"></div>
-    <div class="bg-bubble"></div>
-</div>
-
-<div class="container login-container">
-    <div class="row justify-content-center">
-        <div class="col-md-6 col-lg-5">
-            <div class="card login-card shadow-lg mt-5">
-                <div class="card-header bg-primary text-white text-center py-4">
-                    <h3 class="mb-0"><i class="bi bi-wifi me-2"></i> <?= APP_NAME ?></h3>
-                    <p class="mb-0 mt-2">Sign in to your account</p>
+<div class="login-page-wrapper">
+    <div class="login-container">
+    <div class="card login-card">
+        <!-- Card Header -->
+        <div class="card-header text-white text-center">
+            <h3><i class="bi bi-wifi"></i> GWN Portal</h3>
+            <p class="small">WiFi Access Management</p>
+        </div>
+        
+        <!-- Card Body -->
+        <div class="card-body p-5">
+            <!-- Login Error Alert -->
+            <?php if (!empty($loginError)): ?>
+                <div class="alert alert-danger d-flex align-items-center gap-2" role="alert">
+                    <i class="bi bi-exclamation-circle flex-shrink-0"></i>
+                    <div><?= htmlspecialchars($loginError, ENT_QUOTES, 'UTF-8') ?></div>
                 </div>
-                <div class="card-body p-4">
-                    <?php if (!empty($error)): ?>
-                        <div class="alert alert-danger"><?= $error ?></div>
-                    <?php endif; ?>
-                    
-                    <form method="post" action="">
-                        <?php echo csrfField(); ?>
-                        <div class="mb-4">
-                            <label for="username" class="form-label">Username</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-person"></i></span>
-                                <input type="text" class="form-control" id="username" name="username" required autofocus>
-                            </div>
-                            <small class="text-muted d-block mt-2">Testing Mode: Password not required</small>
-                        </div>
-                        <div class="d-grid gap-2 mt-4">
-                            <button type="submit" class="btn btn-primary py-2">
-                                <i class="bi bi-box-arrow-in-right me-2"></i>Login
-                            </button>
-                        </div>
-                    </form>
-                    
-                    <?php if (!empty($debug) && isset($_GET['debug'])): ?>
-                    <div class="debug-info mt-4">
-                        <h6>Debug Information:</h6>
-                        <div class="d-flex justify-content-end mb-2">
-                            <a href="?debug=1&reset_test=1" class="btn btn-sm btn-outline-secondary">Create Test User</a>
-                        </div>
-                        <pre><?= json_encode($debug, JSON_PRETTY_PRINT) ?></pre>
-                        
-                        <div class="mt-3">
-                            <h6>Password Troubleshooting:</h6>
-                            <p class="small text-muted">If you're having issues logging in:</p>
-                            <ol class="small">
-                                <li>Try <a href="?debug=1&reset_test=1">creating a test user</a> and logging in with username "testuser" and password "test123"</li>
-                                <li>Check if there are whitespace issues with your password</li>
-                                <li>Ensure caps lock is not enabled</li>
-                                <li>Try resetting your password if possible</li>
-                            </ol>
-                        </div>
+            <?php endif; ?>
+            
+            <!-- Login Form -->
+            <form method="POST" action="" novalidate>
+                <!-- CSRF Token -->
+                <?= csrfField(); ?>
+                
+                <!-- Username Field -->
+                <div class="mb-3">
+                    <label for="username" class="form-label fw-bold">Username</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0"><i class="bi bi-person text-muted"></i></span>
+                        <input 
+                            type="text" 
+                            class="form-control border-start-0" 
+                            id="username" 
+                            name="username" 
+                            required 
+                            autofocus 
+                            placeholder="Enter your username"
+                        >
                     </div>
-                    <?php endif; ?>
                 </div>
-                <div class="card-footer text-center py-3">
-                    <p class="mb-0">Need help? <a href="contact.php" class="text-primary fw-bold">Contact Support</a></p>
+                
+                <!-- Password Field -->
+                <div class="mb-4">
+                    <label for="password" class="form-label fw-bold">Password</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0"><i class="bi bi-lock text-muted"></i></span>
+                        <input 
+                            type="password" 
+                            class="form-control border-start-0" 
+                            id="password" 
+                            name="password" 
+                            required 
+                            placeholder="Enter your password"
+                        >
+                    </div>
                 </div>
+                
+                <!-- Login Button -->
+                <div class="d-grid gap-2 mb-3">
+                    <button type="submit" class="btn btn-primary btn-lg fw-bold py-2">
+                        <i class="bi bi-box-arrow-in-right me-2"></i>Login
+                    </button>
+                </div>
+                
+                <!-- Help Links -->
+                <div class="text-center">
+                    <small class="text-muted">
+                        <a href="help.php" class="text-primary text-decoration-none">Need help?</a> • 
+                        <a href="contact.php" class="text-primary text-decoration-none">Contact Support</a>
+                    </small>
+                </div>
+            </form>
+        </div>
+        
+        <!-- Card Footer - Development Notice -->
+        <div class="card-footer bg-light border-top">
+            <?php if ($showLoginHelper): ?>
+                <div class="alert alert-warning mb-3 small">
+                    <strong>Login Helper (Dev Only)</strong>
+                    <div class="table-responsive mt-2">
+                        <table class="table table-sm table-bordered mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Username</th>
+                                    <th>Role</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (empty($loginHelperUsers)): ?>
+                                    <tr>
+                                        <td colspan="3" class="text-muted">No users found.</td>
+                                    </tr>
+                                <?php else: ?>
+                                    <?php foreach ($loginHelperUsers as $helperUser): ?>
+                                        <tr>
+                                            <td><?= htmlspecialchars($helperUser['username'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
+                                            <td><?= htmlspecialchars($helperUser['role_name'] ?? 'unknown', ENT_QUOTES, 'UTF-8') ?></td>
+                                            <td><?= htmlspecialchars($helperUser['status'] ?? 'unknown', ENT_QUOTES, 'UTF-8') ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            <?php endif; ?>
+            <div class="alert alert-info mb-0 small">
+                <strong>Development Setup:</strong><br>
+                Load test data with: <br>
+                <code class="d-block mt-2 p-2 bg-white rounded border">mysql gwn_wifi_system &lt; db/fixtures/test-data.sql</code>
             </div>
         </div>
     </div>
 </div>
+</div>
 
 <?php require_once '../includes/components/footer.php'; ?>
-</body>
-</html>

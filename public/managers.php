@@ -6,7 +6,7 @@ require_once '../includes/db.php';
 // Require owner login
 requireOwnerLogin();
 
-$owner_id = $_SESSION['user_id'];
+$owner_id = $_SESSION['user_id'] ?? 0;
 $conn = getDbConnection();
 
 // Handle unassign manager action

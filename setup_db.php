@@ -149,20 +149,15 @@ function extractTableName($query) {
                                 }
                             }
 
-                            // Hash default passwords for admin and owner users
-                            $adminPassword = createPasswordHash('password123');
-                            $ownerPassword = createPasswordHash('password123');
-
-                            $stmt = $conn->prepare("UPDATE users SET password = ? WHERE id = ?");
-                            $stmt->bind_param("si", $adminPassword, $adminId);
-                            $adminId = 1;
+                            // Hash default passwords for all users
+                            $defaultPassword = createPasswordHash('password123');
+                            
+                            // Update passwords for all users who have empty password field
+                            $stmt = $conn->prepare("UPDATE users SET password = ? WHERE password = ''");
+                            $stmt->bind_param("s", $defaultPassword);
                             $stmt->execute();
 
-                            $stmt->bind_param("si", $ownerPassword, $ownerId);
-                            $ownerId = 2;
-                            $stmt->execute();
-
-                            $log[] = "Default passwords hashed and updated successfully.";
+                            $log[] = "Default passwords hashed and updated successfully for all users.";
 
                             // Check if any errors occurred in the results
                             $hasErrors = false;

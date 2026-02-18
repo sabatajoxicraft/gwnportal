@@ -21,7 +21,7 @@ $student_id = intval($_GET['id'] ?? 0);
 
 // Use RBAC permission check
 if (!canEditStudent($student_id)) {
-    denyAccess('You do not have permission to edit this student', BASE_URL . '/manager/students.php');
+    denyAccess('You do not have permission to edit this student', BASE_URL . '/students.php');
 }
 
 // Get student details
@@ -40,7 +40,7 @@ if ($stmt === false) {
     $result = $stmt->get_result();
     
     if ($result->num_rows === 0) {
-        redirect(BASE_URL . '/manager/students.php', 'Student not found', 'danger');
+        redirect(BASE_URL . '/students.php', 'Student not found', 'danger');
     }
     
     $student = $result->fetch_assoc();
@@ -194,7 +194,7 @@ require_once '../../includes/components/header.php';
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb">
                     <li class="breadcrumb-item"><a href="<?= BASE_URL ?>/dashboard.php">Dashboard</a></li>
-                    <li class="breadcrumb-item"><a href="<?= BASE_URL ?>/manager/students.php">Students</a></li>
+                    <li class="breadcrumb-item"><a href="<?= BASE_URL ?>/students.php">Students</a></li>
                     <li class="breadcrumb-item active" aria-current="page">Edit Student</li>
                 </ol>
             </nav>
@@ -298,7 +298,7 @@ require_once '../../includes/components/header.php';
                         </div>
                         
                         <div class="d-flex justify-content-between">
-                            <a href="<?= BASE_URL ?>/manager/students.php" class="btn btn-outline-secondary">Back to Students</a>
+                            <a href="<?= BASE_URL ?>/students.php" class="btn btn-outline-secondary">Back to Students</a>
                             <button type="submit" class="btn btn-primary">Update Student</button>
                         </div>
                     </form>

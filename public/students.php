@@ -12,7 +12,7 @@ $conn = getDbConnection();
 
 // Handle student action if requested
 if (isset($_GET['action']) && isset($_GET['id'])) {
-    $student_id = (int)$_GET['id'];
+    $student_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
     
     // Use RBAC permission check
     if (!canEditStudent($student_id)) {
@@ -20,22 +20,69 @@ if (isset($_GET['action']) && isset($_GET['id'])) {
     }
     
     if ($_GET['action'] == 'activate') {
-        $stmt = $conn->prepare("UPDATE students SET status = 'active' WHERE id = ?");
-        $stmt->bind_param("i", $student_id);
-        $stmt->execute();
+        // Also re-enable the user account (needed when restoring archived students)
+        $lookupStmt = $conn->prepare("SELECT user_id FROM students WHERE id = ?");
+        $lookupStmt->bind_param("i", $student_id);
+        $lookupStmt->execute();
+        $row = $lookupStmt->get_result()->fetch_assoc();
+        $lookupStmt->close();
+
+        $conn->prepare("UPDATE students SET status = 'active' WHERE id = ?")->execute([$student_id]);
+        if ($row) {
+            $conn->prepare("UPDATE users SET status = 'active' WHERE id = ?")->execute([$row['user_id']]);
+        }
+        logActivity($conn, $_SESSION['user_id'], 'activate_student', "Activated student ID {$student_id}", $_SERVER['REMOTE_ADDR']);
         redirect(BASE_URL . '/students.php', 'Student activated successfully.', 'success');
-    } 
+    }
     elseif ($_GET['action'] == 'deactivate') {
         $stmt = $conn->prepare("UPDATE students SET status = 'inactive' WHERE id = ?");
         $stmt->bind_param("i", $student_id);
         $stmt->execute();
+        logActivity($conn, $_SESSION['user_id'], 'deactivate_student', "Deactivated student ID {$student_id}", $_SERVER['REMOTE_ADDR']);
         redirect(BASE_URL . '/students.php', 'Student deactivated successfully.', 'success');
     }
-    elseif ($_GET['action'] == 'delete') {
-        $stmt = $conn->prepare("DELETE FROM students WHERE id = ?");
-        $stmt->bind_param("i", $student_id);
-        $stmt->execute();
-        redirect(BASE_URL . '/students.php', 'Student deleted successfully.', 'success');
+    elseif ($_GET['action'] == 'archive') {
+        // Get user_id for the student
+        $lookupStmt = $conn->prepare("SELECT user_id FROM students WHERE id = ?");
+        $lookupStmt->bind_param("i", $student_id);
+        $lookupStmt->execute();
+        $studentRow = $lookupStmt->get_result()->fetch_assoc();
+        $lookupStmt->close();
+
+        if ($studentRow) {
+            $archiveUserId = (int)$studentRow['user_id'];
+
+            // Revoke any active GWN vouchers on the cloud
+            require_once __DIR__ . '/../includes/python_interface.php';
+            $networkId = defined('GWN_NETWORK_ID') ? GWN_NETWORK_ID : '';
+            if (!empty($networkId)) {
+                $vStmt = safeQueryPrepare($conn,
+                    "SELECT id, gwn_voucher_id FROM voucher_logs WHERE user_id = ? AND is_active = 1 AND gwn_voucher_id IS NOT NULL");
+                if ($vStmt) {
+                    $vStmt->bind_param("i", $archiveUserId);
+                    $vStmt->execute();
+                    $activeVouchers = $vStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                    $vStmt->close();
+                    foreach ($activeVouchers as $av) {
+                        gwnDeleteVoucher((int)$av['gwn_voucher_id'], $networkId);
+                    }
+                }
+            }
+
+            // Mark all vouchers as inactive
+            $conn->prepare("UPDATE voucher_logs SET is_active = 0 WHERE user_id = ? AND is_active = 1")
+                 ->execute([$archiveUserId]);
+
+            // Archive: set student status to 'archived' and disable user login
+            $conn->prepare("UPDATE students SET status = 'archived' WHERE id = ?")
+                 ->execute([$student_id]);
+            $conn->prepare("UPDATE users SET status = 'inactive' WHERE id = ?")
+                 ->execute([$archiveUserId]);
+
+            logActivity($conn, $_SESSION['user_id'], 'archive_student', "Archived student ID {$student_id}", $_SERVER['REMOTE_ADDR']);
+        }
+
+        redirect(BASE_URL . '/students.php', 'Student archived successfully. Their data is preserved but they can no longer log in.', 'success');
     }
 }
 
@@ -43,20 +90,29 @@ if (isset($_GET['action']) && isset($_GET['id'])) {
 $filter = $_GET['filter'] ?? 'all';
 
 // Prepare the SQL query based on the filter
+// Default 'all' excludes archived students
 $sql_where = "WHERE s.accommodation_id = ?";
 if ($filter == 'active') {
-    $sql_where .= " AND status = 'active'";
+    $sql_where .= " AND s.status = 'active'";
 } else if ($filter == 'pending') {
-    $sql_where .= " AND status = 'pending'";
+    $sql_where .= " AND s.status = 'pending'";
 } else if ($filter == 'inactive') {
-    $sql_where .= " AND status = 'inactive'";
+    $sql_where .= " AND s.status = 'inactive'";
+} else if ($filter == 'archived') {
+    $sql_where .= " AND s.status = 'archived'";
+} else {
+    // 'all' = everything except archived
+    $sql_where .= " AND s.status != 'archived'";
 }
 
-// Get students for this manager
-$sql = "SELECT s.id, s.status, s.created_at, u.first_name, u.last_name, u.email, u.phone_number, u.whatsapp_number, u.preferred_communication
+// Get students for this manager with device counts
+$sql = "SELECT s.id, s.status, s.created_at, u.first_name, u.last_name, u.email, u.phone_number, u.whatsapp_number, u.preferred_communication,
+        COUNT(DISTINCT ud.id) as device_count
     FROM students s
     JOIN users u ON s.user_id = u.id
+    LEFT JOIN user_devices ud ON ud.user_id = u.id
     $sql_where
+    GROUP BY s.id, s.status, s.created_at, u.first_name, u.last_name, u.email, u.phone_number, u.whatsapp_number, u.preferred_communication
     ORDER BY s.created_at DESC";
 $stmt = safeQueryPrepare($conn, $sql);
 
@@ -87,7 +143,6 @@ if ($stmt_stats) {
 
 $pageTitle = "Manage Students";
 require_once '../includes/components/header.php';
-require_once '../includes/components/navigation.php';
 ?>
 
 <div class="container mt-4">
@@ -136,6 +191,9 @@ require_once '../includes/components/navigation.php';
                     <li class="nav-item">
                         <a class="nav-link <?= $filter == 'inactive' ? 'active' : '' ?>" href="?filter=inactive">Inactive</a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link <?= $filter == 'archived' ? 'active' : '' ?>" href="?filter=archived"><i class="bi bi-archive me-1"></i>Archived</a>
+                    </li>
                 </ul>
             </div>
             <div class="card-body">
@@ -148,6 +206,7 @@ require_once '../includes/components/navigation.php';
                                     <th>Email</th>
                                     <th>Phone</th>
                                     <th>Preferred</th>
+                                    <th>Devices</th>
                                     <th>Status</th>
                                     <th>Actions</th>
                                 </tr>
@@ -159,11 +218,22 @@ require_once '../includes/components/navigation.php';
                                         <td><?= $student['email'] ?></td>
                                         <td><?= $student['phone_number'] ?></td>
                                         <td><?= $student['preferred_communication'] ?></td>
+                                        <td class="text-center">
+                                            <?php if ($student['device_count'] > 0): ?>
+                                                <span class="badge bg-info" title="<?= $student['device_count'] ?> device(s) registered">
+                                                    <i class="bi bi-phone"></i> <?= $student['device_count'] ?>
+                                                </span>
+                                            <?php else: ?>
+                                                <span class="text-muted" title="No devices registered">—</span>
+                                            <?php endif; ?>
+                                        </td>
                                         <td>
                                             <?php if ($student['status'] == 'active'): ?>
                                                 <span class="badge bg-success">Active</span>
                                             <?php elseif ($student['status'] == 'pending'): ?>
                                                 <span class="badge bg-warning">Pending</span>
+                                            <?php elseif ($student['status'] == 'archived'): ?>
+                                                <span class="badge bg-secondary">Archived</span>
                                             <?php else: ?>
                                                 <span class="badge bg-danger">Inactive</span>
                                             <?php endif; ?>
@@ -174,16 +244,23 @@ require_once '../includes/components/navigation.php';
                                                     Actions
                                                 </button>
                                                 <ul class="dropdown-menu" aria-labelledby="actionDropdown<?= $student['id'] ?>">
-                                                    <li><a class="dropdown-item" href="student-details.php?id=<?= $student['id'] ?>">View Details</a></li>
-                                                    <li><a class="dropdown-item" href="send-voucher.php?id=<?= $student['id'] ?>">Send Voucher</a></li>
-                                                    <?php if ($student['status'] != 'active'): ?>
-                                                        <li><a class="dropdown-item" href="?action=activate&id=<?= $student['id'] ?>">Activate</a></li>
+                                                    <li><a class="dropdown-item" href="student-details.php?id=<?= $student['id'] ?>"><i class="bi bi-eye me-2"></i>View Details</a></li>
+                                                    <?php if ($student['status'] !== 'archived'): ?>
+                                                        <li><a class="dropdown-item" href="send-voucher.php?id=<?= $student['id'] ?>"><i class="bi bi-wifi me-2"></i>Send Voucher</a></li>
+                                                        <li><a class="dropdown-item" href="resend-credentials.php?id=<?= $student['id'] ?>" onclick="return confirm('Send login credentials to <?= htmlspecialchars($student['first_name'] . ' ' . $student['last_name']) ?>?')"><i class="bi bi-envelope me-2"></i>Resend Login Details</a></li>
+                                                        <li><hr class="dropdown-divider"></li>
+                                                        <?php if ($student['status'] != 'active'): ?>
+                                                            <li><a class="dropdown-item" href="?action=activate&id=<?= $student['id'] ?>"><i class="bi bi-check-circle me-2"></i>Activate</a></li>
+                                                        <?php endif; ?>
+                                                        <?php if ($student['status'] != 'inactive'): ?>
+                                                            <li><a class="dropdown-item" href="?action=deactivate&id=<?= $student['id'] ?>"><i class="bi bi-x-circle me-2"></i>Deactivate</a></li>
+                                                        <?php endif; ?>
+                                                        <li><hr class="dropdown-divider"></li>
+                                                        <li><a class="dropdown-item text-danger" href="?action=archive&id=<?= $student['id'] ?>" onclick="return confirm('Archive this student? They will no longer be able to log in or receive vouchers.')"><i class="bi bi-archive me-2"></i>Archive</a></li>
+                                                    <?php else: ?>
+                                                        <li><hr class="dropdown-divider"></li>
+                                                        <li><a class="dropdown-item text-success" href="?action=activate&id=<?= $student['id'] ?>" onclick="return confirm('Restore this student and reactivate their account?')"><i class="bi bi-arrow-counterclockwise me-2"></i>Restore</a></li>
                                                     <?php endif; ?>
-                                                    <?php if ($student['status'] != 'inactive'): ?>
-                                                        <li><a class="dropdown-item" href="?action=deactivate&id=<?= $student['id'] ?>">Deactivate</a></li>
-                                                    <?php endif; ?>
-                                                    <li><hr class="dropdown-divider"></li>
-                                                    <li><a class="dropdown-item text-danger" href="?action=delete&id=<?= $student['id'] ?>" onclick="return confirm('Are you sure you want to delete this student? This action cannot be undone.')">Delete</a></li>
                                                 </ul>
                                             </div>
                                         </td>

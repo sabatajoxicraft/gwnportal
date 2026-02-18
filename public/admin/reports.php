@@ -38,16 +38,36 @@ if ($report_type) {
         case 'accommodation_usage':
             $where = $accommodation_id !== 'all' ? "AND a.id = ?" : "";
             
-            $sql = "SELECT a.name as accommodation_name, 
-                   COUNT(DISTINCT ua.user_id) as total_users,
-                   SUM(CASE WHEN r.name = 'student' THEN 1 ELSE 0 END) as student_count,
-                   SUM(CASE WHEN r.name = 'manager' THEN 1 ELSE 0 END) as manager_count
+            $sql = "SELECT 
+                   a.name as accommodation_name,
+                   (COALESCE(s.student_count, 0) + COALESCE(m.manager_count, 0)) as total_users,
+                   COALESCE(s.student_count, 0) as student_count,
+                   COALESCE(m.manager_count, 0) as manager_count
                    FROM accommodations a
-                   LEFT JOIN user_accommodation ua ON a.id = ua.accommodation_id
-                   LEFT JOIN users u ON ua.user_id = u.id
-                   LEFT JOIN roles r ON u.role_id = r.id
+                   LEFT JOIN (
+                       SELECT 
+                           s.accommodation_id,
+                           COUNT(DISTINCT s.user_id) as student_count
+                       FROM students s
+                       JOIN users u ON u.id = s.user_id
+                       JOIN roles r ON r.id = u.role_id
+                       WHERE s.status = 'active'
+                         AND u.status = 'active'
+                         AND r.name = 'student'
+                       GROUP BY s.accommodation_id
+                   ) s ON s.accommodation_id = a.id
+                   LEFT JOIN (
+                       SELECT
+                           ua.accommodation_id,
+                           COUNT(DISTINCT ua.user_id) as manager_count
+                       FROM user_accommodation ua
+                       JOIN users u ON u.id = ua.user_id
+                       JOIN roles r ON r.id = u.role_id
+                       WHERE u.status = 'active'
+                         AND r.name = 'manager'
+                       GROUP BY ua.accommodation_id
+                   ) m ON m.accommodation_id = a.id
                    WHERE 1=1 $where
-                   GROUP BY a.id
                    ORDER BY a.name";
             
             $stmt = safeQueryPrepare($conn, $sql);
@@ -99,8 +119,6 @@ $activePage = "reports";
 // Include header
 require_once '../../includes/components/header.php';
 
-// Include navigation
-require_once '../../includes/components/navigation.php';
 ?>
 
 <div class="container mt-4">

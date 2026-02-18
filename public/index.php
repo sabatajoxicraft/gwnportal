@@ -86,6 +86,23 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// Redirect logged-in users to their dashboard — homepage is for guests only
+if (isLoggedIn()) {
+    $role = $_SESSION['user_role'] ?? '';
+    switch ($role) {
+        case 'student':
+            header('Location: ' . BASE_URL . '/student/dashboard.php');
+            break;
+        case 'admin':
+            header('Location: ' . BASE_URL . '/admin/dashboard.php');
+            break;
+        default:
+            header('Location: ' . BASE_URL . '/dashboard.php');
+            break;
+    }
+    exit;
+}
+
 // Set page title and active page
 $pageTitle = "Home";
 $activePage = "home";

@@ -157,21 +157,251 @@ function validateOnboardingCode($code) {
 }
 
 /**
- * Send SMS message (placeholder implementation)
+ * Send SMS message via Twilio REST API
+ * Uses Messaging Service SID if available, falls back to phone number
  */
 function sendSMS($number, $message) {
-    // Placeholder function - implement actual SMS sending logic here
-    error_log("SMS would be sent to $number: $message");
-    return true;
+    if (empty(TWILIO_ACCOUNT_SID) || empty(TWILIO_AUTH_TOKEN)) {
+        error_log("Twilio SMS not configured. Message to $number: $message");
+        return false;
+    }
+
+    $url = "https://api.twilio.com/2010-04-01/Accounts/" . TWILIO_ACCOUNT_SID . "/Messages.json";
+
+    $data = [
+        'To' => $number,
+        'Body' => $message
+    ];
+
+    // For SMS, use From phone number directly (Messaging Service may not have SMS sender)
+    if (!empty(TWILIO_PHONE_NUMBER)) {
+        $data['From'] = TWILIO_PHONE_NUMBER;
+    } elseif (!empty(TWILIO_MESSAGING_SERVICE_SID)) {
+        $data['MessagingServiceSid'] = TWILIO_MESSAGING_SERVICE_SID;
+    } else {
+        error_log("Twilio SMS: No From number or MessagingServiceSid configured");
+        return false;
+    }
+
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
+    curl_setopt($ch, CURLOPT_USERPWD, TWILIO_ACCOUNT_SID . ":" . TWILIO_AUTH_TOKEN);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $error = curl_error($ch);
+    curl_close($ch);
+
+    if ($error) {
+        error_log("Twilio SMS cURL error: $error");
+        return false;
+    }
+
+    $result = json_decode($response, true);
+
+    if ($httpCode >= 200 && $httpCode < 300) {
+        error_log("SMS sent to $number. SID: " . ($result['sid'] ?? 'unknown'));
+        return true;
+    }
+
+    error_log("Twilio SMS failed ($httpCode): " . ($result['message'] ?? $response));
+    return false;
 }
 
 /**
- * Send WhatsApp message (placeholder implementation)
+ * Send WhatsApp message via Twilio REST API
  */
 function sendWhatsApp($number, $message) {
-    // Placeholder function - implement actual WhatsApp sending logic here
-    error_log("WhatsApp message would be sent to $number: $message");
-    return true;
+    if (empty(TWILIO_ACCOUNT_SID) || empty(TWILIO_AUTH_TOKEN) || empty(TWILIO_WHATSAPP_NO)) {
+        error_log("Twilio WhatsApp not configured. Message to $number: $message");
+        return false;
+    }
+
+    $url = "https://api.twilio.com/2010-04-01/Accounts/" . TWILIO_ACCOUNT_SID . "/Messages.json";
+
+    $whatsappTo = (strpos($number, 'whatsapp:') === 0) ? $number : "whatsapp:$number";
+
+    $data = [
+        'To' => $whatsappTo,
+        'From' => TWILIO_WHATSAPP_NO,
+        'Body' => $message
+    ];
+
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
+    curl_setopt($ch, CURLOPT_USERPWD, TWILIO_ACCOUNT_SID . ":" . TWILIO_AUTH_TOKEN);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $error = curl_error($ch);
+    curl_close($ch);
+
+    if ($error) {
+        error_log("Twilio WhatsApp cURL error: $error");
+        return false;
+    }
+
+    $result = json_decode($response, true);
+
+    if ($httpCode >= 200 && $httpCode < 300) {
+        error_log("WhatsApp sent to $number. SID: " . ($result['sid'] ?? 'unknown'));
+        return true;
+    }
+
+    error_log("Twilio WhatsApp failed ($httpCode): " . ($result['message'] ?? $response));
+    return false;
+}
+
+/**
+ * Route message to SMS or WhatsApp based on preferred method
+ */
+function sendMessage($number, $message, $method = 'SMS') {
+    if ($method === 'WhatsApp') {
+        return sendWhatsApp($number, $message);
+    }
+    return sendSMS($number, $message);
+}
+
+/**
+ * Send WiFi voucher using Twilio Content Templates
+ * Template variables: {{1}} = student name, {{2}} = month, {{3}} = voucher code
+ * 
+ * @param string $number Phone number
+ * @param string $studentName Student full name
+ * @param string $month Voucher month (e.g. "February")
+ * @param string $voucherCode Voucher code
+ * @param string $method 'SMS' or 'WhatsApp'
+ * @return bool
+ */
+function sendVoucherMessage($number, $studentName, $month, $voucherCode, $method = 'SMS') {
+    if (empty(TWILIO_ACCOUNT_SID) || empty(TWILIO_AUTH_TOKEN)) {
+        error_log("Twilio not configured for voucher send to $number");
+        return false;
+    }
+
+    $url = "https://api.twilio.com/2010-04-01/Accounts/" . TWILIO_ACCOUNT_SID . "/Messages.json";
+
+    // Pick template SID based on method
+    $templateSid = ($method === 'WhatsApp') ? TWILIO_WA_VOUCHER_TEMPLATE_SID : TWILIO_SMS_VOUCHER_TEMPLATE_SID;
+
+    if (empty($templateSid)) {
+        // Fallback to plain text if no template configured
+        $message = "Hi $studentName,\nBelow is your monthly WiFi Voucher code valid until {$month}'s month end, this code only grants you a max of 2 devices per month to be connected to the wifi.\n\nYour Voucher: $voucherCode";
+        return sendMessage($number, $message, $method);
+    }
+
+    $data = [
+        'ContentSid' => $templateSid,
+        'ContentVariables' => json_encode([
+            '1' => $studentName,
+            '2' => $month,
+            '3' => $voucherCode
+        ])
+    ];
+
+    // Set To and From based on method
+    if ($method === 'WhatsApp') {
+        $data['To'] = (strpos($number, 'whatsapp:') === 0) ? $number : "whatsapp:$number";
+        $data['From'] = TWILIO_WHATSAPP_NO;
+    } else {
+        $data['To'] = $number;
+        // SMS: use From number directly (Messaging Service may not have SMS sender)
+        $data['From'] = TWILIO_PHONE_NUMBER;
+    }
+
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
+    curl_setopt($ch, CURLOPT_USERPWD, TWILIO_ACCOUNT_SID . ":" . TWILIO_AUTH_TOKEN);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $error = curl_error($ch);
+    curl_close($ch);
+
+    if ($error) {
+        error_log("Twilio voucher cURL error: $error");
+        return false;
+    }
+
+    $result = json_decode($response, true);
+
+    if ($httpCode >= 200 && $httpCode < 300) {
+        error_log("Voucher sent to $number via $method. SID: " . ($result['sid'] ?? 'unknown'));
+        return true;
+    }
+
+    error_log("Twilio voucher failed ($httpCode): " . ($result['message'] ?? $response));
+    return false;
+}
+
+/**
+ * Send login credentials using Twilio Content Template (SMS only)
+ * Template variables: {{1}} = first name, {{2}} = username, {{3}} = temp password
+ */
+function sendCredentialsMessage($number, $firstName, $username, $tempPassword) {
+    if (empty(TWILIO_ACCOUNT_SID) || empty(TWILIO_AUTH_TOKEN)) {
+        error_log("Twilio not configured for credentials send to $number");
+        return false;
+    }
+
+    $url = "https://api.twilio.com/2010-04-01/Accounts/" . TWILIO_ACCOUNT_SID . "/Messages.json";
+    $templateSid = TWILIO_SMS_LOGIN_TEMPLATE_SID;
+
+    if (empty($templateSid)) {
+        $message = "Hello $firstName,\n\nHere are your login details for the WiFi Portal:\n\nUsername: $username\nTemporary Password: $tempPassword\n\nPlease login and change your password immediately.\n\n- WiFi Management Team";
+        return sendSMS($number, $message);
+    }
+
+    $data = [
+        'ContentSid' => $templateSid,
+        'ContentVariables' => json_encode([
+            '1' => $firstName,
+            '2' => $username,
+            '3' => $tempPassword
+        ]),
+        'To' => $number,
+        'From' => TWILIO_PHONE_NUMBER
+    ];
+
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
+    curl_setopt($ch, CURLOPT_USERPWD, TWILIO_ACCOUNT_SID . ":" . TWILIO_AUTH_TOKEN);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $error = curl_error($ch);
+    curl_close($ch);
+
+    if ($error) {
+        error_log("Twilio credentials cURL error: $error");
+        return false;
+    }
+
+    $result = json_decode($response, true);
+
+    if ($httpCode >= 200 && $httpCode < 300) {
+        error_log("Credentials sent to $number via SMS. SID: " . ($result['sid'] ?? 'unknown'));
+        return true;
+    }
+
+    error_log("Twilio credentials failed ($httpCode): " . ($result['message'] ?? $response));
+    return false;
 }
 
 /**
@@ -183,13 +413,22 @@ function safeQueryPrepare($conn, $sql, $debug = true) {
         $conn = getDbConnection();
     }
     
-    $stmt = $conn->prepare($sql);
+    $stmt = false;
+    $prepareError = '';
+    try {
+        $stmt = $conn->prepare($sql);
+    } catch (mysqli_sql_exception $e) {
+        $prepareError = "(" . $e->getCode() . ") " . $e->getMessage();
+        error_log("Database exception in SQL: $sql - " . $prepareError);
+    }
     
     if ($stmt === false) {
         // Log the error regardless
-        error_log("Database error in SQL: $sql - " . $conn->error);
+        $dbError = $prepareError !== '' ? $prepareError : "(" . $conn->errno . ") " . $conn->error;
+        error_log("Database error in SQL: $sql - " . $dbError);
         
-        if ($debug && ($_SERVER['REMOTE_ADDR'] === '127.0.0.1' || $_SERVER['REMOTE_ADDR'] === '::1')) {
+        $remoteAddr = $_SERVER['REMOTE_ADDR'] ?? '';
+        if ($debug && ($remoteAddr === '127.0.0.1' || $remoteAddr === '::1')) {
             // Only show detailed errors in local development
             $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 1);
             $file = $trace[0]['file'] ?? 'unknown';
@@ -198,7 +437,7 @@ function safeQueryPrepare($conn, $sql, $debug = true) {
             echo "
                 <div style='background:#f8d7da; color:#721c24; padding:10px; margin:10px 0; border-radius:5px;'>
                     <h3>Database Error</h3>
-                    <p><strong>Prepare statement failed:</strong> (" . $conn->errno . ") " . $conn->error . "</p>
+                    <p><strong>Prepare statement failed:</strong> " . htmlspecialchars($dbError) . "</p>
                     <p><strong>SQL:</strong> " . htmlspecialchars($sql) . "</p>
                     <p><strong>File:</strong> " . $file . " on line " . $line . "</p>
                 </div>
@@ -502,4 +741,386 @@ function verifyPassword($password, $hash) {
  */
 function passwordNeedsRehash($hash) {
     return password_needs_rehash($hash, PASSWORD_DEFAULT);
+}
+
+// ============================================================================
+// INPUT VALIDATION HELPERS (M1-T5)
+// ============================================================================
+
+/**
+ * Validate email address
+ * 
+ * @param string $email The email to validate
+ * @return bool True if valid email
+ */
+function validateEmail($email) {
+    return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
+}
+
+/**
+ * Validate phone number (South African format)
+ * Accepts: 0821234567, +27821234567, 27821234567
+ * 
+ * @param string $phone The phone number to validate
+ * @return bool True if valid phone
+ */
+function validatePhone($phone) {
+    // Remove all non-numeric except + at start
+    $cleaned = preg_replace('/[^0-9+]/', '', $phone);
+    
+    // Check for valid SA formats
+    if (preg_match('/^0[678]\d{8}$/', $cleaned)) {
+        return true; // 0XX XXX XXXX
+    }
+    if (preg_match('/^\+?27[678]\d{8}$/', $cleaned)) {
+        return true; // +27 or 27 format
+    }
+    
+    return false;
+}
+
+/**
+ * Sanitize input based on type
+ * 
+ * @param mixed $input The input to sanitize
+ * @param string $type Type: 'string', 'int', 'email', 'phone', 'alphanumeric', 'html'
+ * @param int|null $maxLength Maximum length for strings (null for no limit)
+ * @return mixed Sanitized value
+ */
+function sanitizeInput($input, $type = 'string', $maxLength = null) {
+    if ($input === null) {
+        return '';
+    }
+    
+    switch ($type) {
+        case 'int':
+            return (int)$input;
+            
+        case 'float':
+            return (float)$input;
+            
+        case 'email':
+            $input = filter_var(trim($input), FILTER_SANITIZE_EMAIL);
+            break;
+            
+        case 'phone':
+            // Keep only digits and + sign
+            $input = preg_replace('/[^0-9+]/', '', $input);
+            break;
+            
+        case 'alphanumeric':
+            $input = preg_replace('/[^a-zA-Z0-9]/', '', $input);
+            break;
+            
+        case 'html':
+            // Strip all HTML tags
+            $input = strip_tags(trim($input));
+            break;
+            
+        case 'string':
+        default:
+            $input = trim($input);
+            break;
+    }
+    
+    // Apply max length if specified
+    if ($maxLength !== null && is_string($input)) {
+        $input = mb_substr($input, 0, $maxLength);
+    }
+    
+    return $input;
+}
+
+/**
+ * Validate that a string doesn't exceed max length
+ * 
+ * @param string $value The value to check
+ * @param int $maxLength Maximum allowed length
+ * @return bool True if within limit
+ */
+function validateMaxLength($value, $maxLength) {
+    return mb_strlen($value) <= $maxLength;
+}
+
+/**
+ * Validate required fields are not empty
+ * 
+ * @param array $fields Associative array of field_name => value
+ * @return array Array of missing field names
+ */
+function validateRequired($fields) {
+    $missing = [];
+    foreach ($fields as $name => $value) {
+        if ($value === null || $value === '' || (is_string($value) && trim($value) === '')) {
+            $missing[] = $name;
+        }
+    }
+    return $missing;
+}
+
+// ============================================================================
+// OUTPUT ESCAPING HELPERS (M1-T6)
+// ============================================================================
+
+/**
+ * Escape string for HTML output (XSS prevention)
+ * Shorthand alias: e()
+ * 
+ * @param string|null $string The string to escape
+ * @return string Escaped string safe for HTML output
+ */
+function htmlEscape($string) {
+    if ($string === null) {
+        return '';
+    }
+    return htmlspecialchars($string, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+}
+
+/**
+ * Shorthand alias for htmlEscape()
+ * 
+ * @param string|null $string The string to escape
+ * @return string Escaped string safe for HTML output
+ */
+function e($string) {
+    return htmlEscape($string);
+}
+
+/**
+ * Escape for JavaScript string context
+ * 
+ * @param string $string The string to escape
+ * @return string Escaped string safe for JS
+ */
+function jsEscape($string) {
+    return json_encode($string, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+}
+
+/**
+ * Escape for URL parameter
+ *
+ * @param string $string The string to escape
+ * @return string URL-encoded string
+ */
+function urlEscape($string) {
+    return urlencode($string);
+}
+
+// ============================================================================
+// VOUCHER MANAGEMENT FUNCTIONS (M2-T3)
+// ============================================================================
+
+/**
+ * Revoke a voucher
+ * 
+ * @param int $voucher_id The voucher ID to revoke
+ * @param string $reason Reason for revoking
+ * @param int $revoked_by_user_id User ID who is revoking
+ * @return bool True if revoked successfully, false otherwise
+ */
+function revokeVoucher($voucher_id, $reason, $revoked_by_user_id) {
+    $conn = getDbConnection();
+    
+    $sql = "UPDATE voucher_logs 
+            SET is_active = 0, 
+                revoked_at = NOW(), 
+                revoked_by = ?, 
+                revoke_reason = ?
+            WHERE id = ? AND is_active = 1";
+    
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("isi", $revoked_by_user_id, $reason, $voucher_id);
+    
+    return $stmt->execute() && $stmt->affected_rows > 0;
+}
+
+/**
+ * Notification System Functions for M2-T4
+ */
+
+/**
+ * Create a notification for a user
+ * 
+ * @param int $recipient_id User ID to notify
+ * @param string $message Notification message
+ * @param string $type Type: info, success, warning, danger
+ * @param int|null $sender_id Sender user ID (defaults to current user or system)
+ * @return bool True on success, false on failure
+ */
+function createNotification($recipient_id, $message, $type = 'info', $sender_id = null) {
+    $conn = getDbConnection();
+    
+    if (!$conn) {
+        return false;
+    }
+
+    // Check user preferences
+    $pref_column = null;
+    switch ($type) {
+        case 'device_request':
+            $pref_column = 'notify_device_requests';
+            break;
+        case 'device_status':
+        case 'device_approval':
+        case 'device_rejection':
+            $pref_column = 'notify_device_status';
+            break;
+        case 'voucher':
+            $pref_column = 'notify_vouchers';
+            break;
+        case 'new_student':
+            $pref_column = 'notify_new_students';
+            break;
+    }
+    
+    if ($pref_column) {
+        $stmt_pref = safeQueryPrepare($conn, "SELECT $pref_column FROM user_preferences WHERE user_id = ?");
+        $stmt_pref->bind_param("i", $recipient_id);
+        $stmt_pref->execute();
+        $res_pref = $stmt_pref->get_result();
+        
+        if ($res_pref->num_rows > 0) {
+            $pref = $res_pref->fetch_assoc();
+            // If preference is 0 (false), do not create notification
+            if (isset($pref[$pref_column]) && $pref[$pref_column] == 0) {
+                return true; // Successfully decided not to notify
+            }
+        }
+        // If no row exists, defaults are TRUE, so we proceed
+    }
+    
+    // Default sender to current user or system user (ID 1)
+    if ($sender_id === null) {
+        $sender_id = $_SESSION['user_id'] ?? 1;
+    }
+    
+    // Insert notification - schema has: recipient_id, sender_id, message, type, read_status
+    $stmt = safeQueryPrepare($conn, 
+        "INSERT INTO notifications (recipient_id, sender_id, message, type, read_status) 
+         VALUES (?, ?, ?, ?, 0)");
+    $stmt->bind_param("iiss", $recipient_id, $sender_id, $message, $type);
+    
+    return $stmt->execute();
+}
+
+/**
+ * Get unread notification count for a user
+ * 
+ * @param int $user_id User ID
+ * @return int Unread count
+ */
+function getUnreadNotificationCount($user_id) {
+    $conn = getDbConnection();
+    
+    if (!$conn) {
+        return 0;
+    }
+    
+    $stmt = safeQueryPrepare($conn, "SELECT COUNT(*) as count FROM notifications WHERE recipient_id = ? AND read_status = 0");
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $result = $stmt->get_result()->fetch_assoc();
+    
+    return (int)($result['count'] ?? 0);
+}
+
+/**
+ * Get recent notifications for a user
+ * 
+ * @param int $user_id User ID
+ * @param int $limit Maximum number of notifications
+ * @return array Array of notifications with normalized field names
+ */
+function getRecentNotifications($user_id, $limit = 10) {
+    $conn = getDbConnection();
+    
+    if (!$conn) {
+        return [];
+    }
+    
+    $stmt = safeQueryPrepare($conn, 
+        "SELECT n.*, n.read_status as is_read, u.first_name, u.last_name 
+         FROM notifications n
+         LEFT JOIN users u ON n.sender_id = u.id
+         WHERE n.recipient_id = ? 
+         ORDER BY n.created_at DESC 
+         LIMIT ?");
+    $stmt->bind_param("ii", $user_id, $limit);
+    $stmt->execute();
+    
+    return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+}
+
+/**
+ * Mark a notification as read
+ * 
+ * @param int $notification_id Notification ID
+ * @param int $user_id User ID (for security check)
+ * @return bool True on success
+ */
+function markNotificationAsRead($notification_id, $user_id) {
+    $conn = getDbConnection();
+    
+    if (!$conn) {
+        return false;
+    }
+    
+    $stmt = safeQueryPrepare($conn, 
+        "UPDATE notifications 
+         SET read_status = 1 
+         WHERE id = ? AND recipient_id = ? AND read_status = 0");
+    $stmt->bind_param("ii", $notification_id, $user_id);
+    
+    return $stmt->execute();
+}
+
+/**
+ * Mark all notifications as read for a user
+ * 
+ * @param int $user_id User ID
+ * @return bool True on success
+ */
+function markAllNotificationsAsRead($user_id) {
+    $conn = getDbConnection();
+    
+    if (!$conn) {
+        return false;
+    }
+    
+    $stmt = safeQueryPrepare($conn, 
+        "UPDATE notifications 
+         SET read_status = 1 
+         WHERE recipient_id = ? AND read_status = 0");
+    $stmt->bind_param("i", $user_id);
+    
+    return $stmt->execute();
+}
+
+/**
+ * Get time ago string (e.g., "5 minutes ago", "2 hours ago")
+ * 
+ * @param string $datetime DateTime string
+ * @return string Human-readable time ago
+ */
+function timeAgo($datetime) {
+    $timestamp = strtotime($datetime);
+    $difference = time() - $timestamp;
+    
+    if ($difference < 60) {
+        return 'just now';
+    } elseif ($difference < 3600) {
+        $minutes = floor($difference / 60);
+        return $minutes . ' minute' . ($minutes > 1 ? 's' : '') . ' ago';
+    } elseif ($difference < 86400) {
+        $hours = floor($difference / 3600);
+        return $hours . ' hour' . ($hours > 1 ? 's' : '') . ' ago';
+    } elseif ($difference < 604800) {
+        $days = floor($difference / 86400);
+        return $days . ' day' . ($days > 1 ? 's' : '') . ' ago';
+    } elseif ($difference < 2592000) {
+        $weeks = floor($difference / 604800);
+        return $weeks . ' week' . ($weeks > 1 ? 's' : '') . ' ago';
+    } else {
+        return date('M j, Y', $timestamp);
+    }
 }

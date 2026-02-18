@@ -1,0 +1,1122 @@
+
+========================================
+AVAILABLE CLIENTS FOR CLIENT/EDIT TESTING
+========================================
+
+Γ£ô Authentication successful
+  Domain: https://www.gwn.cloud
+  Network ID: 120364
+  App ID: 103592
+
+Found 100 connected clients:
+
+MAC Address          | Hostname                       | IP Address      | Status
+------------------------------------------------------------------------------------------
+BC:F1:05:00:1D:83    | charmain                       | 192.168.44.251  | Online
+1A:6B:41:5A:15:E2    | Gontlafetse-s-A05              | 192.168.40.9    | Online
+E8:5F:02:CC:A9:5D    | iPhone                         | 192.168.44.202  | Online
+CA:03:16:3A:CD:44    | Thandeka-s-Tab-A9              | 192.168.44.96   | Online
+32:AB:5C:A3:06:E8    |                                | 192.168.40.234  | Online
+94:B6:09:73:73:82    | LAPTOP-DE48AO87                | 192.168.42.105  | Online
+0A:A0:4D:29:B1:EA    |                                | 192.168.20.43   | Online
+26:D8:A4:12:87:CB    | Galaxy-A24                     | 192.168.46.222  | Online
+70:08:94:BB:1C:57    | RATILODI202578821              | 192.168.41.67   | Online
+EC:E6:60:5D:A9:54    | android-fd34a00955271600       | 192.168.43.150  | Online
+72:A1:87:08:5A:59    | Galaxy-A06                     | 192.168.47.65   | Online
+E0:D5:5D:7A:C6:64    | OTSILEMATONG                   | 192.168.46.73   | Online
+F6:B3:EF:CC:51:C4    | Galaxy-A04e                    | 192.168.20.31   | Online
+EE:76:14:D4:09:0C    |                                | 192.168.46.124  | Online
+4A:1B:11:F3:E8:65    | blessing                       | 192.168.46.93   | Online
+AE:63:64:0D:FD:CB    |                                | 192.168.20.30   | Online
+02:C6:9E:BB:02:2E    | Galaxy-A14                     | 192.168.47.174  | Online
+E8:B0:C5:A6:06:4E    | DESKTOP-GE5UVPU                | 192.168.43.188  | Online
+70:08:94:B8:6B:FD    | Kardet                         | 192.168.46.129  | Online
+1A:14:AB:94:9F:C5    | Samsung-A34-5G                 | 192.168.46.106  | Online
+82:3D:EE:93:FF:F0    | Yonela-s-A05s                  | 192.168.40.188  | Online
+E8:B0:C5:A6:94:2E    | DESKTOP-GE5UVPU                | 192.168.43.239  | Online
+38:54:F5:69:CE:12    |                                | 192.168.20.7    | Online
+C8:99:B2:91:52:4A    | LGwebOSTV                      | 192.168.20.56   | Online
+D2:36:CF:F0:25:03    | honor                          | 192.168.43.214  | Online
+E8:B0:C5:A6:A0:3B    | GOODBOY                        | 192.168.43.115  | Online
+EE:E0:74:5B:14:BF    | ItsTH3Cre-tor                  | 192.168.41.99   | Online
+82:CF:E3:70:EB:B0    | INNOCENTIA-s-A05s              | 192.168.42.145  | Online
+06:AB:2A:C2:C9:60    |                                | 192.168.41.96   | Online
+CC:5E:F8:68:CE:BB    | DESKTOP-KUOB5J0                | 192.168.20.5    | Online
+EA:66:A8:7F:22:CE    | Hisense-U607                   | 192.168.46.184  | Online
+46:5F:76:3A:AF:80    |                                | 192.168.20.15   | Online
+30:03:C8:63:8C:21    | DESKTOP-6INDPL1                | 192.168.45.209  | Online
+06:FC:ED:82:66:C7    | Katlego                        | 192.168.42.139  | Online
+32:D7:28:E7:07:C0    | iPhone                         | 192.168.43.130  | Online
+7E:4D:34:FD:28:97    | HONOR-X5c                      | 192.168.20.10   | Online
+70:08:94:BB:1B:7D    | LAPTOP-DE48AO87                | 192.168.40.202  | Online
+30:03:C8:63:B3:F9    | Tshoma                         | 192.168.46.235  | Online
+10:6F:D9:C2:B0:53    | DESKTOP-6INDPL1                | 192.168.42.245  | Online
+E0:D5:5D:8A:04:53    | Admin                          | 192.168.43.23   | Online
+30:03:C8:63:AA:E5    | kgotatso                       | 192.168.41.64   | Online
+82:2C:99:B6:DA:7E    | Galaxy-A05                     | 192.168.43.184  | Online
+7E:0F:8A:FF:61:C4    | iPhone                         | 192.168.46.38   | Online
+94:B6:09:73:6A:3B    | LAPTOP-DE48AO87                | 192.168.44.136  | Online
+94:B6:09:73:7B:2A    | LAPTOP-DE48AO87                | 192.168.47.9    | Online
+9A:8F:9C:9F:6B:35    | Kgomotso-s-A13                 | 192.168.20.34   | Online
+AC:B6:87:6A:69:46    | LGwebOSTV                      | 192.168.42.238  | Online
+0E:D7:FE:13:53:7B    | iPhone                         | 192.168.41.187  | Online
+30:03:C8:63:B2:4F    | HP255G8-IMAGE                  | 192.168.20.26   | Online
+36:68:F3:0A:CC:59    |                                | 192.168.20.22   | Online
+14:AC:60:04:AD:AB    | Nande                          | 192.168.42.111  | Online
+40:1A:58:86:3F:B2    | Tumelo-Mafiri                  | 192.168.47.22   | Online
+76:D8:40:F6:3A:A2    | Galaxy-A02s                    | 192.168.43.192  | Online
+CA:D6:9B:0C:2A:46    | Lihle                          | 192.168.45.136  | Online
+0E:00:EF:C9:04:9B    | Neo-s-A06                      | 192.168.46.22   | Online
+36:43:A4:4C:F4:12    | HUAWEI_P_smart_2021-6aeac      | 192.168.45.22   | Online
+94:B6:09:83:32:CC    | kelebogile27                   | 192.168.47.204  | Online
+3A:4E:93:9A:03:26    | Remofilwe-s-A05                | 192.168.47.16   | Online
+E6:DD:95:E0:7F:7C    | Siphosethu-s-A05s              | 192.168.47.101  | Online
+3A:BA:F2:6A:E6:F6    | DirisanangHope                 | 192.168.44.191  | Online
+38:18:68:DB:C6:D0    | Soll                           | 192.168.44.36   | Online
+B2:B1:72:70:6D:69    | Mma-Gqobokani                  | 192.168.20.3    | Online
+70:08:94:B7:DF:9F    | LAPTOP-DE48AO87                | 192.168.47.113  | Online
+30:03:C8:63:80:B5    | DESKTOP-UD6VIR4                | 192.168.46.238  | Online
+30:03:C8:64:17:7F    | HP255G8-IMAGE                  | 192.168.44.66   | Online
+70:15:FB:04:D9:E0    | LAPTOP-DE48AO87                | 192.168.44.35   | Online
+40:1A:58:86:0C:6A    | The_Cr3ator                    | 192.168.47.21   | Online
+F8:87:F1:D7:16:E5    | iPhone                         | 192.168.41.254  | Online
+52:AF:0A:78:D3:67    |                                | 192.168.20.29   | Online
+62:6A:42:E5:3B:41    | OPPO                           | 192.168.43.182  | Online
+1A:E7:C7:25:5B:B0    | Gontse-s-very-own              | 192.168.47.228  | Online
+94:B6:09:67:BB:FA    | LAPTOP-DE48AO87                | 192.168.45.130  | Online
+C6:FC:1B:0D:99:63    |                                | 192.168.46.208  | Online
+5A:9F:85:60:20:D1    | V2236                          | 192.168.43.220  | Online
+A8:91:3D:A5:7A:9A    | Tshomas-iphone                 | 192.168.44.248  | Online
+6A:F1:DB:84:28:63    | Galaxy-A05                     | 192.168.43.146  | Online
+66:B2:B0:C2:5B:B3    | iPhone                         | 192.168.41.114  | Online
+F2:15:06:CF:C7:CD    | HUAWEI_nova_Y71-b0492548b      | 192.168.45.115  | Online
+FA:05:69:9A:B5:08    | iPhone                         | 192.168.42.60   | Online
+8A:19:45:33:70:2E    | Galaxy-A05                     | 192.168.47.17   | Online
+74:B5:87:24:51:30    | iPhone                         | 192.168.47.30   | Online
+E8:B0:C5:A5:4C:E0    | DESKTOP-GE5UVPU                | 192.168.41.1    | Online
+A0:D7:F3:9B:11:3C    | Samsung TV 1st Floor           | 192.168.20.13   | Online
+66:D7:15:DA:7C:74    | iPhone                         | 192.168.20.4    | Online
+86:D2:7C:DA:3E:38    | Dee-s-A05                      | 192.168.41.190  | Online
+76:3D:8C:ED:55:0E    |                                | 192.168.20.44   | Online
+9A:E8:C6:A9:1B:5D    | Galaxy-A06                     | 192.168.47.149  | Online
+6A:9F:A7:C1:5F:2A    | Itumeleng-s-A05                | 192.168.41.66   | Online
+50:BA:02:64:F3:82    |                                | 192.168.20.42   | Online
+E0:D5:5D:41:2C:D3    | Admin                          | 192.168.44.196  | Online
+8E:46:C8:1E:2D:C8    | Galaxy-A25-5G                  | 192.168.20.21   | Online
+3E:6F:FC:AB:CF:12    | MOMOW                          | 192.168.47.105  | Online
+CE:5B:7B:8A:F5:5C    | iPhone                         | 192.168.20.9    | Online
+EE:AE:6B:64:88:FC    | STYLO-SONIC                    | 192.168.47.12   | Online
+30:03:C8:63:8F:A9    | HP255G8-IMAGE                  | 192.168.20.17   | Online
+50:E7:B7:AB:39:E0    | V2111                          | 192.168.41.33   | Online
+10:6F:D9:C0:4D:2B    | HP455G7-STUD                   | 192.168.47.135  | Online
+62:79:1F:05:CF:34    | Galaxy-A05                     | 192.168.47.155  | Online
+32:11:06:64:E0:6A    | Galaxy-A05s                    | 192.168.42.14   | Online
+B0:67:B5:70:49:4D    | Mogomotisiphone                | 192.168.42.156  | Online
+
+------------------------------------------------------------------------------------------
+Total: 100 clients
+Online & Testable: 100 clients
+
+Γ£ô READY FOR CLIENT/EDIT TESTING:
+
+OPTION 1:
+  MAC: BC:F1:05:00:1D:83
+  Name: charmain
+  IP: 192.168.44.251
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519899&signature=4f0613271f270b999bd7e6dab2a93789bb9ca248e61855fefc92a51d8b6b4d47' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"BC:F1:05:00:1D:83","name":"Client-00:1D:83-171839"}'
+
+OPTION 2:
+  MAC: 1A:6B:41:5A:15:E2
+  Name: Gontlafetse-s-A05
+  IP: 192.168.40.9
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519899&signature=a48738692593973959295d073b668613c23df19b1e2bc59f7ee6c0ea4b1b9425' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"1A:6B:41:5A:15:E2","name":"Client-5A:15:E2-171839"}'
+
+OPTION 3:
+  MAC: E8:5F:02:CC:A9:5D
+  Name: iPhone
+  IP: 192.168.44.202
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519899&signature=2d3b8e1681b80f137fc454de94201e3f8929722cdb396f94425ed6d0f1700f6d' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"E8:5F:02:CC:A9:5D","name":"Client-CC:A9:5D-171839"}'
+
+OPTION 4:
+  MAC: CA:03:16:3A:CD:44
+  Name: Thandeka-s-Tab-A9
+  IP: 192.168.44.96
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519899&signature=7aa27c0e0e3b2293b6d9e919ffd782503baa9deea17c894a3ff9f9967d960920' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"CA:03:16:3A:CD:44","name":"Client-3A:CD:44-171839"}'
+
+OPTION 5:
+  MAC: 32:AB:5C:A3:06:E8
+  Name: 
+  IP: 192.168.40.234
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519899&signature=1677f366e7f2d8652715d5b8cc0ce85fc90bbc2ec0f5f19dad01a7cde9b43389' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"32:AB:5C:A3:06:E8","name":"Client-A3:06:E8-171839"}'
+
+OPTION 6:
+  MAC: 94:B6:09:73:73:82
+  Name: LAPTOP-DE48AO87
+  IP: 192.168.42.105
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519899&signature=94eb54a97c95466daf0d88dc30fb9da9ba170f2a2bfb406f699826f2ced12415' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"94:B6:09:73:73:82","name":"Client-73:73:82-171839"}'
+
+OPTION 7:
+  MAC: 0A:A0:4D:29:B1:EA
+  Name: 
+  IP: 192.168.20.43
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519899&signature=93358544aad084a4ba1ecc63ce97b3629613360cddff56564e4112f47d229bf6' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"0A:A0:4D:29:B1:EA","name":"Client-29:B1:EA-171839"}'
+
+OPTION 8:
+  MAC: 26:D8:A4:12:87:CB
+  Name: Galaxy-A24
+  IP: 192.168.46.222
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519899&signature=98bc8d9adca96286d14cded0b052adb593cc5b94256ba811c9137211bf90c67a' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"26:D8:A4:12:87:CB","name":"Client-12:87:CB-171839"}'
+
+OPTION 9:
+  MAC: 70:08:94:BB:1C:57
+  Name: RATILODI202578821
+  IP: 192.168.41.67
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519899&signature=85c5650fdbbc76e7d24b0ff6b536f0bd7271b7d340456bf66ecd6fedd9fd546f' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"70:08:94:BB:1C:57","name":"Client-BB:1C:57-171839"}'
+
+OPTION 10:
+  MAC: EC:E6:60:5D:A9:54
+  Name: android-fd34a00955271600
+  IP: 192.168.43.150
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519899&signature=c954d6c5abeafda4a4900a8f51b01d41bb2d560733ec4cce927ec19e5293840e' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"EC:E6:60:5D:A9:54","name":"Client-5D:A9:54-171839"}'
+
+OPTION 11:
+  MAC: 72:A1:87:08:5A:59
+  Name: Galaxy-A06
+  IP: 192.168.47.65
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519899&signature=7fca36ae30d0a4c9a1a50ab25f2f4c8e5f1bcdf2f99f5fad360b8d2ee880fec1' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"72:A1:87:08:5A:59","name":"Client-08:5A:59-171839"}'
+
+OPTION 12:
+  MAC: E0:D5:5D:7A:C6:64
+  Name: OTSILEMATONG
+  IP: 192.168.46.73
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519899&signature=38863699ec0d73942cc1a1f5e1b85c1a77ad77c5dca8a4fd24b3ac423dec6e2c' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"E0:D5:5D:7A:C6:64","name":"Client-7A:C6:64-171839"}'
+
+OPTION 13:
+  MAC: F6:B3:EF:CC:51:C4
+  Name: Galaxy-A04e
+  IP: 192.168.20.31
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519899&signature=601348194cab8783af639f7db3d4588bbbd63170f53ca09f57ae01cd46298912' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"F6:B3:EF:CC:51:C4","name":"Client-CC:51:C4-171839"}'
+
+OPTION 14:
+  MAC: EE:76:14:D4:09:0C
+  Name: 
+  IP: 192.168.46.124
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519899&signature=76bd43b8dc2f46b5855e568de5147875b9a827529690501db8484c4f4ff64770' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"EE:76:14:D4:09:0C","name":"Client-D4:09:0C-171839"}'
+
+OPTION 15:
+  MAC: 4A:1B:11:F3:E8:65
+  Name: blessing
+  IP: 192.168.46.93
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519899&signature=593d71e8264bb367a213f8d11de4088c07089c5261b0536eb52e9e3e9c16082c' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"4A:1B:11:F3:E8:65","name":"Client-F3:E8:65-171839"}'
+
+OPTION 16:
+  MAC: AE:63:64:0D:FD:CB
+  Name: 
+  IP: 192.168.20.30
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519899&signature=b36b1ca52a225797a752ad409675988e96a34e2117e7600ae9e68d95f43dd529' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"AE:63:64:0D:FD:CB","name":"Client-0D:FD:CB-171839"}'
+
+OPTION 17:
+  MAC: 02:C6:9E:BB:02:2E
+  Name: Galaxy-A14
+  IP: 192.168.47.174
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=391a2c4fe1ce19802486b3fd30da76fd3e3f49075943efd70885fbc7cf6613c6' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"02:C6:9E:BB:02:2E","name":"Client-BB:02:2E-171839"}'
+
+OPTION 18:
+  MAC: E8:B0:C5:A6:06:4E
+  Name: DESKTOP-GE5UVPU
+  IP: 192.168.43.188
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=3d63f0480ef593c471dc5b11798b60530f3145660c9d16e0764f398c18eaaab3' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"E8:B0:C5:A6:06:4E","name":"Client-A6:06:4E-171839"}'
+
+OPTION 19:
+  MAC: 70:08:94:B8:6B:FD
+  Name: Kardet
+  IP: 192.168.46.129
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=3a6b361577ebf1ae23b7501ffed2e21772fe04ccc618bb6d08c3853a433b2b29' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"70:08:94:B8:6B:FD","name":"Client-B8:6B:FD-171839"}'
+
+OPTION 20:
+  MAC: 1A:14:AB:94:9F:C5
+  Name: Samsung-A34-5G
+  IP: 192.168.46.106
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=f32c26c0ab9a47b68c1d36272fcae68ef5f1aa7f48dd20e8c316918652e37615' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"1A:14:AB:94:9F:C5","name":"Client-94:9F:C5-171839"}'
+
+OPTION 21:
+  MAC: 82:3D:EE:93:FF:F0
+  Name: Yonela-s-A05s
+  IP: 192.168.40.188
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=7fd3db4d2fb46c994e6d419b5048817104861b147309c46712ace4e1fe3b897a' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"82:3D:EE:93:FF:F0","name":"Client-93:FF:F0-171839"}'
+
+OPTION 22:
+  MAC: E8:B0:C5:A6:94:2E
+  Name: DESKTOP-GE5UVPU
+  IP: 192.168.43.239
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=7ed88af3887f627d46b0b70dc569e8c5ba67dd74f328cdccd7a929e9f61fedba' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"E8:B0:C5:A6:94:2E","name":"Client-A6:94:2E-171839"}'
+
+OPTION 23:
+  MAC: 38:54:F5:69:CE:12
+  Name: 
+  IP: 192.168.20.7
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=c7669136c55570d0451a6a5ac17a6e756994af9a67e40d31bb4e2b6f1a3aced1' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"38:54:F5:69:CE:12","name":"Client-69:CE:12-171839"}'
+
+OPTION 24:
+  MAC: C8:99:B2:91:52:4A
+  Name: LGwebOSTV
+  IP: 192.168.20.56
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=226660cff90cd6ddc11d242dfc0e380990de3e52cf8e224c67f6c14a00d0e876' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"C8:99:B2:91:52:4A","name":"Client-91:52:4A-171839"}'
+
+OPTION 25:
+  MAC: D2:36:CF:F0:25:03
+  Name: honor
+  IP: 192.168.43.214
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=e1e1717d8ce661fd482fafb72841babb4f180502ae357fdeb8e752c2c091d477' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"D2:36:CF:F0:25:03","name":"Client-F0:25:03-171839"}'
+
+OPTION 26:
+  MAC: E8:B0:C5:A6:A0:3B
+  Name: GOODBOY
+  IP: 192.168.43.115
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=ba2137cf2f51af806ccd0da9505e9f31703e9c692f7a649c584d91f4748b94c5' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"E8:B0:C5:A6:A0:3B","name":"Client-A6:A0:3B-171839"}'
+
+OPTION 27:
+  MAC: EE:E0:74:5B:14:BF
+  Name: ItsTH3Cre-tor
+  IP: 192.168.41.99
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=d2a2b7fd1beef7a082637f1e79317ab456f8a5a4d2de6d2a907b186cdf85a914' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"EE:E0:74:5B:14:BF","name":"Client-5B:14:BF-171839"}'
+
+OPTION 28:
+  MAC: 82:CF:E3:70:EB:B0
+  Name: INNOCENTIA-s-A05s
+  IP: 192.168.42.145
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=07b418dc157d4b5107f84dee071ce2bbd0fd448fca1a4c9af214665605fdef76' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"82:CF:E3:70:EB:B0","name":"Client-70:EB:B0-171839"}'
+
+OPTION 29:
+  MAC: 06:AB:2A:C2:C9:60
+  Name: 
+  IP: 192.168.41.96
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=c1d7f74fc244dbe3a11e185a54daa0c1c2033c6d5c54d4f3db3cb7508077c1a3' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"06:AB:2A:C2:C9:60","name":"Client-C2:C9:60-171839"}'
+
+OPTION 30:
+  MAC: CC:5E:F8:68:CE:BB
+  Name: DESKTOP-KUOB5J0
+  IP: 192.168.20.5
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=5d986390d98e4fbf108eced6c1eb54990dac4499f8d59cebddb088466e3f0596' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"CC:5E:F8:68:CE:BB","name":"Client-68:CE:BB-171839"}'
+
+OPTION 31:
+  MAC: EA:66:A8:7F:22:CE
+  Name: Hisense-U607
+  IP: 192.168.46.184
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=e686fa4bc6d1f59a840c681b1e4c1d25e997be1635415f5f6487905746b72e58' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"EA:66:A8:7F:22:CE","name":"Client-7F:22:CE-171839"}'
+
+OPTION 32:
+  MAC: 46:5F:76:3A:AF:80
+  Name: 
+  IP: 192.168.20.15
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=617966bdc347900769c088843e3b137b864d2a4abcda6c814c3796596492ea74' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"46:5F:76:3A:AF:80","name":"Client-3A:AF:80-171839"}'
+
+OPTION 33:
+  MAC: 30:03:C8:63:8C:21
+  Name: DESKTOP-6INDPL1
+  IP: 192.168.45.209
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=f2ecf7091182c1477a03b03fa9b78eba6fa2ea465552cdac4f4e77e532635de8' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"30:03:C8:63:8C:21","name":"Client-63:8C:21-171839"}'
+
+OPTION 34:
+  MAC: 06:FC:ED:82:66:C7
+  Name: Katlego
+  IP: 192.168.42.139
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=df16ba7343bf0c7949e597ee93f614d66189283d15ba0f35f8ac5770c12a8f04' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"06:FC:ED:82:66:C7","name":"Client-82:66:C7-171839"}'
+
+OPTION 35:
+  MAC: 32:D7:28:E7:07:C0
+  Name: iPhone
+  IP: 192.168.43.130
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=2e39091fd88d1ce182ac1355b20b97bda5b28bd71a9c6f9520a8bd9c9b8db0b1' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"32:D7:28:E7:07:C0","name":"Client-E7:07:C0-171839"}'
+
+OPTION 36:
+  MAC: 7E:4D:34:FD:28:97
+  Name: HONOR-X5c
+  IP: 192.168.20.10
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=03ac1b8520dca3b28d4172ad8fef177fd6a4bd4fc5d7aae5b9a1e8d43a8eb75f' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"7E:4D:34:FD:28:97","name":"Client-FD:28:97-171839"}'
+
+OPTION 37:
+  MAC: 70:08:94:BB:1B:7D
+  Name: LAPTOP-DE48AO87
+  IP: 192.168.40.202
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=859cff67a8e97f07c9cccea49edb2e0c64b2f8d7d36b4392e04e673c3e29499b' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"70:08:94:BB:1B:7D","name":"Client-BB:1B:7D-171839"}'
+
+OPTION 38:
+  MAC: 30:03:C8:63:B3:F9
+  Name: Tshoma
+  IP: 192.168.46.235
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=ac71badc19d37bb18fb4ed9dd92e3d7400766d15d7ef7b456fb27394be94fb9b' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"30:03:C8:63:B3:F9","name":"Client-63:B3:F9-171839"}'
+
+OPTION 39:
+  MAC: 10:6F:D9:C2:B0:53
+  Name: DESKTOP-6INDPL1
+  IP: 192.168.42.245
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=98da0b83b7f2649353735a2c39f67964496a1d59a4a751231ab505de29c2e639' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"10:6F:D9:C2:B0:53","name":"Client-C2:B0:53-171839"}'
+
+OPTION 40:
+  MAC: E0:D5:5D:8A:04:53
+  Name: Admin
+  IP: 192.168.43.23
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=8d7b0f8ecbd7854047ab56bbcedbfebe1021294e5cf189e1ad86aa9ed0ca2bac' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"E0:D5:5D:8A:04:53","name":"Client-8A:04:53-171839"}'
+
+OPTION 41:
+  MAC: 30:03:C8:63:AA:E5
+  Name: kgotatso
+  IP: 192.168.41.64
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=e897b652da6cbcda000eb765a632c3e5213df911cf46477bdcaeb6f64453d903' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"30:03:C8:63:AA:E5","name":"Client-63:AA:E5-171839"}'
+
+OPTION 42:
+  MAC: 82:2C:99:B6:DA:7E
+  Name: Galaxy-A05
+  IP: 192.168.43.184
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=aecf5e8f7db1fd11fabb337b762cacc5d3dec0bbc0a0127da8721ade5e69bc88' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"82:2C:99:B6:DA:7E","name":"Client-B6:DA:7E-171839"}'
+
+OPTION 43:
+  MAC: 7E:0F:8A:FF:61:C4
+  Name: iPhone
+  IP: 192.168.46.38
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=9ddac3667a9a4a9c9e9581e55b587eddeb5b8f307b634373295edf9448ffb65e' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"7E:0F:8A:FF:61:C4","name":"Client-FF:61:C4-171839"}'
+
+OPTION 44:
+  MAC: 94:B6:09:73:6A:3B
+  Name: LAPTOP-DE48AO87
+  IP: 192.168.44.136
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=2e70b1df5908afa067a63b665f9533e53553c74de9562d14d2e3073e22e3de27' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"94:B6:09:73:6A:3B","name":"Client-73:6A:3B-171839"}'
+
+OPTION 45:
+  MAC: 94:B6:09:73:7B:2A
+  Name: LAPTOP-DE48AO87
+  IP: 192.168.47.9
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=fad3ebf88319fe93d11c69cf1c0cb267b0c0136cf24f8a03cd8a658d7b46a0bd' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"94:B6:09:73:7B:2A","name":"Client-73:7B:2A-171839"}'
+
+OPTION 46:
+  MAC: 9A:8F:9C:9F:6B:35
+  Name: Kgomotso-s-A13
+  IP: 192.168.20.34
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=6b0cd99dcb17a1f2c53be43ea207039d683afaab9ab6dfd071f3d49ec6cdbb52' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"9A:8F:9C:9F:6B:35","name":"Client-9F:6B:35-171839"}'
+
+OPTION 47:
+  MAC: AC:B6:87:6A:69:46
+  Name: LGwebOSTV
+  IP: 192.168.42.238
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=257e6eb55d9166433e9d07f7bab466871b9674668498b8381820af77207cd7a7' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"AC:B6:87:6A:69:46","name":"Client-6A:69:46-171839"}'
+
+OPTION 48:
+  MAC: 0E:D7:FE:13:53:7B
+  Name: iPhone
+  IP: 192.168.41.187
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=7fd5c0a55ad255f7847eaf2c404ae20b6f3dd108eb8cf1880f8f75698c2f146a' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"0E:D7:FE:13:53:7B","name":"Client-13:53:7B-171839"}'
+
+OPTION 49:
+  MAC: 30:03:C8:63:B2:4F
+  Name: HP255G8-IMAGE
+  IP: 192.168.20.26
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=4aca82ef03427579c172d784b7acc33e6d68cd54f55fab94db50e34f0021540d' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"30:03:C8:63:B2:4F","name":"Client-63:B2:4F-171839"}'
+
+OPTION 50:
+  MAC: 36:68:F3:0A:CC:59
+  Name: 
+  IP: 192.168.20.22
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=ad2575fce59d37ce0e7e5cf6223b156108b50189545e5335cfc302d5507966c1' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"36:68:F3:0A:CC:59","name":"Client-0A:CC:59-171839"}'
+
+OPTION 51:
+  MAC: 14:AC:60:04:AD:AB
+  Name: Nande
+  IP: 192.168.42.111
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=acd525d8c6d3803fef3caf9b668a216c59529636916d41c4ed6bd478b64c7bc4' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"14:AC:60:04:AD:AB","name":"Client-04:AD:AB-171839"}'
+
+OPTION 52:
+  MAC: 40:1A:58:86:3F:B2
+  Name: Tumelo-Mafiri
+  IP: 192.168.47.22
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=22330359e1cb56a3610ab75edd432e89d6aec4b641e9146f6bff940ab0be0243' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"40:1A:58:86:3F:B2","name":"Client-86:3F:B2-171839"}'
+
+OPTION 53:
+  MAC: 76:D8:40:F6:3A:A2
+  Name: Galaxy-A02s
+  IP: 192.168.43.192
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=621bbbd59cfba5bbabb24cc17ec892004f7f333b57e1fbe453894c27a59f65db' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"76:D8:40:F6:3A:A2","name":"Client-F6:3A:A2-171839"}'
+
+OPTION 54:
+  MAC: CA:D6:9B:0C:2A:46
+  Name: Lihle
+  IP: 192.168.45.136
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=7eff9e6f29c5d6c7294c88a31265c1d5c4a90572d52424a3ad5fbe18abdda6df' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"CA:D6:9B:0C:2A:46","name":"Client-0C:2A:46-171839"}'
+
+OPTION 55:
+  MAC: 0E:00:EF:C9:04:9B
+  Name: Neo-s-A06
+  IP: 192.168.46.22
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=e9ab473454b3246156a55c2b586dd836189f8f92cac34bbb27b3f9ac05fa6071' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"0E:00:EF:C9:04:9B","name":"Client-C9:04:9B-171839"}'
+
+OPTION 56:
+  MAC: 36:43:A4:4C:F4:12
+  Name: HUAWEI_P_smart_2021-6aeac
+  IP: 192.168.45.22
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=4637cca1f3f84b6f1664d1f8518278f137917e8228ff7e30db4d5e0887030fa6' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"36:43:A4:4C:F4:12","name":"Client-4C:F4:12-171839"}'
+
+OPTION 57:
+  MAC: 94:B6:09:83:32:CC
+  Name: kelebogile27
+  IP: 192.168.47.204
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=2c17dc8d02f4f80cf4729d154e22a3c847e36becd2566177fa6df992cf074dc1' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"94:B6:09:83:32:CC","name":"Client-83:32:CC-171839"}'
+
+OPTION 58:
+  MAC: 3A:4E:93:9A:03:26
+  Name: Remofilwe-s-A05
+  IP: 192.168.47.16
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=186b1e573f56fd019da658ae0c2fc024bfda7f7651ccd7b3bdd929bd6cee9ed6' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"3A:4E:93:9A:03:26","name":"Client-9A:03:26-171839"}'
+
+OPTION 59:
+  MAC: E6:DD:95:E0:7F:7C
+  Name: Siphosethu-s-A05s
+  IP: 192.168.47.101
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=3b6f08ad4475f1c34fcefc33b459c1e850a71759bf5ca456992b2fd4ef89aca4' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"E6:DD:95:E0:7F:7C","name":"Client-E0:7F:7C-171839"}'
+
+OPTION 60:
+  MAC: 3A:BA:F2:6A:E6:F6
+  Name: DirisanangHope
+  IP: 192.168.44.191
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=bbea30e37d059cedabfca2e7b4404602f8057d93bf05d855a0350c243f027928' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"3A:BA:F2:6A:E6:F6","name":"Client-6A:E6:F6-171839"}'
+
+OPTION 61:
+  MAC: 38:18:68:DB:C6:D0
+  Name: Soll
+  IP: 192.168.44.36
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=3a9bb0a0b2b050f5a3beb294dce7a8d616535903c353513901fd596f02e17dbc' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"38:18:68:DB:C6:D0","name":"Client-DB:C6:D0-171839"}'
+
+OPTION 62:
+  MAC: B2:B1:72:70:6D:69
+  Name: Mma-Gqobokani
+  IP: 192.168.20.3
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=042bc0b100e48fe6c162ed6b28b31ceef81d6d6b24b048c4df4da3f573c31637' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"B2:B1:72:70:6D:69","name":"Client-70:6D:69-171839"}'
+
+OPTION 63:
+  MAC: 70:08:94:B7:DF:9F
+  Name: LAPTOP-DE48AO87
+  IP: 192.168.47.113
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=26b30f59319be12622101ce7de3fbce1c1a3439cae544243dbf5ad5788df75f7' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"70:08:94:B7:DF:9F","name":"Client-B7:DF:9F-171839"}'
+
+OPTION 64:
+  MAC: 30:03:C8:63:80:B5
+  Name: DESKTOP-UD6VIR4
+  IP: 192.168.46.238
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=5f23d7639d4a52d4722c1be0b4cc2af56168f9ba828e125687ddb4da0aeafea6' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"30:03:C8:63:80:B5","name":"Client-63:80:B5-171839"}'
+
+OPTION 65:
+  MAC: 30:03:C8:64:17:7F
+  Name: HP255G8-IMAGE
+  IP: 192.168.44.66
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=5f5dd3bc94f9e299f9d4a63e1c503295adfb221bb637ceaa9ee9579cfdd98934' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"30:03:C8:64:17:7F","name":"Client-64:17:7F-171839"}'
+
+OPTION 66:
+  MAC: 70:15:FB:04:D9:E0
+  Name: LAPTOP-DE48AO87
+  IP: 192.168.44.35
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=64540293ad47e3c95537295de133c5dec6d46f46ed314075b96ced21b003cc33' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"70:15:FB:04:D9:E0","name":"Client-04:D9:E0-171839"}'
+
+OPTION 67:
+  MAC: 40:1A:58:86:0C:6A
+  Name: The_Cr3ator
+  IP: 192.168.47.21
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=89fd6bb906f3abd2c0dfdc8f97c76f610d384a5de917b9d73ac492b56e2f71ea' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"40:1A:58:86:0C:6A","name":"Client-86:0C:6A-171839"}'
+
+OPTION 68:
+  MAC: F8:87:F1:D7:16:E5
+  Name: iPhone
+  IP: 192.168.41.254
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=cd214c738849f187da6a34992709ec1f2c8af6a596a63d117fa86c0624f2e33a' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"F8:87:F1:D7:16:E5","name":"Client-D7:16:E5-171839"}'
+
+OPTION 69:
+  MAC: 52:AF:0A:78:D3:67
+  Name: 
+  IP: 192.168.20.29
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=1fac66c6e2309e7fc29c782c28cf3c61277bfb6878608234a10d28551f20fc83' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"52:AF:0A:78:D3:67","name":"Client-78:D3:67-171839"}'
+
+OPTION 70:
+  MAC: 62:6A:42:E5:3B:41
+  Name: OPPO
+  IP: 192.168.43.182
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=d041502b5b9ed59bb2146b73af3be763e21e60111d67db0fd79b72b3d0665bc4' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"62:6A:42:E5:3B:41","name":"Client-E5:3B:41-171839"}'
+
+OPTION 71:
+  MAC: 1A:E7:C7:25:5B:B0
+  Name: Gontse-s-very-own
+  IP: 192.168.47.228
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=8fc841e776c5e15a28fd7aa0c11a8fbbe252cc484fb51827ca51a667707985e9' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"1A:E7:C7:25:5B:B0","name":"Client-25:5B:B0-171839"}'
+
+OPTION 72:
+  MAC: 94:B6:09:67:BB:FA
+  Name: LAPTOP-DE48AO87
+  IP: 192.168.45.130
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=109881d702bcbc711d4f258c0c683621ec3299e5178e60c502c62d46f520e12b' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"94:B6:09:67:BB:FA","name":"Client-67:BB:FA-171839"}'
+
+OPTION 73:
+  MAC: C6:FC:1B:0D:99:63
+  Name: 
+  IP: 192.168.46.208
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=e81fafee5026aa3730ff28b910bc376b75c0b045d2a1f2d014ab7d380ecfe72b' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"C6:FC:1B:0D:99:63","name":"Client-0D:99:63-171839"}'
+
+OPTION 74:
+  MAC: 5A:9F:85:60:20:D1
+  Name: V2236
+  IP: 192.168.43.220
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=5ba0bf97cfcf81434750c34c04551be6126c8128c60de1b2ed16fc634250f7e9' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"5A:9F:85:60:20:D1","name":"Client-60:20:D1-171839"}'
+
+OPTION 75:
+  MAC: A8:91:3D:A5:7A:9A
+  Name: Tshomas-iphone
+  IP: 192.168.44.248
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=02a79e8d7513f18341a2631dae951187a8cfe699ac5ef21f4e923579807f58f3' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"A8:91:3D:A5:7A:9A","name":"Client-A5:7A:9A-171839"}'
+
+OPTION 76:
+  MAC: 6A:F1:DB:84:28:63
+  Name: Galaxy-A05
+  IP: 192.168.43.146
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=32756eb167880ea608981e261ff3eec1228bc21debc4154b61e5ce297de4357d' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"6A:F1:DB:84:28:63","name":"Client-84:28:63-171839"}'
+
+OPTION 77:
+  MAC: 66:B2:B0:C2:5B:B3
+  Name: iPhone
+  IP: 192.168.41.114
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=ba9a2f21f525bc5884e932851477b440f4d867c44aa62a75cf6690e730840c84' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"66:B2:B0:C2:5B:B3","name":"Client-C2:5B:B3-171839"}'
+
+OPTION 78:
+  MAC: F2:15:06:CF:C7:CD
+  Name: HUAWEI_nova_Y71-b0492548b
+  IP: 192.168.45.115
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=5defa735300aecd62c84c107934334dcbbd095898f1576b238ee56bd16dec474' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"F2:15:06:CF:C7:CD","name":"Client-CF:C7:CD-171839"}'
+
+OPTION 79:
+  MAC: FA:05:69:9A:B5:08
+  Name: iPhone
+  IP: 192.168.42.60
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=93939c334626b68d53550e894e4462e512f3890838ffc27f3a80dbad39d417e8' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"FA:05:69:9A:B5:08","name":"Client-9A:B5:08-171839"}'
+
+OPTION 80:
+  MAC: 8A:19:45:33:70:2E
+  Name: Galaxy-A05
+  IP: 192.168.47.17
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=60ad52add5ffbc9ded02eee397e026e4ed678c8aff1df4e43fd925ab9226617d' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"8A:19:45:33:70:2E","name":"Client-33:70:2E-171839"}'
+
+OPTION 81:
+  MAC: 74:B5:87:24:51:30
+  Name: iPhone
+  IP: 192.168.47.30
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=496a06ab556225fe33c951547109181258291aa0a0f3a91be627fba4b3f11191' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"74:B5:87:24:51:30","name":"Client-24:51:30-171839"}'
+
+OPTION 82:
+  MAC: E8:B0:C5:A5:4C:E0
+  Name: DESKTOP-GE5UVPU
+  IP: 192.168.41.1
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=176b49c7d3046bc8e89aa01b8a6d60d04239aa15f8e268411edd8e5ea31a823c' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"E8:B0:C5:A5:4C:E0","name":"Client-A5:4C:E0-171839"}'
+
+OPTION 83:
+  MAC: A0:D7:F3:9B:11:3C
+  Name: Samsung TV 1st Floor
+  IP: 192.168.20.13
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=dcaa724324a5255baa60b1426858d1e7a31edafccc69eb37ea77f27de2afa4f6' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"A0:D7:F3:9B:11:3C","name":"Client-9B:11:3C-171839"}'
+
+OPTION 84:
+  MAC: 66:D7:15:DA:7C:74
+  Name: iPhone
+  IP: 192.168.20.4
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=0b626d8e485acc6566c151d82796507b6f6bf5c583d76369ab833a379a2c0d98' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"66:D7:15:DA:7C:74","name":"Client-DA:7C:74-171839"}'
+
+OPTION 85:
+  MAC: 86:D2:7C:DA:3E:38
+  Name: Dee-s-A05
+  IP: 192.168.41.190
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=56b5a4ee6ee7f3ea4a172f56aea347c62d667611d226bb94a31195654a9c347c' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"86:D2:7C:DA:3E:38","name":"Client-DA:3E:38-171839"}'
+
+OPTION 86:
+  MAC: 76:3D:8C:ED:55:0E
+  Name: 
+  IP: 192.168.20.44
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=e2fd98078008972b0d777b56b5989d037208c01a469d06cee86e08bac7238083' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"76:3D:8C:ED:55:0E","name":"Client-ED:55:0E-171839"}'
+
+OPTION 87:
+  MAC: 9A:E8:C6:A9:1B:5D
+  Name: Galaxy-A06
+  IP: 192.168.47.149
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=6a54e3d279e4f3c8f8d1985c0b7f28e160ea3e8a2a71dfd5e25d3ffda8910597' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"9A:E8:C6:A9:1B:5D","name":"Client-A9:1B:5D-171839"}'
+
+OPTION 88:
+  MAC: 6A:9F:A7:C1:5F:2A
+  Name: Itumeleng-s-A05
+  IP: 192.168.41.66
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=3d5d2f7427ab6b4870da0dd316fa05f8938c3de98392759699c5ddc0cd2c59a8' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"6A:9F:A7:C1:5F:2A","name":"Client-C1:5F:2A-171839"}'
+
+OPTION 89:
+  MAC: 50:BA:02:64:F3:82
+  Name: 
+  IP: 192.168.20.42
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=a7d59e87df11a5d96f635e9797ff351bad80e8e323818fb9ea8399d4198f0c2e' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"50:BA:02:64:F3:82","name":"Client-64:F3:82-171839"}'
+
+OPTION 90:
+  MAC: E0:D5:5D:41:2C:D3
+  Name: Admin
+  IP: 192.168.44.196
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=83263e45eefe97f6a0d8d1ec61fe715928e44e9242d3eaa5f241c78056c520e7' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"E0:D5:5D:41:2C:D3","name":"Client-41:2C:D3-171839"}'
+
+OPTION 91:
+  MAC: 8E:46:C8:1E:2D:C8
+  Name: Galaxy-A25-5G
+  IP: 192.168.20.21
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=85f3bab0f58d4d80c03d55c23702cd84a9635018f24f33c1079166d39c4995c7' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"8E:46:C8:1E:2D:C8","name":"Client-1E:2D:C8-171839"}'
+
+OPTION 92:
+  MAC: 3E:6F:FC:AB:CF:12
+  Name: MOMOW
+  IP: 192.168.47.105
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=67800a8ebf413fb10d4423d880e0d90d26d74faf8e25cf6156a74f8a96f95612' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"3E:6F:FC:AB:CF:12","name":"Client-AB:CF:12-171839"}'
+
+OPTION 93:
+  MAC: CE:5B:7B:8A:F5:5C
+  Name: iPhone
+  IP: 192.168.20.9
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=bdc7fcec249b458c8c45c76eeb78b6faa83978b39bca03e4e4842f72c8524cfc' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"CE:5B:7B:8A:F5:5C","name":"Client-8A:F5:5C-171839"}'
+
+OPTION 94:
+  MAC: EE:AE:6B:64:88:FC
+  Name: STYLO-SONIC
+  IP: 192.168.47.12
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=bbc76d9829f813f6bfe79a087b49dd3fa88631fca9c1f9f91d0c69c1750caaaf' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"EE:AE:6B:64:88:FC","name":"Client-64:88:FC-171839"}'
+
+OPTION 95:
+  MAC: 30:03:C8:63:8F:A9
+  Name: HP255G8-IMAGE
+  IP: 192.168.20.17
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=11ff875cef8a0fe69a4b2e5ee16d2f9c38056ac3e98b4abf6de04a814d7ae4d7' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"30:03:C8:63:8F:A9","name":"Client-63:8F:A9-171839"}'
+
+OPTION 96:
+  MAC: 50:E7:B7:AB:39:E0
+  Name: V2111
+  IP: 192.168.41.33
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=13640e9fc2ba808879e1ad97daae00865d3403a61711bb8304b062c4bf96a05d' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"50:E7:B7:AB:39:E0","name":"Client-AB:39:E0-171839"}'
+
+OPTION 97:
+  MAC: 10:6F:D9:C0:4D:2B
+  Name: HP455G7-STUD
+  IP: 192.168.47.135
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=baafc852ec61d23ba0971e7d639a97553678c9e2ca81a2149031bc24e27a3412' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"10:6F:D9:C0:4D:2B","name":"Client-C0:4D:2B-171839"}'
+
+OPTION 98:
+  MAC: 62:79:1F:05:CF:34
+  Name: Galaxy-A05
+  IP: 192.168.47.155
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=939c4d0e46628f2263d147c5cc6fbac0d7588231d27ae269dd95082d7cb6991c' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"62:79:1F:05:CF:34","name":"Client-05:CF:34-171839"}'
+
+OPTION 99:
+  MAC: 32:11:06:64:E0:6A
+  Name: Galaxy-A05s
+  IP: 192.168.42.14
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=4f20b560af7dff866a7a9f8313fb06ce31f4de16158ae0f0e968f42432754de9' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"32:11:06:64:E0:6A","name":"Client-64:E0:6A-171839"}'
+
+OPTION 100:
+  MAC: B0:67:B5:70:49:4D
+  Name: Mogomotisiphone
+  IP: 192.168.42.156
+
+  Curl Command:
+  curl -X POST 'https://www.gwn.cloud/oapi/v1.0.0/client/edit?access_token=07f7b69c-6c39-4d47-958a-f417be07e589&appID=103592&timestamp=1771089519900&signature=a1e9d6dd4e0724625a1c9f22c88f8c1c2f110324540a87c280b0f80606150293' \
+    -H 'Content-Type: application/json' \
+    -d '{"clientId":"B0:67:B5:70:49:4D","name":"Client-70:49:4D-171839"}'
+
+========================================

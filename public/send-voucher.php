@@ -4,7 +4,7 @@ require_once '../includes/functions.php';
 require_once '../includes/python_interface.php';
 
 // Require manager login
-requireManagerLogin();
+requireRole('manager');
 
 $accommodation_id = $_SESSION['accommodation_id'] ?? $_SESSION['manager_id'] ?? 0;
 $conn = getDbConnection();
@@ -53,8 +53,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $voucher_result = $stmt_voucher->get_result()->fetch_assoc();
             
             $success = true;
+            logActivity($conn, $_SESSION['user_id'], 'send_voucher', "Sent voucher to {$student['first_name']} {$student['last_name']} (student ID {$student_id}) for {$month}", $_SERVER['REMOTE_ADDR']);
         } else {
             $error = 'Failed to send voucher. Please try again later.';
+            logActivity($conn, $_SESSION['user_id'], 'send_voucher_failed', "Failed to send voucher to student ID {$student_id} for {$month}", $_SERVER['REMOTE_ADDR']);
         }
     }
 }
@@ -74,7 +76,7 @@ require_once '../includes/components/header.php';
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h2>Send Voucher to Student</h2>
             <a href="student-details.php?id=<?= $student_id ?>" class="btn btn-outline-secondary">
-                <i class="bi bi-arrow-left"></i> Back to Student Details
+                <i class="bi bi-arrow-left"></i> Back
             </a>
         </div>
         

@@ -1,9 +1,8 @@
-# Current Milestone: M1 - Core Infrastructure ✅
+# Current Milestone: M2 - Bug Fixes & Enhancements 🔄
 
-**Phase:** M1 (Weeks 1-2)  
-**Started:** 2026-02-10  
-**Completed:** 2026-02-10  
-**Status:** ✅ COMPLETE
+**Phase:** M2 (Ongoing Maintenance)  
+**Started:** 2026-02-13  
+**Status:** 🔄 IN PROGRESS
 
 ## M1 Achievements
 
@@ -53,6 +52,48 @@
 - `public/login.php` - password verification restored
 - Multiple form pages - CSRF tokens added
 
+## M2 Achievements (2026-02-13 to 2026-02-14)
+
+### ✅ Login & Authentication Fixes (M2-T1)
+- Fixed test credentials display on login page
+- Corrected usernames: sabata/thabo → nokuthula (owner), actual manager/student names
+- Fixed password setup for ALL users (not just admin/owner)
+- Updated login credentials reference card with collapsible design
+
+### ✅ Database Schema Alignment (M2-T2)
+- Fixed 13+ schema mismatches across codebase
+- Corrected `student_devices` → `user_devices` table references (2 files)
+- Fixed `student_id` → `user_id` in user_devices table (6 files)
+- Fixed `device_name` → `device_type` column naming (3 files)
+- Removed non-existent columns: status, added_at, updated_at, device_capacity
+- Fixed JOIN conditions in dashboard queries
+- Removed accommodations.address reference
+- Fixed notifications table column naming (recipient_id, read_status)
+- Handled user_preferences table gracefully
+
+### ✅ Undefined Variable Fixes (M2-T3)
+- Fixed 10+ undefined variable warnings
+- Added null coalescing operators (??) across all session variables
+- Added isset() checks for GET/POST parameters
+- Fixed $owner_id undefined in edit-accommodation.php
+- Fixed session variable access in dashboard, managers, create-code, students pages
+
+### ✅ Student Credential Recovery Feature (M2-T4)
+- Added "Resend Login Details" button to student-details.php
+- Created resend-credentials.php handler with full security
+- Implemented secure temporary password generation (16 chars)
+- Added SMS/WhatsApp/Email delivery with fallback
+- Added confirmation dialogs and activity logging
+- Added resend button to student list actions dropdown
+
+### 📊 Stats
+- **Files Modified:** 20+
+- **Schema Issues Fixed:** 13
+- **Undefined Variables Fixed:** 10+
+- **New Features:** 1 (Credential Recovery)
+- **Critical Errors Resolved:** All
+
 ## Previous Milestones
+- **M1 (Core Infrastructure):** ✅ Complete - Security hardening, RBAC, validation
 - **M0.5 (Scaffold Validation):** ✅ Complete - CI GREEN, configs locked
 - **M0 (PRD Definition):** ✅ Complete - Approved 2026-02-10

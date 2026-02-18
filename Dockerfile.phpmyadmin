@@ -1,0 +1,4 @@
+FROM phpmyadmin:latest
+
+# Add ServerName directive to suppress Apache warnings
+RUN echo "ServerName localhost" >> /etc/apache2/apache2.conf

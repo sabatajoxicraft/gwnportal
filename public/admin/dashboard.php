@@ -41,6 +41,27 @@ if ($stmt_activity === false) {
     $recentActivity = $stmt_activity->get_result()->fetch_all(MYSQLI_ASSOC);
 }
 
+// Get students by accommodation for chart
+$stmt_chart = safeQueryPrepare($conn, "SELECT a.name as accommodation, COUNT(s.id) as student_count 
+                                FROM accommodations a
+                                LEFT JOIN students s ON a.id = s.accommodation_id
+                                GROUP BY a.id, a.name
+                                ORDER BY student_count DESC");
+$chartData = [];
+if ($stmt_chart !== false) {
+    $stmt_chart->execute();
+    $chartData = $stmt_chart->get_result()->fetch_all(MYSQLI_ASSOC);
+}
+
+// Get total devices count
+$stmt_devices = safeQueryPrepare($conn, "SELECT COUNT(*) as total_devices FROM user_devices");
+$totalDevices = 0;
+if ($stmt_devices !== false) {
+    $stmt_devices->execute();
+    $deviceResult = $stmt_devices->get_result()->fetch_assoc();
+    $totalDevices = $deviceResult['total_devices'] ?? 0;
+}
+
 require_once '../../includes/components/header.php';
 ?>
 
@@ -92,15 +113,26 @@ require_once '../../includes/components/header.php';
         <div class="col-md-3">
             <div class="card bg-warning text-white stat-card">
                 <div class="card-body">
-                    <h5 class="card-title"><?= $stats['codes'] ?? 0 ?></h5>
-                    <p class="mb-0">Onboarding Codes</p>
-                    <div class="icon"><i class="bi bi-qr-code"></i></div>
+                    <h5 class="card-title"><?= $totalDevices ?></h5>
+                    <p class="mb-0">Registered Devices</p>
+                    <div class="icon"><i class="bi bi-router"></i></div>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Charts Row -->
     <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-bar-chart-fill me-2"></i>Students by Accommodation</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="studentsChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
         <div class="col-md-6">
             <div class="card">
                 <div class="card-header">
@@ -119,10 +151,17 @@ require_once '../../includes/components/header.php';
                     <a href="<?= BASE_URL ?>/admin/create-code.php" class="list-group-item list-group-item-action">
                         <i class="bi bi-qr-code me-2"></i> Generate Onboarding Code
                     </a>
+                    <a href="<?= BASE_URL ?>/admin/activity-log.php" class="list-group-item list-group-item-action">
+                        <i class="bi bi-list-ul me-2"></i> View Activity Logs
+                    </a>
                 </div>
             </div>
         </div>
-        <div class="col-md-6">
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="row mb-4">
+        <div class="col-md-12">
             <div class="card">
                 <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Recent Activity</h5>
@@ -133,10 +172,10 @@ require_once '../../includes/components/header.php';
                         <?php foreach ($recentActivity as $activity): ?>
                             <div class="list-group-item">
                                 <div class="d-flex w-100 justify-content-between">
-                                    <h6 class="mb-1"><?= htmlspecialchars($activity['action']) ?></h6>
+                                    <h6 class="mb-1"><?= htmlspecialchars($activity['action'] ?? '') ?></h6>
                                     <small><?= date('M j, Y g:i A', strtotime($activity['timestamp'])) ?></small>
                                 </div>
-                                <p class="mb-1"><?= htmlspecialchars($activity['details']) ?></p>
+                                <p class="mb-1"><?= htmlspecialchars($activity['details'] ?? '') ?></p>
                                 <small>
                                     By: 
                                     <?php if (!empty($activity['user_name'])): ?>
@@ -155,5 +194,18 @@ require_once '../../includes/components/header.php';
         </div>
     </div>
 </div>
+
+<!-- Chart.js Library -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="<?= BASE_URL ?>/assets/js/charts.js"></script>
+<script>
+    // Initialize admin charts with data
+    document.addEventListener('DOMContentLoaded', function() {
+        const chartData = <?= json_encode($chartData) ?>;
+        if (typeof initAdminCharts === 'function') {
+            initAdminCharts(chartData);
+        }
+    });
+</script>
 
 <?php require_once '../../includes/components/footer.php'; ?>

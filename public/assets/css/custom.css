@@ -141,7 +141,8 @@ body {
 	background: var(--manager-gradient) !important;
 }
 
-.card-header.student-header {
+.card-header.student-header,
+.card-header.bg-student {
 	background: var(--student-gradient) !important;
 }
 
@@ -543,4 +544,42 @@ footer {
 	font-size: 0.875rem;
 	color: #6c757d;
 	font-weight: 600;
+}
+/* Tab Styling - Card Header Tabs */
+.card-header-tabs {
+	margin-bottom: -0.75rem;
+}
+
+.card-header-tabs .nav-link {
+	color: #6c757d;
+	background-color: transparent;
+	border: none;
+	border-bottom: 2px solid transparent;
+	font-weight: 500;
+	padding: 0.75rem 1.25rem;
+	transition: all 0.3s ease;
+}
+
+.card-header-tabs .nav-link:hover {
+	color: var(--primary-color);
+	background-color: rgba(78, 84, 200, 0.05);
+	border-bottom-color: rgba(78, 84, 200, 0.3);
+}
+
+.card-header-tabs .nav-link.active {
+	color: var(--primary-color);
+	background-color: #fff;
+	border-bottom: 2px solid var(--primary-color);
+	font-weight: 600;
+}
+
+/* Ensure card header background doesn't interfere */
+.card-header {
+	background-color: #f8f9fa;
+	border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+/* Tab content styling */
+.nav-tabs {
+	border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }

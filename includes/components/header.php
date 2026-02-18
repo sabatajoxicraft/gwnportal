@@ -6,6 +6,7 @@ if (session_status() === PHP_SESSION_NONE) {
 
 // Default page variables
 $pageTitle = $pageTitle ?? APP_NAME;
+$bodyClass = $bodyClass ?? '';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -26,7 +27,7 @@ $pageTitle = $pageTitle ?? APP_NAME;
         <?= $extraCss ?>
     <?php endif; ?>
 </head>
-<body>
+<body class="<?= htmlspecialchars($bodyClass, ENT_QUOTES, 'UTF-8') ?>">
     <?php 
     // Get user role for conditional styling
     $userRole = $_SESSION['user_role'] ?? '';

@@ -2,6 +2,10 @@
 require_once '../includes/config.php';
 require_once '../includes/db.php';
 require_once '../includes/functions.php';
+require_once '../includes/csrf.php';
+require_once '../includes/services/QueryService.php';
+require_once '../includes/services/AccommodationService.php';
+require_once '../includes/services/ActivityLogger.php';
 
 // Ensure session is started
 if (session_status() === PHP_SESSION_NONE) {
@@ -18,13 +22,9 @@ $success = '';
 $userId = $_SESSION['user_id'] ?? 0;
 $conn = getDbConnection();
 
-// Check if manager already has an accommodation (shouldn't reach here if properly setup, but just in case)
-$stmtCheck = safeQueryPrepare($conn, "SELECT COUNT(*) as count FROM user_accommodation WHERE user_id = ?");
-$stmtCheck->bind_param("i", $userId);
-$stmtCheck->execute();
-$checkResult = $stmtCheck->get_result()->fetch_assoc();
-
-if ($checkResult['count'] > 0) {
+// Check if manager already has an accommodation using service
+$accommodations = QueryService::getUserAccommodations($conn, $userId);
+if (!empty($accommodations)) {
     // Already assigned, redirect to dashboard
     redirect(BASE_URL . '/dashboard.php');
 }
@@ -37,40 +37,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_manager_code
     if (empty($code)) {
         $error = 'Please enter an onboarding code.';
     } else {
-        // Validate the code
-        $stmt = safeQueryPrepare($conn, 
-            "SELECT oc.*, a.name as accommodation_name, r.name as role_name
-             FROM onboarding_codes oc
-             LEFT JOIN accommodations a ON oc.accommodation_id = a.id
-             LEFT JOIN roles r ON oc.role_id = r.id
-             WHERE oc.code = ? AND oc.status = 'unused' AND oc.expires_at > NOW() AND r.name = 'manager'");
-        $stmt->bind_param("s", $code);
-        $stmt->execute();
-        $result = $stmt->get_result();
+        // Validate the code using service
+        $codeData = QueryService::getOnboardingCode($conn, $code);
         
-        if ($result->num_rows > 0) {
-            $codeData = $result->fetch_assoc();
+        // Check if code is valid and not used yet, and is for a manager role
+        if ($codeData && 
+            $codeData['used_by'] === null && 
+            $codeData['status'] === 'unused' && 
+            strtotime($codeData['expires_at']) > time() &&
+            $codeData['role_name'] === 'manager') {
+            
             $accommodationId = $codeData['accommodation_id'];
             
             try {
                 // Start transaction
                 $conn->begin_transaction();
                 
-                // Assign manager to accommodation
-                $assignStmt = safeQueryPrepare($conn, "INSERT INTO user_accommodation (user_id, accommodation_id) VALUES (?, ?)");
-                $assignStmt->bind_param("ii", $userId, $accommodationId);
-                
-                if (!$assignStmt->execute()) {
-                    throw new Exception("Failed to assign accommodation: " . $conn->error);
+                // Assign manager to accommodation using service
+                if (!AccommodationService::assignManager($conn, $userId, $accommodationId)) {
+                    throw new Exception("Failed to assign accommodation");
                 }
                 
                 // Update onboarding code as used
-                $codeStmt = safeQueryPrepare($conn, "UPDATE onboarding_codes SET status = 'used', used_by = ?, used_at = NOW() WHERE code = ?");
-                $codeStmt->bind_param("is", $userId, $code);
+                $codeStmt = safeQueryPrepare($conn, "UPDATE onboarding_codes SET status = 'used', used_by = ?, used_at = NOW() WHERE id = ?");
+                $codeStmt->bind_param("ii", $userId, $codeData['id']);
                 
                 if (!$codeStmt->execute()) {
                     throw new Exception("Failed to update code: " . $conn->error);
                 }
+                $codeStmt->close();
                 
                 // Commit transaction
                 $conn->commit();
@@ -78,8 +73,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_manager_code
                 // Update session
                 $_SESSION['accommodation_id'] = $accommodationId;
                 
-                // Log activity
-                logActivity($conn, $userId, "Manager Assignment", "Assigned to accommodation using onboarding code");
+                // Log activity using service
+                ActivityLogger::logAction($userId, 'manager_assignment', 
+                    [
+                        'accommodation_id' => $accommodationId,
+                        'accommodation_name' => $codeData['accommodation_name'],
+                        'onboarding_code' => $code
+                    ]
+                );
                 
                 // Redirect to dashboard
                 redirect(BASE_URL . '/dashboard.php', 'Successfully assigned to accommodation!', 'success');

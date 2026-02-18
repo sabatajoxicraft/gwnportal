@@ -16,7 +16,7 @@ requireRole(['owner', 'admin']);
 
 $conn = getDbConnection();
 $isAdmin = ($_SESSION['user_role'] ?? '') === 'admin';
-$currentUserId = $_SESSION['user_id'];
+$currentUserId = $_SESSION['user_id'] ?? 0;
 
 $error = '';
 $owners = [];
@@ -94,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 // Redirect based on role
                 if ($isAdmin) {
-                    redirect(BASE_URL . '/view-accommodation.php?id=' . $accom_id, 
+                    redirect(BASE_URL . '/admin/view-accommodation.php?id=' . $accom_id, 
                         'Accommodation created successfully.', 'success');
                 } else {
                     redirect(BASE_URL . '/accommodations/', 
@@ -113,11 +113,6 @@ $activePage = "accommodations";
 
 // Include header
 require_once '../../includes/components/header.php';
-
-// Include navigation for admin
-if ($isAdmin) {
-    require_once '../../includes/components/navigation.php';
-}
 ?>
 
 <div class="container mt-4">

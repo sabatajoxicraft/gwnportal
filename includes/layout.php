@@ -20,8 +20,8 @@ if (!function_exists('isLoggedIn')) {
     require_once __DIR__ . '/functions.php';
 }
 
-// Ensure accommodation handler runs for managers
-if (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'manager' && !isset($_SESSION['accommodation_handler_ran'])) {
+// Ensure accommodation handler runs for managers and owners
+if (isset($_SESSION['user_role']) && in_array($_SESSION['user_role'], ['manager', 'owner']) && !isset($_SESSION['accommodation_handler_ran'])) {
     require_once __DIR__ . '/accommodation-handler.php';
     $_SESSION['accommodation_handler_ran'] = true;
 }

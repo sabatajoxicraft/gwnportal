@@ -16,7 +16,7 @@ requireRole(['owner', 'admin']);
 
 $conn = getDbConnection();
 $isAdmin = ($_SESSION['user_role'] ?? '') === 'admin';
-$currentUserId = $_SESSION['user_id'];
+$currentUserId = $_SESSION['user_id'] ?? 0;
 
 $message = '';
 $message_type = '';
@@ -60,7 +60,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $isAdmin
 if ($isAdmin) {
     // Admin sees all accommodations with owner details
     $sql = "SELECT a.*, u.first_name, u.last_name, 
-            (SELECT COUNT(*) FROM user_accommodation WHERE accommodation_id = a.id) AS user_count
+            (
+                (SELECT COUNT(DISTINCT ua.user_id) FROM user_accommodation ua WHERE ua.accommodation_id = a.id)
+                +
+                (SELECT COUNT(*) FROM students s WHERE s.accommodation_id = a.id)
+            ) AS user_count
             FROM accommodations a 
             JOIN users u ON a.owner_id = u.id 
             ORDER BY a.name ASC";
@@ -98,11 +102,6 @@ $activePage = "accommodations";
 
 // Include header
 require_once '../../includes/components/header.php';
-
-// Include navigation for admin
-if ($isAdmin) {
-    require_once '../../includes/components/navigation.php';
-}
 ?>
 
 <div class="container mt-4">
@@ -172,11 +171,11 @@ if ($isAdmin) {
                                     </td>
                                     <td class="<?= $isAdmin ? '' : 'text-end' ?>">
                                         <div class="btn-group btn-group-sm" role="group">
-                                            <a href="<?= BASE_URL ?>/view-accommodation.php?id=<?= $accommodation['id'] ?>" 
+                                            <a href="<?= BASE_URL ?>/admin/view-accommodation.php?id=<?= $accommodation['id'] ?>" 
                                                class="btn btn-outline-primary" title="View Details">
                                                 <i class="bi bi-eye"></i>
                                             </a>
-                                            <a href="<?= BASE_URL ?>/edit-accommodation.php?id=<?= $accommodation['id'] ?>" 
+                                            <a href="<?= BASE_URL ?>/admin/edit-accommodation.php?id=<?= $accommodation['id'] ?>" 
                                                class="btn btn-outline-secondary" title="Edit">
                                                 <i class="bi bi-pencil"></i>
                                             </a>

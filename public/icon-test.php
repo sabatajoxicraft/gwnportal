@@ -2,6 +2,7 @@
 require_once '../includes/config.php';
 $pageTitle = "Icon Test";
 require_once '../includes/components/header.php';
+require_once '../includes/components/navigation.php';
 ?>
 
 <div class="container mt-5">

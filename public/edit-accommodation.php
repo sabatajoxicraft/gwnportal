@@ -9,6 +9,7 @@ require_once '../includes/db.php';
 requireLogin();
 
 $conn = getDbConnection();
+$owner_id = $_SESSION['user_id'];
 
 // Get accommodation ID from query param
 $accommodation_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;

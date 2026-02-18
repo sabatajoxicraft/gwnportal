@@ -5,17 +5,20 @@ require_once '../includes/functions.php';
 // Require manager login
 requireManagerLogin();
 
-$manager_id = $_SESSION['manager_id'];
+$manager_id = $_SESSION['manager_id'] ?? 0;
 $conn = getDbConnection();
 
 // Handle export
 if (isset($_GET['format']) && $_GET['format'] == 'csv') {
-    // Get all students for this manager
-    $sql = "SELECT s.*, 
-           (SELECT COUNT(*) FROM voucher_logs WHERE student_id = s.id) as voucher_count,
-           (SELECT voucher_month FROM voucher_logs WHERE student_id = s.id ORDER BY sent_at DESC LIMIT 1) as last_voucher_month
+    // Get all students for this manager with user info and device info
+    $sql = "SELECT s.id, s.status, s.room_number, s.created_at,
+           u.first_name, u.last_name, u.email, u.phone_number, u.whatsapp_number, u.preferred_communication,
+           (SELECT COUNT(*) FROM voucher_logs WHERE user_id = s.user_id) as voucher_count,
+           (SELECT voucher_month FROM voucher_logs WHERE user_id = s.user_id ORDER BY sent_at DESC LIMIT 1) as last_voucher_month,
+           (SELECT GROUP_CONCAT(CONCAT(device_type, ':', mac_address) SEPARATOR '; ') FROM user_devices WHERE user_id = s.user_id) as devices
            FROM students s 
-           WHERE accommodation_id = ?";
+           JOIN users u ON s.user_id = u.id
+           WHERE s.accommodation_id = ?";
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("i", $manager_id);
     $stmt->execute();
@@ -33,7 +36,7 @@ if (isset($_GET['format']) && $_GET['format'] == 'csv') {
     // CSV header row
     $header = [
         'ID', 'First Name', 'Last Name', 'Email', 'Phone Number', 'WhatsApp Number',
-        'Preferred Communication', 'Status', 'Phone MAC Address', 'Laptop MAC Address',
+        'Preferred Communication', 'Status', 'Room Number', 'Devices (Type:MAC)',
         'Registration Date', 'Voucher Count', 'Last Voucher Month'
     ];
     fputcsv($output, $header);
@@ -49,8 +52,8 @@ if (isset($_GET['format']) && $_GET['format'] == 'csv') {
             $student['whatsapp_number'],
             $student['preferred_communication'],
             $student['status'],
-            $student['phone_mac_address'],
-            $student['laptop_mac_address'],
+            $student['room_number'] ?? '',
+            $student['devices'] ?? '',
             $student['created_at'],
             $student['voucher_count'],
             $student['last_voucher_month']

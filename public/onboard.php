@@ -65,7 +65,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'accommodation_id' => $accommodationId,
                 'accommodation_name' => $codeData['accommodation_name'],
                 'step' => 2,
-                'code_id' => $codeData['id']
+                'code_id' => $codeData['id'],
+                'profile_photo' => $codeData['profile_photo'] ?? null,
+                'student_first_name' => $codeData['student_first_name'] ?? null,
+                'student_last_name' => $codeData['student_last_name'] ?? null,
+                'phone_number' => $codeData['phone_number'] ?? null,
+                'send_method' => $codeData['send_method'] ?? 'none'
             ];
             
             // Debug
@@ -93,6 +98,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $lastName = trim($_POST['last_name']);
         $email = trim($_POST['email']);
         $phone = trim($_POST['phone'] ?? '');
+        $whatsappNumber = trim($_POST['whatsapp_number'] ?? '');
+        $preferredCommunication = $_POST['preferred_communication'] ?? 'WhatsApp';
         $password = $_POST['password'];
         $confirmPassword = $_POST['confirm_password'];
         
@@ -112,6 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 // Format phone number if provided
                 $formattedPhone = !empty($phone) ? formatPhoneNumber($phone) : '';
+                $formattedWhatsapp = !empty($whatsappNumber) ? formatPhoneNumber($whatsappNumber) : '';
                 
                 // Create password hash
                 $passwordHash = password_hash($password, PASSWORD_DEFAULT);
@@ -130,13 +138,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Generate username
                 $username = strtolower(substr($firstName, 0, 1) . $lastName) . rand(100, 999);
                 
+                // Get profile photo from onboarding code if available
+                $profile_photo = $_SESSION['onboarding']['profile_photo'] ?? null;
+                
                 // Debug
-                error_log("Creating user with username: $username, email: $email, role_id: $roleId");
+                error_log("Creating user with username: $username, email: $email, role_id: $roleId, photo: $profile_photo");
                 
                 // Create user
-                $stmt = safeQueryPrepare($conn, "INSERT INTO users (username, password, email, first_name, last_name, phone_number, role_id, status, created_at) 
-                                              VALUES (?, ?, ?, ?, ?, ?, ?, 'active', NOW())");
-                $stmt->bind_param("ssssssi", $username, $passwordHash, $email, $firstName, $lastName, $formattedPhone, $roleId);
+                $stmt = safeQueryPrepare($conn, "INSERT INTO users (username, password, email, first_name, last_name, phone_number, whatsapp_number, preferred_communication, role_id, status, profile_photo, created_at) 
+                                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, NOW())");
+                $stmt->bind_param("ssssssssis", $username, $passwordHash, $email, $firstName, $lastName, $formattedPhone, $formattedWhatsapp, $preferredCommunication, $roleId, $profile_photo);
                 
                 if (!$stmt->execute()) {
                     throw new Exception("Failed to create user: " . $conn->error);
@@ -165,6 +176,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if (!$stmt->execute()) {
                         throw new Exception("Failed to create student record: " . $conn->error);
                     }
+                    $studentTableId = $stmt->insert_id;
                 }
                 
                 // Update onboarding code to used and mark who used it
@@ -187,7 +199,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($_SESSION['onboarding']['user_role'] === 'manager') {
                     $_SESSION['manager_id'] = $userId;
                 } elseif ($_SESSION['onboarding']['user_role'] === 'student') {
-                    $_SESSION['student_id'] = $userId;
+                    $_SESSION['student_id'] = $studentTableId ?? 0;
                 }
                 
                 // Log activity
@@ -216,6 +228,25 @@ if ($step > 1 && (!isset($_SESSION['onboarding']) || $_SESSION['onboarding']['st
     // If trying to access a step without completing previous steps
     if ($step < 3) { // Allow step 3 for success page
         redirect(BASE_URL . '/onboard.php');
+    }
+}
+
+$photoUrl = '';
+if (!empty($_SESSION['onboarding']['profile_photo'])) {
+    $relativePath = ltrim($_SESSION['onboarding']['profile_photo'], '/');
+    $publicPath = PUBLIC_PATH . '/' . $relativePath;
+    $legacyPath = dirname(PUBLIC_PATH) . '/' . $relativePath;
+
+    if (!file_exists($publicPath) && file_exists($legacyPath)) {
+        $targetDir = dirname($publicPath);
+        if (!is_dir($targetDir)) {
+            mkdir($targetDir, 0755, true);
+        }
+        @copy($legacyPath, $publicPath);
+    }
+
+    if (file_exists($publicPath)) {
+        $photoUrl = BASE_URL . '/' . $relativePath;
     }
 }
 
@@ -259,6 +290,39 @@ require_once '../includes/components/header.php';
                                 <p>Create your manager account for <strong><?= htmlspecialchars($_SESSION['onboarding']['accommodation_name'] ?? '') ?></strong></p>
                             <?php elseif ($_SESSION['onboarding']['user_role'] === 'student'): ?>
                                 <p>Create your student account for <strong><?= htmlspecialchars($_SESSION['onboarding']['accommodation_name'] ?? '') ?></strong></p>
+                                
+                                <?php if (!empty($_SESSION['onboarding']['profile_photo']) || !empty($_SESSION['onboarding']['student_first_name'])): ?>
+                                    <div class="card bg-light mb-3">
+                                        <div class="card-body">
+                                            <div class="row align-items-center">
+                                                <?php if (!empty($photoUrl)): ?>
+                                                    <div class="col-auto">
+                                                        <img src="<?= htmlspecialchars($photoUrl) ?>" 
+                                                             alt="Student photo" 
+                                                             style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%;">
+                                                    </div>
+                                                <?php endif; ?>
+                                                <div class="col">
+                                                    <h6 class="mb-1">
+                                                        <i class="bi bi-info-circle text-primary me-2"></i>Verify Your Identity
+                                                    </h6>
+                                                    <?php if (!empty($_SESSION['onboarding']['student_first_name'])): ?>
+                                                        <p class="mb-0 small">
+                                                            Expected student: <strong><?= htmlspecialchars($_SESSION['onboarding']['student_first_name'] . ' ' . ($_SESSION['onboarding']['student_last_name'] ?? '')) ?></strong>
+                                                        </p>
+                                                        <p class="mb-0 small text-muted">
+                                                            Please ensure your information matches what was provided by your accommodation manager.
+                                                        </p>
+                                                    <?php else: ?>
+                                                        <p class="mb-0 small text-muted">
+                                                            This photo was taken by your accommodation manager for verification.
+                                                        </p>
+                                                    <?php endif; ?>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                <?php endif; ?>
                             <?php else: ?>
                                 <p>Create your account for <strong><?= htmlspecialchars($_SESSION['onboarding']['accommodation_name'] ?? '') ?></strong></p>
                             <?php endif; ?>
@@ -269,12 +333,12 @@ require_once '../includes/components/header.php';
                                 <div class="col">
                                     <label for="first_name" class="form-label">First Name</label>
                                     <input type="text" class="form-control" id="first_name" name="first_name" 
-                                        value="<?= htmlspecialchars($_POST['first_name'] ?? '') ?>" required>
+                                        value="<?= htmlspecialchars($_POST['first_name'] ?? $_SESSION['onboarding']['student_first_name'] ?? '') ?>" required>
                                 </div>
                                 <div class="col">
                                     <label for="last_name" class="form-label">Last Name</label>
                                     <input type="text" class="form-control" id="last_name" name="last_name" 
-                                        value="<?= htmlspecialchars($_POST['last_name'] ?? '') ?>" required>
+                                        value="<?= htmlspecialchars($_POST['last_name'] ?? $_SESSION['onboarding']['student_last_name'] ?? '') ?>" required>
                                 </div>
                             </div>
                             <div class="mb-3">
@@ -286,8 +350,61 @@ require_once '../includes/components/header.php';
                             <div class="mb-3">
                                 <label for="phone" class="form-label">Phone Number</label>
                                 <input type="tel" class="form-control" id="phone" name="phone" 
-                                    value="<?= htmlspecialchars($_POST['phone'] ?? '') ?>">
+                                    value="<?= htmlspecialchars($_POST['phone'] ?? $_SESSION['onboarding']['phone_number'] ?? '') ?>">
                             </div>
+                            
+                            <div class="mb-3">
+                                <label for="whatsapp_number" class="form-label">WhatsApp Number</label>
+                                <input type="text" class="form-control" id="whatsapp_number" name="whatsapp_number" 
+                                    value="<?= htmlspecialchars($_POST['whatsapp_number'] ?? $_SESSION['onboarding']['phone_number'] ?? '') ?>" 
+                                    placeholder="+27...">
+                                <small class="form-text text-muted" id="whatsapp_hint" style="display:none;">WhatsApp number is required when WhatsApp is your preferred communication method.</small>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Preferred Communication Method</label>
+                                <div>
+                                    <?php 
+                                    // Determine default preferred method based on how code was sent
+                                    $default_pref = ($_SESSION['onboarding']['send_method'] === 'whatsapp') ? 'WhatsApp' : 
+                                                    (($_SESSION['onboarding']['send_method'] === 'sms') ? 'SMS' : 'WhatsApp');
+                                    $selected_pref = $_POST['preferred_communication'] ?? $default_pref;
+                                    ?>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="radio" name="preferred_communication" 
+                                            id="pref_whatsapp" value="WhatsApp" <?= $selected_pref === 'WhatsApp' ? 'checked' : '' ?>>
+                                        <label class="form-check-label" for="pref_whatsapp">WhatsApp</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="radio" name="preferred_communication" 
+                                            id="pref_sms" value="SMS" <?= $selected_pref === 'SMS' ? 'checked' : '' ?>>
+                                        <label class="form-check-label" for="pref_sms">SMS</label>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <script>
+                            document.addEventListener('DOMContentLoaded', function() {
+                                var phoneField = document.getElementById('phone');
+                                var waField = document.getElementById('whatsapp_number');
+                                if (phoneField && waField && !waField.value && phoneField.value) {
+                                    waField.value = phoneField.value;
+                                }
+                                phoneField.addEventListener('change', function() {
+                                    if (!waField.value) waField.value = phoneField.value;
+                                });
+                                function toggleHint() {
+                                    var hint = document.getElementById('whatsapp_hint');
+                                    var isWa = document.getElementById('pref_whatsapp').checked;
+                                    hint.style.display = (isWa && !waField.value) ? 'block' : 'none';
+                                }
+                                document.querySelectorAll('input[name="preferred_communication"]').forEach(function(r) {
+                                    r.addEventListener('change', toggleHint);
+                                });
+                                waField.addEventListener('input', toggleHint);
+                                toggleHint();
+                            });
+                            </script>
                             
                             <div class="mb-3">
                                 <label for="password" class="form-label">Password</label>

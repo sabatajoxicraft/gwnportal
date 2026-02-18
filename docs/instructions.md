@@ -61,3 +61,10 @@
 - Optimize queries for performance
 - Follow access control patterns
 - Use appropriate filtering for data display
+
+### Daily Auto-Link Job
+
+- Apply device migration first: `php db/migrations/apply_device_management_migration.php`
+- Test safely: `php auto_link_devices.php --dry-run`
+- Live run: `php auto_link_devices.php`
+- First-use events are tracked in `voucher_logs.first_used_at` (and `first_used_mac` when available)
