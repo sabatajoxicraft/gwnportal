@@ -1,0 +1,48 @@
+name: FTP Deploy to Joxicraft
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy via FTP
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Sync files via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ftp.joxicraft.co.za
+          port: 21
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: /
+          protocol: ftp
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/.vscode/**
+            **/.copilot/**
+            **/tests/**
+            **/archive/**
+            **/docs/**
+            **/db/**
+            **/.env
+            **/docker-compose.yml
+            **/Dockerfile
+            **/Dockerfile.phpmyadmin
+            **/000-default.conf
+            **/.dockerignore
+            **/*.sql
+            **/CI_CD_SETUP_COMPLETE.md
+            **/CODE-INDEX.md
+            **/README.md
+            **/env.example
+            **/test_client_edit.sh
+            **/client_test_output.txt
+            **/.github/**
