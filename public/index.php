@@ -5,16 +5,14 @@ $username = getenv('DB_USER') ?: 'root';
 $password = getenv('DB_PASSWORD') ?: '';
 $dbname = getenv('DB_NAME') ?: 'gwn_wifi_system';
 
-// Create connection without selecting database first
-$conn = new mysqli($servername, $username, $password);
-
-// Check connection
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
+// Try connecting to the database server
+try {
+    $conn = new mysqli($servername, $username, $password);
+    $db_exists = $conn->connect_error ? false : mysqli_select_db($conn, $dbname);
+} catch (Exception $e) {
+    $conn = null;
+    $db_exists = false;
 }
-
-// Check if we can select the database
-$db_exists = mysqli_select_db($conn, $dbname);
 
 if (!$db_exists) {
     // Database doesn't exist, show setup prompt
