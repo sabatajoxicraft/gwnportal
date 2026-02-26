@@ -12,8 +12,14 @@ echo "<p>pdo_mysql: " . (extension_loaded('pdo_mysql') ? '✅ loaded' : '❌ MIS
 echo "<p>mod_rewrite: " . (in_array('mod_rewrite', apache_get_modules() ?? []) ? '✅' : '⚠️ unknown') . "</p>";
 
 echo "<h3>File Check</h3>";
-$files = ['public/index.php', 'includes/config.php', 'includes/db.php', 'includes/session-config.php'];
-foreach ($files as $f) {
-    $path = __DIR__ . '/' . $f;
-    echo "<p>$f: " . (file_exists($path) ? '✅ exists' : '❌ MISSING') . "</p>";
+// Adjusted paths relative to public/ folder
+$files = [
+    'index.php' => 'index.php', 
+    '../includes/config.php' => '../includes/config.php', 
+    '../includes/db.php' => '../includes/db.php', 
+    '../includes/session-config.php' => '../includes/session-config.php'
+];
+foreach ($files as $name => $relPath) {
+    $path = realpath(__DIR__ . '/' . $relPath);
+    echo "<p>$name: " . ($path && file_exists($path) ? '✅ exists' : '❌ MISSING') . "</p>";
 }

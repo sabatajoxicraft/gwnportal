@@ -1,9 +1,6 @@
 RewriteEngine On
+RewriteBase /
 
-# Root request → public/index.php
-RewriteRule ^$ /public/index.php [L]
-
-# All other requests not already in /public or /includes → /public
+# Force rewrite to public/ folder
 RewriteCond %{REQUEST_URI} !^/public/
-RewriteCond %{REQUEST_URI} !^/includes/
-RewriteRule ^(.+)$ /public/$1 [L]
+RewriteRule ^(.*)$ public/$1 [L]
