@@ -4,6 +4,9 @@ RewriteBase /
 # Explicitly load index.php for root
 RewriteRule ^$ public/index.php [L]
 
+# Exclude setup_db.php from rewrite
+RewriteCond %{REQUEST_URI} !^/setup_db.php$
+
 # For everything else, rewrite to public/ if it's not already there
 RewriteCond %{REQUEST_URI} !^/public/
 RewriteRule ^(.*)$ public/$1 [L]
