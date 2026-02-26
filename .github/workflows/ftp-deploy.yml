@@ -21,7 +21,7 @@ jobs:
           port: 21
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          server-dir: /student.joxicraft.co.za/
+          server-dir: /
           protocol: ftp
           exclude: |
             **/.git*
