@@ -97,6 +97,12 @@ if (isset($_SESSION['user_id'])) {
 
 // Load environment variables from .env file
 $env_file = realpath(__DIR__ . '/../.env');
+
+// Fallback to env.production if .env doesn't exist
+if (!$env_file || !file_exists($env_file)) {
+    $env_file = realpath(__DIR__ . '/../env.production');
+}
+
 $env_vars = [];
 
 if (file_exists($env_file)) {
