@@ -1,6 +1,9 @@
 RewriteEngine On
 RewriteBase /
 
-# Force rewrite to public/ folder
+# Explicitly load index.php for root
+RewriteRule ^$ public/index.php [L]
+
+# For everything else, rewrite to public/ if it's not already there
 RewriteCond %{REQUEST_URI} !^/public/
 RewriteRule ^(.*)$ public/$1 [L]
