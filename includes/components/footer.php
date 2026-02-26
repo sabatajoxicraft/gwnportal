@@ -1,72 +1,74 @@
 <?php
 /**
- * Common footer component for all pages
+ * Smart Footer Router
  * 
- * @param array $extraScripts Additional scripts to include
+ * Automatically detects context and includes appropriate footer:
+ * - footer-public.php: Landing pages, marketing content
+ * - footer-auth.php: Login, registration, password reset
+ * - footer-app.php: Dashboard, authenticated app pages (DEFAULT)
+ * 
+ * Override auto-detection by setting $footerType before including:
+ * $footerType = 'public'; // or 'auth' or 'app'
+ * require_once '../includes/components/footer.php';
+ * 
+ * @param array $extraScripts Additional scripts to include (passed to footer variants)
+ * @param string $footerType Override auto-detection ('public', 'auth', 'app')
  */
 
-$extraScripts = $extraScripts ?? [];
-?>
-<!-- Main content ends here -->
+// Allow explicit override
+if (!isset($footerType)) {
+    // Auto-detect based on current script
+    $currentScript = basename($_SERVER['PHP_SELF']);
     
-    <footer class="mt-5">
+    // Define context patterns
+    $authPages = [
+        'login.php',
+        'reset_password.php',
+        'forgot_password.php',
+        'register.php',
+        'verify_email.php'
+    ];
+    
+    $publicPages = [
+        'index.php'  // Landing page only
+    ];
+    
+    // Determine footer type
+    if (in_array($currentScript, $publicPages)) {
+        $footerType = 'public';
+    } elseif (in_array($currentScript, $authPages)) {
+        $footerType = 'auth';
+    } else {
+        // Default to app footer for all other pages
+        // This ensures backward compatibility for existing pages
+        $footerType = 'app';
+    }
+}
+
+// Validate and sanitize footer type
+$validTypes = ['public', 'auth', 'app'];
+if (!in_array($footerType, $validTypes)) {
+    error_log("Invalid footer type '$footerType' requested. Defaulting to 'app'.");
+    $footerType = 'app';
+}
+
+// Include the appropriate footer component
+$footerComponentPath = __DIR__ . "/footer-{$footerType}.php";
+
+if (!file_exists($footerComponentPath)) {
+    error_log("Footer component not found: {$footerComponentPath}");
+    // Fallback to a basic footer to prevent blank pages
+    ?>
+    <footer class="mt-auto py-3 bg-light border-top">
         <div class="container">
-            <div class="row py-4">
-                <div class="col-md-6">
-                    <h5><i class="bi bi-wifi me-2"></i><?= APP_NAME ?></h5>
-                    <p class="text-light mb-0">A complete WiFi management solution for student accommodations.</p>
-                </div>
-                <div class="col-md-3">
-                    <h6>Quick Links</h6>
-                    <ul class="list-unstyled">
-                        <?php if (isLoggedIn()): ?>
-                            <li><a href="<?= BASE_URL ?>/dashboard.php" class="text-light">Dashboard</a></li>
-                            <li><a href="<?= BASE_URL ?>/profile.php" class="text-light">My Profile</a></li>
-                        <?php else: ?>
-                            <li><a href="<?= BASE_URL ?>/index.php" class="text-light">Home</a></li>
-                            <li><a href="<?= BASE_URL ?>/login.php" class="text-light">Login</a></li>
-                        <?php endif; ?>
-                        <li><a href="<?= BASE_URL ?>/contact.php" class="text-light">Contact Us</a></li>
-                    </ul>
-                </div>
-                <div class="col-md-3">
-                    <h6>Support</h6>
-                    <ul class="list-unstyled">
-                        <li><i class="bi bi-envelope me-2"></i> support@example.com</li>
-                        <li><i class="bi bi-telephone me-2"></i> +27 12 345 6789</li>
-                    </ul>
-                </div>
-            </div>
-            <div class="row border-top border-light pt-3">
-                <div class="col-md-6">
-                    <p class="mb-0">&copy; <?= date('Y') ?> <?= APP_NAME ?>. All rights reserved.</p>
-                </div>
-                <div class="col-md-6 text-md-end">
-                    <p class="mb-0">Version <?= defined('APP_VERSION') ? APP_VERSION : '1.0.0' ?></p>
-                </div>
-            </div>
+            <p class="text-center text-muted mb-0">
+                &copy; <?= date('Y') ?> <?= APP_NAME ?>
+            </p>
         </div>
     </footer>
-    
-    <!-- Bootstrap Bundle with Popper -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
-    
-    <!-- Custom Scripts -->
-    <script>
-    // Initialize tooltips
-    document.addEventListener('DOMContentLoaded', function () {
-        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
-        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-            return new bootstrap.Tooltip(tooltipTriggerEl)
-        })
-    });
-    </script>
-    
-    <!-- Page-specific scripts -->
-    <?php if (!empty($extraScripts)): ?>
-        <?php foreach ($extraScripts as $script): ?>
-            <?= $script ?>
-        <?php endforeach; ?>
-    <?php endif; ?>
-</body>
-</html>
+    </body>
+    </html>
+    <?php
+} else {
+    require_once $footerComponentPath;
+}

@@ -78,7 +78,7 @@ $voucherHistory = $stmtHistory->get_result()->fetch_all(MYSQLI_ASSOC);
 include '../../includes/components/header.php';
 ?>
 
-<div class="container-fluid">
+<div class="container mt-4">
     <div class="row">
         <div class="col-12">
             <h1 class="mb-4"><i class="bi bi-wifi me-2"></i>Request WiFi Voucher</h1>

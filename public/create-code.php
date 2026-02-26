@@ -233,6 +233,9 @@ require_once '../includes/components/header.php';
         </ol>
     </nav>
 
+    <!-- Accommodation Switcher Bar Component -->
+    <?php include __DIR__ . '/../includes/components/accommodation-switcher-bar.php'; ?>
+
     <div class="row">
         <div class="col-md-6">
             <div class="card">

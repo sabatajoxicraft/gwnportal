@@ -235,6 +235,9 @@ require_once '../../includes/components/header.php';
         </a>
     </div>
     
+    <!-- Accommodation Switcher Bar Component -->
+    <?php include __DIR__ . '/../../includes/components/accommodation-switcher-bar.php'; ?>
+    
     <?php if (!$isAdmin): ?>
     <!-- Stats Card (Manager view) -->
     <div class="card mb-4">

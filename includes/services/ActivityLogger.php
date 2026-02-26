@@ -213,6 +213,7 @@ class ActivityLogger {
     public static function getAccommodationActivityLog($accommodationId, $limit = 50, $offset = 0) {
         $conn = self::getConn();
         
+        // Filter activity logs by users assigned to this accommodation (exclude system logs with NULL user_id)
         $stmt = $conn->prepare("
             SELECT 
                 al.id,
@@ -225,7 +226,9 @@ class ActivityLogger {
                 al.timestamp
             FROM activity_log al
             LEFT JOIN users u ON al.user_id = u.id
-            WHERE al.details LIKE ?
+            WHERE al.user_id IN (
+                SELECT user_id FROM user_accommodation WHERE accommodation_id = ?
+            )
             ORDER BY al.timestamp DESC
             LIMIT ? OFFSET ?
         ");
@@ -235,8 +238,7 @@ class ActivityLogger {
             return [];
         }
 
-        $searchTerm = '%"accommodation_id":' . $accommodationId . '%';
-        $stmt->bind_param("sii", $searchTerm, $limit, $offset);
+        $stmt->bind_param("iii", $accommodationId, $limit, $offset);
         
         if (!$stmt->execute()) {
             error_log("ActivityLogger::getAccommodationActivityLog - Execute error: " . $stmt->error);

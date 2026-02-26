@@ -201,6 +201,9 @@ require_once '../../includes/components/header.php';
         </div>
     </div>
 
+    <!-- Accommodation Switcher Bar Component -->
+    <?php include __DIR__ . '/../../includes/components/accommodation-switcher-bar.php'; ?>
+
     <div class="row">
         <div class="col-md-8 offset-md-2">
             <div class="card">

@@ -154,6 +154,9 @@ require_once '../../includes/components/header.php';
         </div>
     </div>
     
+    <!-- Accommodation Switcher Bar Component -->
+    <?php include __DIR__ . '/../../includes/components/accommodation-switcher-bar.php'; ?>
+    
     <!-- Filters -->
     <div class="card mb-4">
         <div class="card-header">

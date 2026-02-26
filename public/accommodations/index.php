@@ -56,10 +56,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $isAdmin
     }
 }
 
+// For owners, set up accommodation switching (similar to managers page)
+if (!$isAdmin) {
+    // Get all owner's accommodations first
+    $owner_accommodations = [];
+    $stmt_owner_acc = safeQueryPrepare($conn, "SELECT id, name FROM accommodations WHERE owner_id = ? ORDER BY name");
+    if ($stmt_owner_acc !== false) {
+        $stmt_owner_acc->bind_param("i", $currentUserId);
+        $stmt_owner_acc->execute();
+        $owner_accommodations = $stmt_owner_acc->get_result()->fetch_all(MYSQLI_ASSOC);
+    }
+
+    // Store in session for switcher component
+    $_SESSION['manager_accommodations'] = $owner_accommodations;
+
+    // Handle accommodation switching
+    if (isset($_GET['switch_accommodation'])) {
+        $switch_to = (int)$_GET['switch_accommodation'];
+        // Verify this accommodation belongs to the owner
+        $valid = false;
+        foreach ($owner_accommodations as $acc) {
+            if ($acc['id'] === $switch_to) {
+                $valid = true;
+                break;
+            }
+        }
+        if ($valid) {
+            $_SESSION['current_accommodation'] = ['id' => $switch_to];
+            // Redirect to clean URL
+            header('Location: ' . BASE_URL . '/accommodations/');
+            exit;
+        }
+    }
+
+    // Get current accommodation from session or default to first
+    $current_accommodation_id = 0;
+    if (isset($_SESSION['current_accommodation']['id'])) {
+        $current_accommodation_id = $_SESSION['current_accommodation']['id'];
+    } elseif (!empty($owner_accommodations)) {
+        $current_accommodation_id = $owner_accommodations[0]['id'];
+        $_SESSION['current_accommodation'] = ['id' => $current_accommodation_id];
+    }
+}
+
 // Build query based on role
 if ($isAdmin) {
     // Admin sees all accommodations with owner details
-    $sql = "SELECT a.*, u.first_name, u.last_name, 
+    $sql = "SELECT a.id, a.name, a.owner_id, a.created_at, u.first_name, u.last_name,
+            (SELECT COUNT(DISTINCT ua.user_id) FROM user_accommodation ua WHERE ua.accommodation_id = a.id) AS manager_count,
+            (SELECT COUNT(*) FROM students s WHERE s.accommodation_id = a.id) AS student_count,
             (
                 (SELECT COUNT(DISTINCT ua.user_id) FROM user_accommodation ua WHERE ua.accommodation_id = a.id)
                 +
@@ -74,23 +119,21 @@ if ($isAdmin) {
         $accommodations = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     }
 } else {
-    // Owner sees only their accommodations with counts
+    // Owner sees only their SELECTED accommodation
     $sql = "SELECT a.id, a.name, a.created_at,
             (SELECT COUNT(DISTINCT ua.user_id)
                FROM user_accommodation ua
-               JOIN users um ON ua.user_id = um.id
-               JOIN roles rm ON um.role_id = rm.id
-               WHERE ua.accommodation_id = a.id AND rm.name = 'manager') AS manager_count,
+               WHERE ua.accommodation_id = a.id) AS manager_count,
             (SELECT COUNT(*) FROM students s WHERE s.accommodation_id = a.id) AS student_count
             FROM accommodations a 
-            WHERE a.owner_id = ? 
+            WHERE a.owner_id = ? AND a.id = ?
             ORDER BY a.name ASC";
     
     $stmt = safeQueryPrepare($conn, $sql);
     if ($stmt === false) {
         $error = "Unable to load accommodations. Please try again later.";
     } else {
-        $stmt->bind_param("i", $currentUserId);
+        $stmt->bind_param("ii", $currentUserId, $current_accommodation_id);
         $stmt->execute();
         $accommodations = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     }
@@ -122,6 +165,9 @@ require_once '../../includes/components/header.php';
             <i class="bi bi-<?= $isAdmin ? 'building-add' : 'plus-circle' ?>"></i> Add New Accommodation
         </a>
     </div>
+
+    <!-- Accommodation Switcher Bar Component -->
+    <?php include __DIR__ . '/../../includes/components/accommodation-switcher-bar.php'; ?>
 
     <?php if (!empty($accommodations)): ?>
         <div class="card">
@@ -157,17 +203,17 @@ require_once '../../includes/components/header.php';
                                     </td>
                                     <?php if ($isAdmin): ?>
                                     <td><?= htmlspecialchars($accommodation['first_name'] . ' ' . $accommodation['last_name']) ?></td>
-                                    <td><span class="badge bg-info"><?= $accommodation['user_count'] ?></span></td>
+                                    <td><span class="badge bg-info"><?= $accommodation['user_count'] ?? '0' ?></span></td>
                                     <?php else: ?>
                                     <td class="text-center align-middle">
-                                        <span class="badge bg-primary rounded-pill"><?= $accommodation['manager_count'] ?></span>
+                                        <span class="badge bg-primary rounded-pill"><?= $accommodation['manager_count'] ?? '0' ?></span>
                                     </td>
                                     <td class="text-center align-middle">
-                                        <span class="badge bg-success rounded-pill"><?= $accommodation['student_count'] ?></span>
+                                        <span class="badge bg-success rounded-pill"><?= $accommodation['student_count'] ?? '0' ?></span>
                                     </td>
                                     <?php endif; ?>
                                     <td<?= $isAdmin ? '' : ' class="align-middle"' ?>>
-                                        <?= date('M j, Y', strtotime($accommodation['created_at'])) ?>
+                                        <?= isset($accommodation['created_at']) && $accommodation['created_at'] ? date('M j, Y', strtotime($accommodation['created_at'])) : 'N/A' ?>
                                     </td>
                                     <td class="<?= $isAdmin ? '' : 'text-end' ?>">
                                         <div class="btn-group btn-group-sm" role="group">

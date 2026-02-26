@@ -80,6 +80,9 @@ require_once '../includes/components/header.php';
             </a>
         </div>
         
+        <!-- Accommodation Switcher Bar Component -->
+        <?php include __DIR__ . '/../includes/components/accommodation-switcher-bar.php'; ?>
+        
         <div class="row justify-content-center">
             <div class="col-md-8">
                 <?php if ($success): ?>

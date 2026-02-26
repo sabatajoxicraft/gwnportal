@@ -52,31 +52,74 @@ if (isset($_POST['unassign_manager']) && isset($_POST['manager_id']) && isset($_
     }
 }
 
-// Check if a specific accommodation is requested
-$accommodation_id = isset($_GET['accommodation_id']) ? (int)$_GET['accommodation_id'] : 0;
-$specific_accommodation = false;
-$accommodation = null;
+// Get all owner's accommodations first
+$owner_accommodations = [];
+$stmt_owner_acc = safeQueryPrepare($conn, "SELECT id, name FROM accommodations WHERE owner_id = ? ORDER BY name");
+if ($stmt_owner_acc !== false) {
+    $stmt_owner_acc->bind_param("i", $owner_id);
+    $stmt_owner_acc->execute();
+    $owner_accommodations = $stmt_owner_acc->get_result()->fetch_all(MYSQLI_ASSOC);
+}
 
-// If accommodation ID is provided, verify it belongs to this owner
-if ($accommodation_id > 0) {
-    $stmt = safeQueryPrepare($conn, "SELECT id, name FROM accommodations WHERE id = ? AND owner_id = ?");
-    if ($stmt !== false) {
-        $stmt->bind_param("ii", $accommodation_id, $owner_id);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        
-        if ($result->num_rows === 1) {
-            $accommodation = $result->fetch_assoc();
-            $specific_accommodation = true;
-        } else {
-            // Invalid accommodation ID or doesn't belong to owner
-            redirect(BASE_URL . '/accommodations.php', 'Accommodation not found or you do not have permission to manage it.', 'danger');
+// If no accommodations, redirect to create one
+if (empty($owner_accommodations)) {
+    redirect(BASE_URL . '/owner-setup.php', 'Please create an accommodation first.', 'info');
+}
+
+// Store in session for switcher component
+$_SESSION['manager_accommodations'] = $owner_accommodations;
+
+// Handle accommodation switching
+if (isset($_GET['switch_accommodation'])) {
+    $switch_to = (int)$_GET['switch_accommodation'];
+    // Verify this accommodation belongs to the owner
+    $valid = false;
+    foreach ($owner_accommodations as $acc) {
+        if ($acc['id'] === $switch_to) {
+            $valid = true;
+            break;
         }
+    }
+    if ($valid) {
+        $_SESSION['current_accommodation'] = ['id' => $switch_to];
+        // Redirect to clean URL
+        header('Location: ' . BASE_URL . '/managers.php');
+        exit;
     }
 }
 
-// Handle adding a new manager (only when viewing a specific accommodation)
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $specific_accommodation && isset($_POST['add_manager'])) {
+// Get current accommodation from session or URL or default to first
+$accommodation_id = 0;
+if (isset($_GET['accommodation_id']) && $_GET['accommodation_id'] > 0) {
+    $accommodation_id = (int)$_GET['accommodation_id'];
+} elseif (isset($_SESSION['current_accommodation']['id'])) {
+    $accommodation_id = $_SESSION['current_accommodation']['id'];
+} else {
+    // Default to first accommodation
+    $accommodation_id = $owner_accommodations[0]['id'];
+    $_SESSION['current_accommodation'] = ['id' => $accommodation_id];
+}
+
+// Verify accommodation belongs to this owner and get details
+$accommodation = null;
+$stmt = safeQueryPrepare($conn, "SELECT id, name FROM accommodations WHERE id = ? AND owner_id = ?");
+if ($stmt !== false) {
+    $stmt->bind_param("ii", $accommodation_id, $owner_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    if ($result->num_rows === 1) {
+        $accommodation = $result->fetch_assoc();
+    } else {
+        // Invalid accommodation, redirect to first one
+        $accommodation_id = $owner_accommodations[0]['id'];
+        $_SESSION['current_accommodation'] = ['id' => $accommodation_id];
+        redirect(BASE_URL . '/managers.php');
+    }
+}
+
+// Handle adding a new manager
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_manager'])) {
     requireCsrfToken();
     $user_id = isset($_POST['user_id']) ? (int)$_POST['user_id'] : 0;
     
@@ -129,7 +172,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_manager'])) {
     $last_name = trim($_POST['last_name'] ?? '');
     $password = $_POST['password'] ?? '';
     $password_confirm = $_POST['password_confirm'] ?? '';
-    $assign_to_accommodation = isset($_POST['assign_to_accommodation']) ? (int)$_POST['assign_to_accommodation'] : 0;
+    
+    // If assign_manager checkbox is checked, assign to current accommodation
+    $assign_to_accommodation = isset($_POST['assign_manager']) ? $accommodation_id : 0;
     
     // Validate inputs
     if (empty($username)) {
@@ -204,7 +249,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_manager'])) {
 }
 
 // Handle manager status update
-if ($specific_accommodation && isset($_GET['action']) && ($_GET['action'] === 'activate' || $_GET['action'] === 'deactivate') && isset($_GET['manager_id'])) {
+if (isset($_GET['action']) && ($_GET['action'] === 'activate' || $_GET['action'] === 'deactivate') && isset($_GET['manager_id'])) {
     $manager_id = (int)$_GET['manager_id'];
     $new_status = ($_GET['action'] === 'activate') ? 'active' : 'inactive';
 
@@ -217,77 +262,44 @@ if ($specific_accommodation && isset($_GET['action']) && ($_GET['action'] === 'a
     if ($update_stmt !== false) {
         $update_stmt->bind_param("siii", $new_status, $manager_id, $accommodation_id, $owner_id);
         if ($update_stmt->execute()) {
-            redirect(BASE_URL . '/managers.php?accommodation_id=' . $accommodation_id, 'Manager status updated successfully!', 'success');
+            redirect(BASE_URL . '/managers.php', 'Manager status updated successfully!', 'success');
         } else {
             $error = 'Failed to update manager status. Please try again.';
         }
     }
 }
 
-// Different query depending on whether we're viewing all managers or managers for a specific accommodation
-if ($specific_accommodation) {
-    // Get all managers for this specific accommodation
-    $managers_query = "SELECT u.id AS manager_id, u.username, u.first_name, u.last_name, u.email, u.status AS manager_status,
-                      ua.accommodation_id
-                      FROM users u 
-                      JOIN user_accommodation ua ON u.id = ua.user_id
-                      WHERE ua.accommodation_id = ? AND u.role_id = 3
-                      ORDER BY u.first_name, u.last_name";
-    $stmt_managers = safeQueryPrepare($conn, $managers_query);
-    if ($stmt_managers !== false) {
-        $stmt_managers->bind_param("i", $accommodation_id);
-    }
-} else {
-    // Get all managers across all accommodations owned by this owner
-    $managers_query = "SELECT u.id AS manager_id, u.username, u.first_name, u.last_name, u.email, u.status AS manager_status,
-                      a.id as accommodation_id, a.name as accommodation_name
-                      FROM users u 
-                      JOIN user_accommodation ua ON u.id = ua.user_id
-                      JOIN accommodations a ON ua.accommodation_id = a.id
-                      WHERE a.owner_id = ? AND u.role_id = 3
-                      ORDER BY a.name, u.first_name, u.last_name";
-    $stmt_managers = safeQueryPrepare($conn, $managers_query);
-    if ($stmt_managers !== false) {
-        $stmt_managers->bind_param("i", $owner_id);
-    }
-}
-
-// Get managers based on the prepared query
+// Get all managers for the current accommodation
+$managers_query = "SELECT u.id AS manager_id, u.username, u.first_name, u.last_name, u.email, u.status AS manager_status,
+                  ua.accommodation_id
+                  FROM users u 
+                  JOIN user_accommodation ua ON u.id = ua.user_id
+                  WHERE ua.accommodation_id = ? AND u.role_id = 3
+                  ORDER BY u.first_name, u.last_name";
+$stmt_managers = safeQueryPrepare($conn, $managers_query);
 $managers = [];
 if ($stmt_managers !== false) {
+    $stmt_managers->bind_param("i", $accommodation_id);
     $stmt_managers->execute();
     $managers = $stmt_managers->get_result()->fetch_all(MYSQLI_ASSOC);
 }
 
-// Get all accommodations for dropdown when adding managers
-$accommodations = [];
-if (!$specific_accommodation) {
-    $stmt_accommodations = safeQueryPrepare($conn, "SELECT id, name FROM accommodations WHERE owner_id = ? ORDER BY name");
-    if ($stmt_accommodations !== false) {
-        $stmt_accommodations->bind_param("i", $owner_id);
-        $stmt_accommodations->execute();
-        $accommodations = $stmt_accommodations->get_result()->fetch_all(MYSQLI_ASSOC);
-    }
-}
-
 // Get available users with manager role who aren't already managers for this accommodation
 $available_managers = [];
-if ($specific_accommodation) {
-    $available_managers_query = "SELECT u.id, u.username, u.first_name, u.last_name, u.email
-                               FROM users u
-                               LEFT JOIN user_accommodation ua ON u.id = ua.user_id AND ua.accommodation_id = ?
-                               WHERE u.role_id = 3 AND ua.user_id IS NULL
-                               ORDER BY u.first_name, u.last_name";
-    $stmt_available = safeQueryPrepare($conn, $available_managers_query);
-    if ($stmt_available !== false) {
-        $stmt_available->bind_param("i", $accommodation_id);
-        $stmt_available->execute();
-        $available_managers = $stmt_available->get_result()->fetch_all(MYSQLI_ASSOC);
-    }
+$available_managers_query = "SELECT u.id, u.username, u.first_name, u.last_name, u.email
+                           FROM users u
+                           LEFT JOIN user_accommodation ua ON u.id = ua.user_id AND ua.accommodation_id = ?
+                           WHERE u.role_id = 3 AND ua.user_id IS NULL
+                           ORDER BY u.first_name, u.last_name";
+$stmt_available = safeQueryPrepare($conn, $available_managers_query);
+if ($stmt_available !== false) {
+    $stmt_available->bind_param("i", $accommodation_id);
+    $stmt_available->execute();
+    $available_managers = $stmt_available->get_result()->fetch_all(MYSQLI_ASSOC);
 }
 
-// Modify the pageTitle section to reflect the new feature
-$pageTitle = $specific_accommodation ? "Managers for " . htmlspecialchars($accommodation['name']) : "Manager Accounts";
+// Set page title
+$pageTitle = "Managers - " . htmlspecialchars($accommodation['name']);
 $activePage = "managers";
 require_once '../includes/components/header.php';
 ?>
@@ -300,302 +312,101 @@ require_once '../includes/components/header.php';
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2><?= $pageTitle ?></h2>
         <div>
-            <?php if ($specific_accommodation): ?>
-                <a href="managers.php" class="btn btn-outline-secondary me-2">
-                    <i class="bi bi-list"></i> All Managers
-                </a>
-                <button type="button" class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#addManagerModal">
-                    <i class="bi bi-person-plus"></i> Assign Manager
-                </button>
-            <?php else: ?>
-                <a href="accommodations.php" class="btn btn-outline-secondary me-2">
-                    <i class="bi bi-buildings"></i> Accommodations
-                </a>
-            <?php endif; ?>
+            <button type="button" class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#addManagerModal">
+                <i class="bi bi-person-plus"></i> Assign Manager
+            </button>
             <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#createManagerModal">
                 <i class="bi bi-person-plus-fill"></i> Create New Manager
             </button>
         </div>
     </div>
 
-    <?php if (!$specific_accommodation): ?>
-        <!-- Show manager statistics card -->
-        <div class="row mb-4">
-            <div class="col-md-4">
-                <div class="card text-bg-primary">
-                    <div class="card-body">
-                        <?php
-                            // Count all manager users for this owner (was counting all managers before)
-                            $stmt = safeQueryPrepare($conn,
-                                "SELECT COUNT(DISTINCT ua.user_id) AS total
-                                 FROM user_accommodation ua
-                                 JOIN accommodations a ON ua.accommodation_id = a.id
-                                 JOIN users u ON ua.user_id = u.id
-                                 WHERE a.owner_id = ? AND u.role_id = 3"
-                            );
-                            $total_managers = 0;
-                            if ($stmt !== false) {
-                                $stmt->bind_param("i", $owner_id);
-                                $stmt->execute();
-                                $result = $stmt->get_result();
-                                if ($row = $result->fetch_assoc()) {
-                                    $total_managers = $row['total'];
-                                }
-                            }
-                        ?>
-                        <h5 class="card-title">My Managers</h5>
-                        <p class="display-4"><?= $total_managers ?></p>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-md-8">
-                <div class="card">
-                    <div class="card-header bg-light">
-                        <h5 class="mb-0">My Manager Accounts</h5>
-                    </div>
-                    <div class="card-body">
-                        <?php
-                            // Get all manager users that are assigned to this owner's accommodations
-                            $managers_list = [];
-                            $stmt = safeQueryPrepare($conn, 
-                                "SELECT DISTINCT u.id, u.username, u.email, u.first_name, u.last_name, u.status, u.created_at 
-                                FROM users u 
-                                JOIN user_accommodation ua ON u.id = ua.user_id
-                                JOIN accommodations a ON ua.accommodation_id = a.id
-                                WHERE u.role_id = 3 AND a.owner_id = ? 
-                                ORDER BY u.created_at DESC");
-                            if ($stmt !== false) {
-                                $stmt->bind_param("i", $owner_id);
-                                $stmt->execute();
-                                $managers_list = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-                            }
-                        ?>
-                        
-                        <?php if (!empty($managers_list)): ?>
-                            <div class="table-responsive">
-                                <table class="table table-hover">
-                                    <thead>
-                                        <tr>
-                                            <th>Name</th>
-                                            <th>Username</th>
-                                            <th>Email</th>
-                                            <th>Status</th>
-                                            <th>Created</th>
-                                            <th>Assignments</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach ($managers_list as $manager): ?>
-                                            <tr>
-                                                <td><?= htmlspecialchars($manager['first_name'] . ' ' . $manager['last_name']) ?></td>
-                                                <td><?= htmlspecialchars($manager['username']) ?></td>
-                                                <td><?= htmlspecialchars($manager['email']) ?></td>
-                                                <td>
-                                                    <span class="badge <?= $manager['status'] === 'active' ? 'bg-success' : 'bg-warning' ?>">
-                                                        <?= ucfirst($manager['status']) ?>
-                                                    </span>
-                                                </td>
-                                                <td><?= date('M j, Y', strtotime($manager['created_at'])) ?></td>
-                                                <td>
-                                                    <?php
-                                                        // Count assignments for this manager
-                                                        $count_stmt = safeQueryPrepare($conn, 
-                                                            "SELECT COUNT(*) as count FROM user_accommodation ua
-                                                             JOIN accommodations a ON ua.accommodation_id = a.id
-                                                             WHERE ua.user_id = ? AND a.owner_id = ?");
-                                                        $count = 0;
-                                                        if ($count_stmt !== false) {
-                                                            $count_stmt->bind_param("ii", $manager['id'], $owner_id);
-                                                            $count_stmt->execute();
-                                                            $result = $count_stmt->get_result();
-                                                            if ($row = $result->fetch_assoc()) {
-                                                                $count = $row['count'];
-                                                            }
-                                                        }
-                                                    ?>
-                                                    <span class="badge bg-info"><?= $count ?> accommodation<?= $count !== 1 ? 's' : '' ?></span>
-                                                </td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                            </div>
-                        <?php else: ?>
-                            <div class="alert alert-info">
-                                <p><i class="bi bi-info-circle"></i> You haven't created any manager accounts yet.</p>
-                                <button type="button" class="btn btn-primary mt-2" data-bs-toggle="modal" data-bs-target="#createManagerModal">
-                                    Create Your First Manager
-                                </button>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
+    <!-- Accommodation Switcher Bar Component -->
+    <?php include __DIR__ . '/../includes/components/accommodation-switcher-bar.php'; ?>
+
+    <!-- Managers List Card -->
+    <div class="card">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">
+                <i class="bi bi-people"></i> Managers for <?= htmlspecialchars($accommodation['name']) ?>
+            </h5>
         </div>
-        
-        <!-- Display all managers grouped by accommodation -->
-        <?php if (!empty($managers)): ?>
-            <?php 
-            // Group managers by accommodation
-            $managers_by_accommodation = [];
-            foreach ($managers as $manager) {
-                $accommodation_id = $manager['accommodation_id'];
-                if (!isset($managers_by_accommodation[$accommodation_id])) {
-                    $managers_by_accommodation[$accommodation_id] = [
-                        'name' => $manager['accommodation_name'],
-                        'managers' => []
-                    ];
-                }
-                $managers_by_accommodation[$accommodation_id]['managers'][] = $manager;
-            }
-            ?>
-            
-            <?php foreach ($managers_by_accommodation as $acc_id => $acc_data): ?>
-                <div class="card mb-4">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0"><?= htmlspecialchars($acc_data['name']) ?></h5>
-                        <a href="managers.php?accommodation_id=<?= $acc_id ?>" class="btn btn-sm btn-outline-primary">
-                            Manage
-                        </a>
-                    </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>Name</th>
-                                        <th>Username</th>
-                                        <th>Email</th>
-                                        <th>Status</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($acc_data['managers'] as $manager): ?>
-                                        <tr>
-                                            <td><?= htmlspecialchars($manager['first_name'] . ' ' . $manager['last_name']) ?></td>
-                                            <td><?= htmlspecialchars($manager['username']) ?></td>
-                                            <td><?= htmlspecialchars($manager['email']) ?></td>
-                                            <td>
-                                                <span class="badge <?= $manager['manager_status'] === 'active' ? 'bg-success' : 'bg-warning' ?>">
-                                                    <?= ucfirst($manager['manager_status']) ?>
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <form method="post" onsubmit="return confirm('Are you sure you want to unassign this manager?');">
-                                                    <?php echo csrfField(); ?>
-                                                    <input type="hidden" name="manager_id" value="<?= $manager['manager_id'] ?>">
-                                                    <input type="hidden" name="accommodation_id" value="<?= $manager['accommodation_id'] ?>">
-                                                    <button type="submit" name="unassign_manager" class="btn btn-sm btn-outline-danger">
-                                                        <i class="bi bi-person-x me-1"></i> Unassign
-                                                    </button>
-                                                </form>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            <?php endforeach; ?>
-        <?php else: ?>
-            <div class="alert alert-info">
-                <p><i class="bi bi-info-circle"></i> You don't have any managers assigned yet.</p>
-                <?php if (!empty($accommodations)): ?>
-                    <p>Choose an accommodation to add managers:</p>
-                    <div class="list-group mt-3">
-                        <?php foreach ($accommodations as $acc): ?>
-                            <a href="managers.php?accommodation_id=<?= $acc['id'] ?>" class="list-group-item list-group-item-action">
-                                <?= htmlspecialchars($acc['name']) ?>
-                            </a>
-                        <?php endforeach; ?>
-                    </div>
-                <?php else: ?>
-                    <p>You need to <a href="create-accommodation.php">create an accommodation</a> first.</p>
-                <?php endif; ?>
-            </div>
-        <?php endif; ?>
-    <?php else: ?>
-        <!-- Display managers for a specific accommodation -->
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">Managers for <?= htmlspecialchars($accommodation['name']) ?></h5>
-            </div>
-            <div class="card-body">
-                <?php if (!empty($managers)): ?>
-                    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead>
+        <div class="card-body">
+            <?php if (!empty($managers)): ?>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Username</th>
+                                <th>Email</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($managers as $manager): ?>
                                 <tr>
-                                    <th>Name</th>
-                                    <th>Username</th>
-                                    <th>Email</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($managers as $manager): ?>
-                                    <tr>
-                                        <td><?= htmlspecialchars($manager['first_name'] . ' ' . $manager['last_name']) ?></td>
-                                        <td><?= htmlspecialchars($manager['username']) ?></td>
-                                        <td><?= htmlspecialchars($manager['email']) ?></td>
-                                        <td>
-                                            <span class="badge <?= $manager['manager_status'] === 'active' ? 'bg-success' : 'bg-warning' ?>">
-                                                <?= ucfirst($manager['manager_status']) ?>
-                                            </span>
-                                        </td>
-                                        <td>
+                                    <td><?= htmlspecialchars($manager['first_name'] . ' ' . $manager['last_name']) ?></td>
+                                    <td><?= htmlspecialchars($manager['username']) ?></td>
+                                    <td><?= htmlspecialchars($manager['email']) ?></td>
+                                    <td>
+                                        <span class="badge <?= $manager['manager_status'] === 'active' ? 'bg-success' : 'bg-secondary' ?>">
+                                            <?= ucfirst($manager['manager_status']) ?>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm" role="group">
                                             <?php if ($manager['manager_status'] === 'active'): ?>
-                                                <a href="?accommodation_id=<?= $accommodation_id ?>&action=deactivate&manager_id=<?= $manager['manager_id'] ?>" class="btn btn-sm btn-warning">Deactivate</a>
+                                                <a href="?action=deactivate&manager_id=<?= $manager['manager_id'] ?>" 
+                                                   class="btn btn-outline-warning" title="Deactivate">
+                                                    <i class="bi bi-pause"></i>
+                                                </a>
                                             <?php else: ?>
-                                                <a href="?accommodation_id=<?= $accommodation_id ?>&action=activate&manager_id=<?= $manager['manager_id'] ?>" class="btn btn-sm btn-success">Activate</a>
+                                                <a href="?action=activate&manager_id=<?= $manager['manager_id'] ?>" 
+                                                   class="btn btn-outline-success" title="Activate">
+                                                    <i class="bi bi-check"></i>
+                                                </a>
                                             <?php endif; ?>
-                                            <form method="post" onsubmit="return confirm('Are you sure you want to unassign this manager?');" style="display:inline;">
+                                            <form method="post" onsubmit="return confirm('Remove this manager from the accommodation?');" style="display:inline;">
                                                 <?php echo csrfField(); ?>
                                                 <input type="hidden" name="manager_id" value="<?= $manager['manager_id'] ?>">
                                                 <input type="hidden" name="accommodation_id" value="<?= $accommodation_id ?>">
-                                                <button type="submit" name="unassign_manager" class="btn btn-sm btn-outline-danger">
-                                                    <i class="bi bi-person-x me-1"></i> Unassign
+                                                <button type="submit" name="unassign_manager" class="btn btn-outline-danger btn-sm" title="Unassign">
+                                                    <i class="bi bi-trash"></i>
                                                 </button>
                                             </form>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                <?php else: ?>
-                    <div class="alert alert-info">
-                        <p><i class="bi bi-info-circle"></i> No managers assigned to this accommodation yet.</p>
-                        <button type="button" class="btn btn-primary mt-3" data-bs-toggle="modal" data-bs-target="#addManagerModal">
-                            <i class="bi bi-person-plus"></i> Add Manager
-                        </button>
-                    </div>
-                <?php endif; ?>
-            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php else: ?>
+                <div class="alert alert-info mb-0">
+                    <i class="bi bi-info-circle"></i> No managers assigned to this accommodation yet.
+                </div>
+            <?php endif; ?>
         </div>
-    <?php endif; ?>
+    </div>
 </div>
 
 <!-- Add Manager Modal -->
-<?php if ($specific_accommodation): ?>
 <div class="modal fade" id="addManagerModal" tabindex="-1" aria-labelledby="addManagerModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <form method="post" action="">
                 <?php echo csrfField(); ?>
                 <div class="modal-header">
-                    <h5 class="modal-title" id="addManagerModalLabel">Add Manager to <?= htmlspecialchars($accommodation['name']) ?></h5>
+                    <h5 class="modal-title" id="addManagerModalLabel">Assign Manager</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <?php if (empty($available_managers)): ?>
                         <div class="alert alert-info">
-                            <p><i class="bi bi-info-circle"></i> No available users with manager role found.</p>
-                            <p>All manager users have already been assigned to this accommodation or there are no users with manager role.</p>
+                            <p><i class="bi bi-info-circle"></i> No available managers found.</p>
+                            <p>All existing managers are already assigned to this accommodation. <strong>Create a new manager account</strong> to add more staffing.</p>
                         </div>
                     <?php else: ?>
                         <div class="mb-3">
@@ -609,21 +420,20 @@ require_once '../includes/components/header.php';
                                     </option>
                                 <?php endforeach; ?>
                             </select>
-                            <div class="form-text">Select a user with manager role to assign to this accommodation.</div>
+                            <div class="form-text">Select an available manager to assign to this accommodation.</div>
                         </div>
                     <?php endif; ?>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <?php if (!empty($available_managers)): ?>
-                        <button type="submit" name="add_manager" class="btn btn-primary">Add Manager</button>
+                        <button type="submit" name="add_manager" class="btn btn-primary">Assign Manager</button>
                     <?php endif; ?>
                 </div>
             </form>
         </div>
     </div>
 </div>
-<?php endif; ?>
 
 <!-- Create New Manager Modal -->
 <div class="modal fade" id="createManagerModal" tabindex="-1" aria-labelledby="createManagerModalLabel" aria-hidden="true">
@@ -674,20 +484,8 @@ require_once '../includes/components/header.php';
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="assign_manager" onchange="toggleAccommodationSelect()">
                             <label class="form-check-label" for="assign_manager">
-                                Assign to accommodation immediately
+                                Assign to current accommodation
                             </label>
-                        </div>
-                    </div>
-                    
-                    <div id="accommodation_select_container" style="display: none;">
-                        <div class="mb-3">
-                            <label for="assign_to_accommodation" class="form-label">Select Accommodation</label>
-                            <select class="form-select" id="assign_to_accommodation" name="assign_to_accommodation">
-                                <option value="">-- Select an accommodation --</option>
-                                <?php foreach ($accommodations as $acc): ?>
-                                    <option value="<?= $acc['id'] ?>"><?= htmlspecialchars($acc['name']) ?></option>
-                                <?php endforeach; ?>
-                            </select>
                         </div>
                     </div>
                 </div>
@@ -703,12 +501,7 @@ require_once '../includes/components/header.php';
 <script>
 function toggleAccommodationSelect() {
     const isChecked = document.getElementById('assign_manager').checked;
-    const container = document.getElementById('accommodation_select_container');
-    container.style.display = isChecked ? 'block' : 'none';
-    
-    if (!isChecked) {
-        document.getElementById('assign_to_accommodation').value = '';
-    }
+    // Just toggle - the accommodation is automatically set from current context
 }
 </script>
 

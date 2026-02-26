@@ -65,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                               phone_number, whatsapp_number, preferred_communication, role_id, status) 
                                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 
-                $stmt->bind_param("sssssssssi", $username, $hashed_password, $email, $first_name, $last_name, 
+                $stmt->bind_param("ssssssssis", $username, $hashed_password, $email, $first_name, $last_name, 
                                   $phone_number, $whatsapp_number, $preferred_communication, $role_id, $status);
                 
                 if ($stmt->execute()) {

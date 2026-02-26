@@ -361,6 +361,9 @@ require_once '../../includes/components/header.php';
         </div>
     </div>
 
+    <!-- Accommodation Switcher Bar Component -->
+    <?php include __DIR__ . '/../../includes/components/accommodation-switcher-bar.php'; ?>
+
     <?php include '../../includes/components/messages.php'; ?>
 
     <?php if ($gwnError): ?>

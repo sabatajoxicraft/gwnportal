@@ -49,6 +49,8 @@ switch ($currentRole) {
             header('Location: owner-setup.php');
             exit;
         }
+        // Store in session for switcher
+        $_SESSION['manager_accommodations'] = $accommodations;
         break;
         
     case 'student':
@@ -87,6 +89,28 @@ if ($currentRole === 'manager' && isset($_GET['switch_accommodation'])) {
     if ($hasAccess) {
         $_SESSION['accommodation_id'] = $newAccommodationId;
         $_SESSION['accommodation_name'] = null; // Will be fetched below
+        header('Location: dashboard.php');
+        exit;
+    }
+}
+
+// Handle accommodation switching for owners
+if ($currentRole === 'owner' && isset($_GET['switch_accommodation'])) {
+    $newAccommodationId = (int)($_GET['switch_accommodation'] ?? 0);
+    
+    // Verify owner has access to this accommodation
+    $ownerAccommodations = QueryService::getUserAccommodations($conn, $_SESSION['user_id'], 'owner');
+    $hasAccess = false;
+    
+    foreach ($ownerAccommodations as $accom) {
+        if ($accom['id'] == $newAccommodationId) {
+            $hasAccess = true;
+            break;
+        }
+    }
+    
+    if ($hasAccess) {
+        $_SESSION['current_accommodation'] = ['id' => $newAccommodationId];
         header('Location: dashboard.php');
         exit;
     }
@@ -151,14 +175,46 @@ function getDashboardDataManager($conn, $userId, $accommodationId) {
 function getDashboardDataOwner($conn, $userId) {
     $data = [];
     
-    // Get accommodations owned by this user
-    $data['accommodations'] = QueryService::getUserAccommodations($conn, $userId, 'owner');
-    
-    if (empty($data['accommodations'])) {
-        $data['accommodations'] = [];
+    // Get all accommodations owned by this user
+    $allAccommodations = QueryService::getUserAccommodations($conn, $userId, 'owner');
+    if (!is_array($allAccommodations)) {
+        $allAccommodations = [];
     }
     
-    // Calculate statistics across all accommodations
+    if (empty($allAccommodations)) {
+        $data['accommodations'] = [];
+    } else {
+        // Get current accommodation from session or default to first
+        $currentAccommodationId = null;
+        if (isset($_SESSION['current_accommodation']['id'])) {
+            $currentAccommodationId = $_SESSION['current_accommodation']['id'];
+        } else {
+            $currentAccommodationId = $allAccommodations[0]['id'] ?? null;
+            if ($currentAccommodationId) {
+                $_SESSION['current_accommodation'] = ['id' => $currentAccommodationId];
+            }
+        }
+        
+        // Only return the current accommodation
+        if ($currentAccommodationId) {
+            $data['accommodations'] = array_filter($allAccommodations, function($acc) use ($currentAccommodationId) {
+                return ($acc['id'] ?? null) === $currentAccommodationId;
+            });
+        } else {
+            $data['accommodations'] = [];
+        }
+        
+        // If current accommodation is invalid, reset to first
+        if (empty($data['accommodations']) && !empty($allAccommodations)) {
+            $firstId = $allAccommodations[0]['id'] ?? null;
+            if ($firstId) {
+                $_SESSION['current_accommodation'] = ['id' => $firstId];
+                $data['accommodations'] = [$allAccommodations[0]];
+            }
+        }
+    }
+    
+    // Calculate statistics for CURRENT accommodation only
     $totalStudents = 0;
     $totalManagers = 0;
     $totalDevices = 0;
@@ -170,14 +226,19 @@ function getDashboardDataOwner($conn, $userId) {
     }
     
     $data['stats'] = [
-        'accommodations' => count($data['accommodations']),
+        'accommodations' => count($allAccommodations),  // Show total count
         'students' => $totalStudents,
         'managers' => $totalManagers,
         'devices' => $totalDevices,
     ];
     
-    // Get recent activity across all accommodations
-    $data['recentActivity'] = ActivityLogger::getAllActivityLogs([], 10, 0);
+    // Get recent activity for current accommodation only
+    if (!empty($data['accommodations'])) {
+        $accommodationId = $data['accommodations'][0]['id'];
+        $data['recentActivity'] = ActivityLogger::getAccommodationActivityLog($accommodationId, 10, 0);
+    } else {
+        $data['recentActivity'] = [];
+    }
     
     return $data;
 }
@@ -309,7 +370,7 @@ function countAccommodationDevices($conn, $accommodationId) {
 require_once '../includes/components/header.php';
 ?>
 
-<div class="container-fluid py-4">
+<div class="container mt-4">
     <?php if ($currentRole === 'manager'): ?>
         <!-- Manager Dashboard -->
         <div class="row mb-4">
@@ -323,21 +384,8 @@ require_once '../includes/components/header.php';
             </div>
         </div>
         
-        <!-- Accommodation Switcher (if multiple) -->
-        <?php if (count($dashboardData['accommodations']) > 1): ?>
-            <div class="row mb-3">
-                <div class="col-12">
-                    <div class="btn-group" role="group">
-                        <?php foreach ($dashboardData['accommodations'] as $accom): ?>
-                            <a href="?switch_accommodation=<?= $accom['id'] ?>" 
-                               class="btn btn-outline-primary<?= ($accom['id'] == $accommodationId) ? ' active' : '' ?>">
-                                <?= htmlspecialchars($accom['name'], ENT_QUOTES, 'UTF-8') ?>
-                            </a>
-                        <?php endforeach; ?>
-                    </div>
-                </div>
-            </div>
-        <?php endif; ?>
+        <!-- Accommodation Switcher Bar Component -->
+        <?php include __DIR__ . '/../includes/components/accommodation-switcher-bar.php'; ?>
         
         <!-- Statistics Cards -->
         <div class="row mb-4">
@@ -437,11 +485,13 @@ require_once '../includes/components/header.php';
                             <ul class="list-group list-group-flush">
                                 <?php foreach (array_slice($dashboardData['recentActivity'], 0, 10) as $activity): ?>
                                     <li class="list-group-item">
-                                        <small class="text-muted"><?= htmlspecialchars($activity['action_type'] ?? 'N/A', ENT_QUOTES, 'UTF-8') ?></small>
+                                        <small class="text-muted">
+                                            <strong><?= htmlspecialchars($activity['first_name'] . ' ' . $activity['last_name'], ENT_QUOTES, 'UTF-8') ?? 'Unknown' ?></strong>
+                                        </small>
                                         <br>
-                                        <small><?= htmlspecialchars($activity['action_details'] ?? 'No details', ENT_QUOTES, 'UTF-8') ?></small>
+                                        <small><?= htmlspecialchars($activity['action'] ?? 'N/A', ENT_QUOTES, 'UTF-8') ?></small>
                                         <br>
-                                        <small class="text-muted"><?= $activity['created_at'] ?? 'N/A' ?></small>
+                                        <small class="text-muted"><?= date('M j, Y H:i', strtotime($activity['timestamp'] ?? 'now')) ?></small>
                                     </li>
                                 <?php endforeach; ?>
                             </ul>

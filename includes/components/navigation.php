@@ -142,35 +142,6 @@ if (isLoggedIn()) {
                         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
                             <li><a class="dropdown-item" href="<?= BASE_URL ?>/profile.php"><i class="bi bi-person me-2"></i>User Profile (<?= htmlspecialchars(ucfirst($userRole)) ?>)</a></li>
                             
-                            <?php 
-                            // Show accommodation items for managers and owners with multiple accommodations
-                            if (in_array($userRole, ['manager', 'owner']) && isset($_SESSION['manager_accommodations']) && count($_SESSION['manager_accommodations']) > 1): 
-                                $currentAccommodation = $_SESSION['current_accommodation'] ?? null;
-                                $managerAccommodations = $_SESSION['manager_accommodations'] ?? [];
-                                // Get current page path for switching within same page (preserve subdirectory)
-                                $currentPage = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-                                $basePath = parse_url(BASE_URL, PHP_URL_PATH) ?: '';
-                                if ($basePath && strpos($currentPage, $basePath) === 0) {
-                                    $currentPage = substr($currentPage, strlen($basePath));
-                                }
-                                $currentPage = ltrim($currentPage, '/');
-                            ?>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><h6 class="dropdown-header"><i class="bi bi-building me-2"></i>Switch Accommodation</h6></li>
-                            <?php foreach ($managerAccommodations as $accom): ?>
-                                <li>
-                                    <a class="dropdown-item <?= isset($currentAccommodation) && $accom['id'] == $currentAccommodation['id'] ? 'active' : '' ?>" 
-                                       href="<?= BASE_URL ?>/<?= $currentPage ?>?switch_accommodation=<?= $accom['id'] ?>">
-                                        <span class="d-flex justify-content-between align-items-center w-100">
-                                            <?= htmlspecialchars($accom['name']) ?>
-                                            <?= isset($currentAccommodation) && $accom['id'] == $currentAccommodation['id'] ? '<i class="bi bi-check-lg text-success"></i>' : '' ?>
-                                        </span>
-                                    </a>
-                                </li>
-                            <?php endforeach; ?>
-                            <li><hr class="dropdown-divider"></li>
-                            <?php endif; ?>
-                            
                             <?php if ($userRole === 'admin'): ?>
                                 <li><a class="dropdown-item" href="<?= BASE_URL ?>/codes/"><i class="bi bi-qr-code me-2"></i> Onboarding Codes</a></li>
                                 <li><a class="dropdown-item" href="<?= BASE_URL ?>/admin/settings.php"><i class="bi bi-gear me-2"></i> Settings</a></li>

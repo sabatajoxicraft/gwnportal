@@ -583,3 +583,76 @@ footer {
 .nav-tabs {
 	border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
+/* ========================================
+   HEADER & FOOTER STYLES
+   ======================================== */
+
+/* Hover effect for footer links */
+.hover-link {
+	transition: all 0.2s ease-in-out;
+}
+
+.hover-link:hover {
+	color: #fff !important;
+	transform: translateX(3px);
+}
+
+/* Public Footer Styles */
+.footer-public {
+	margin-top: 5rem;
+}
+
+.footer-public .text-light-emphasis {
+	color: rgba(255, 255, 255, 0.75) !important;
+}
+
+.footer-public a:hover {
+	color: #fff !important;
+}
+
+.footer-public h6 {
+	font-size: 0.875rem;
+	text-transform: uppercase;
+	letter-spacing: 1px;
+}
+
+/* Auth Footer Styles */
+.footer-auth {
+	margin-top: auto;
+}
+
+.footer-auth a:hover {
+	color: var(--primary-color) !important;
+}
+
+/* App Footer Styles */
+.footer-app {
+	margin-top: auto;
+}
+
+.footer-app .hover-link:hover {
+	color: var(--primary-color) !important;
+	transform: translateX(0);
+}
+
+/* Public Header Styles */
+.navbar-light .navbar-brand {
+	color: var(--primary-color);
+	font-weight: 700;
+}
+
+.navbar-light .navbar-nav .nav-link:hover {
+	color: var(--primary-color);
+}
+
+/* Flexbox layout for sticky footer */
+.d-flex.flex-column.min-vh-100 {
+	display: flex !important;
+	flex-direction: column !important;
+	min-height: 100vh !important;
+}
+
+.d-flex.flex-column.min-vh-100 > main,
+.d-flex.flex-column.min-vh-100 > .container {
+	flex: 1;
+}
