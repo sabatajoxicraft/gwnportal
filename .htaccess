@@ -1,0 +1,6 @@
+RewriteEngine On
+
+# If not already in /public, redirect to /public
+RewriteCond %{REQUEST_URI} !^/public/
+RewriteCond %{REQUEST_URI} !^/includes/
+RewriteRule ^(.*)$ /public/$1 [L]
