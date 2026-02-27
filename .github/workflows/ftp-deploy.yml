@@ -31,7 +31,6 @@ jobs:
             **/tests/**
             **/archive/**
             **/docs/**
-            # Allow db/schema.sql for setup script
             # **/db/** 
             **/.env
             **/docker-compose.yml
@@ -39,7 +38,7 @@ jobs:
             **/Dockerfile.phpmyadmin
             **/000-default.conf
             **/.dockerignore
-            # **/*.sql  <-- We need sql files for setup!
+            # **/*.sql
             **/CI_CD_SETUP_COMPLETE.md
             **/CODE-INDEX.md
             **/README.md
