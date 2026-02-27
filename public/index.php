@@ -1,4 +1,26 @@
 <?php
+// Load environment variables manually since we haven't included config.php yet
+$env_file = realpath(__DIR__ . '/../.env');
+if (!$env_file || !file_exists($env_file)) {
+    $env_file = realpath(__DIR__ . '/../env.production');
+}
+
+if ($env_file && file_exists($env_file)) {
+    $lines = file($env_file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        if (strpos(trim($line), '#') === 0 || strpos($line, '=') === false) continue;
+        list($name, $value) = explode('=', $line, 2);
+        $name = trim($name);
+        $value = trim($value);
+        // Remove quotes
+        if (preg_match('/^"(.+)"$/', $value, $matches)) $value = $matches[1];
+        elseif (preg_match("/^'(.+)'$/", $value, $matches)) $value = $matches[1];
+        
+        putenv("$name=$value");
+        $_ENV[$name] = $value;
+    }
+}
+
 // Check if database exists before proceeding
 $servername = getenv('DB_HOST') ?: 'localhost';
 $username = getenv('DB_USER') ?: 'root';
