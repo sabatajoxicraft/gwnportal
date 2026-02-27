@@ -17,9 +17,43 @@ $files = [
     'index.php' => 'index.php', 
     '../includes/config.php' => '../includes/config.php', 
     '../includes/db.php' => '../includes/db.php', 
-    '../includes/session-config.php' => '../includes/session-config.php'
+    '../includes/session-config.php' => '../includes/session-config.php',
+    '../db/schema.sql' => '../db/schema.sql'
 ];
 foreach ($files as $name => $relPath) {
     $path = realpath(__DIR__ . '/' . $relPath);
     echo "<p>$name: " . ($path && file_exists($path) ? '✅ exists' : '❌ MISSING') . "</p>";
+}
+
+echo "<h3>Database Connection Check</h3>";
+// Load env.production manually to test credentials
+$envFile = realpath(__DIR__ . '/../env.production');
+if ($envFile) {
+    $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        if (strpos(trim($line), '#') === 0 || strpos($line, '=') === false) continue;
+        list($n, $v) = explode('=', $line, 2);
+        putenv(trim($n)."=".trim($v));
+    }
+}
+$host = getenv('DB_HOST') ?: 'localhost';
+$user = getenv('DB_USER') ?: 'root';
+$pass = getenv('DB_PASS') ?: '';
+$db = getenv('DB_NAME') ?: 'gwn_wifi_system';
+
+echo "<p>Attempting to connect to <strong>$host</strong> as <strong>$user</strong>...</p>";
+try {
+    $c = new mysqli($host, $user, $pass);
+    if ($c->connect_error) {
+        echo "<p style='color:red'>❌ Connection failed: " . $c->connect_error . "</p>";
+    } else {
+        echo "<p style='color:green'>✅ Connected to MySQL server!</p>";
+        if ($c->select_db($db)) {
+             echo "<p style='color:green'>✅ Database '$db' selected successfully!</p>";
+        } else {
+             echo "<p style='color:orange'>⚠️ Connected, but database '$db' does not exist (Setup should create it).</p>";
+        }
+    }
+} catch (Exception $e) {
+    echo "<p style='color:red'>❌ Exception: " . $e->getMessage() . "</p>";
 }
