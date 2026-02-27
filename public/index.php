@@ -30,14 +30,20 @@ $dbname = getenv('DB_NAME') ?: 'gwn_wifi_system';
 // Try connecting to the database server
 try {
     $conn = new mysqli($servername, $username, $password);
+    $db_exists = $conn->connect_error ? false : mysqli_select_db($conn, $dbname);
+    
+    // DEBUG: Force output to see what's happening
+    // echo "<!-- DEBUG: Connected=" . ($conn->connect_error ? 'NO' : 'YES') . " DB_Exists=" . ($db_exists ? 'YES' : 'NO') . " DB_Name=$dbname User=$username Host=$servername -->";
+    
     // Check if database exists
     if ($db_exists) {
         // We know the DB exists. The previous check for 'roles' table was causing issues
         // on some environments despite the table existing. 
         // We'll trust that if the DB is selected, we're good to go.
-        $db_exists = true;
+        // $db_exists = true; // Already true from line above
     }
 } catch (Exception $e) {
+    // echo "<!-- DEBUG: Exception=" . $e->getMessage() . " -->";
     $conn = null;
     $db_exists = false;
 }
