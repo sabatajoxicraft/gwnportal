@@ -101,9 +101,16 @@ function extractTableName($query) {
                             }
 
                             $log[] = "Applying database schema...";
-                            $schemaFile = file_get_contents('db/schema.sql');
+                            // Try absolute path resolution
+                            $schemaPath = realpath(__DIR__ . '/db/schema.sql');
+                            if (!$schemaPath) {
+                                // Try relative if absolute failed
+                                $schemaPath = 'db/schema.sql';
+                            }
+                            
+                            $schemaFile = file_get_contents($schemaPath);
                             if ($schemaFile === false) {
-                                throw new Exception("Error reading schema.sql file.");
+                                throw new Exception("Error reading schema.sql file from: " . $schemaPath);
                             }
 
                             // Split the schema into individual queries
