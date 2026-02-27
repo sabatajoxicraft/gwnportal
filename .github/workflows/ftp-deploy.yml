@@ -31,7 +31,8 @@ jobs:
             **/tests/**
             **/archive/**
             **/docs/**
-            **/db/**
+            # Allow db/schema.sql for setup script
+            # **/db/** 
             **/.env
             **/docker-compose.yml
             **/Dockerfile
