@@ -13,6 +13,7 @@ $userId = $_SESSION['user_id'] ?? 0;
 
 // Initialize variables for dashboard stats
 $stats = [];
+$recentActivity = [];
 $error = null;
 
 // Admin dashboard stats
@@ -170,12 +171,23 @@ require_once '../../includes/components/header.php';
                 <div class="list-group list-group-flush">
                     <?php if (count($recentActivity) > 0): ?>
                         <?php foreach ($recentActivity as $activity): ?>
+                            <?php
+                            $rawTimestamp = $activity['timestamp'] ?? ($activity['created_at'] ?? null);
+                            $parsedTimestamp = $rawTimestamp ? strtotime((string)$rawTimestamp) : false;
+                            $displayTimestamp = $parsedTimestamp ? date('M j, Y g:i A', $parsedTimestamp) : 'Time unavailable';
+                            $displayDetails = trim((string)($activity['details'] ?? ''));
+                            if (in_array(strtolower($displayDetails), ['true', 'false', 'null', '[]', '{}'], true)) {
+                                $displayDetails = '';
+                            }
+                            ?>
                             <div class="list-group-item">
                                 <div class="d-flex w-100 justify-content-between">
                                     <h6 class="mb-1"><?= htmlspecialchars($activity['action'] ?? '') ?></h6>
-                                    <small><?= date('M j, Y g:i A', strtotime($activity['timestamp'])) ?></small>
+                                    <small><?= htmlspecialchars($displayTimestamp) ?></small>
                                 </div>
-                                <p class="mb-1"><?= htmlspecialchars($activity['details'] ?? '') ?></p>
+                                <?php if ($displayDetails !== ''): ?>
+                                    <p class="mb-1"><?= htmlspecialchars($displayDetails) ?></p>
+                                <?php endif; ?>
                                 <small>
                                     By: 
                                     <?php if (!empty($activity['user_name'])): ?>

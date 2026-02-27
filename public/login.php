@@ -29,7 +29,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Validate CSRF token
     if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
         $loginError = 'Invalid security token. Please try again.';
-        ActivityLogger::logAuthEvent(null, 'login_failure', false, $_SERVER['REMOTE_ADDR'] ?? 'unknown', 'CSRF token invalid');
+        ActivityLogger::logAuthEvent(null, 'login_failure', [
+            'success' => false,
+            'ip_address' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+            'reason' => 'CSRF token invalid',
+        ]);
     } else {
         $username = trim($_POST['username'] ?? '');
         $password = $_POST['password'] ?? '';
@@ -48,9 +52,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ActivityLogger::logAuthEvent(
                         null,
                         'login_failure',
-                        false,
-                        $_SERVER['REMOTE_ADDR'] ?? 'unknown',
-                        'Account inactive: ' . $username
+                        [
+                            'success' => false,
+                            'ip_address' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+                            'reason' => 'Account inactive: ' . $username,
+                        ]
                     );
                 } else {
                     $roleName = strtolower($user['role_name'] ?? (getRoleName($user['role_id'] ?? null) ?? ''));
@@ -73,9 +79,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ActivityLogger::logAuthEvent(
                         $user['id'],
                         'login_success',
-                        true,
-                        $_SERVER['REMOTE_ADDR'] ?? 'unknown',
-                        'User logged in successfully'
+                        [
+                            'success' => true,
+                            'ip_address' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+                            'reason' => 'User logged in successfully',
+                        ]
                     );
                     
                     // Redirect to dashboard
@@ -88,9 +96,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ActivityLogger::logAuthEvent(
                     null,
                     'login_failure',
-                    false,
-                    $_SERVER['REMOTE_ADDR'] ?? 'unknown',
-                    'Failed login attempt: ' . $username
+                    [
+                        'success' => false,
+                        'ip_address' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+                        'reason' => 'Failed login attempt: ' . $username,
+                    ]
                 );
             }
         }
