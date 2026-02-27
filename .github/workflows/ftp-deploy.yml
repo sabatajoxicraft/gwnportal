@@ -39,7 +39,7 @@ jobs:
             **/Dockerfile.phpmyadmin
             **/000-default.conf
             **/.dockerignore
-            **/*.sql
+            # **/*.sql  <-- We need sql files for setup!
             **/CI_CD_SETUP_COMPLETE.md
             **/CODE-INDEX.md
             **/README.md
