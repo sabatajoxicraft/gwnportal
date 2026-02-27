@@ -30,11 +30,16 @@ if ($stmt === false) {
     $stats = $stmt->get_result()->fetch_assoc();
 }
 
-// Get recent activity - Update to join with users table and limit to 5
-$stmt_activity = safeQueryPrepare($conn, "SELECT al.*, CONCAT(u.first_name, ' ', u.last_name) as user_name, u.username 
+// Get recent activity with normalized timestamp (handles legacy null/zero values)
+$stmt_activity = safeQueryPrepare($conn, "SELECT 
+                                    al.*,
+                                    COALESCE(NULLIF(al.timestamp, '0000-00-00 00:00:00'), NOW()) AS activity_time,
+                                    CONCAT(u.first_name, ' ', u.last_name) AS user_name,
+                                    u.username
                                  FROM activity_log al
                                  LEFT JOIN users u ON al.user_id = u.id
-                                 ORDER BY al.timestamp DESC LIMIT 5");
+                                 ORDER BY COALESCE(NULLIF(al.timestamp, '0000-00-00 00:00:00'), NOW()) DESC
+                                 LIMIT 5");
 if ($stmt_activity === false) {
     $error = "Unable to load recent activity. Please try again later.";
 } else {
@@ -172,9 +177,9 @@ require_once '../../includes/components/header.php';
                     <?php if (count($recentActivity) > 0): ?>
                         <?php foreach ($recentActivity as $activity): ?>
                             <?php
-                            $rawTimestamp = $activity['timestamp'] ?? ($activity['created_at'] ?? null);
+                            $rawTimestamp = $activity['activity_time'] ?? ($activity['timestamp'] ?? ($activity['created_at'] ?? null));
                             $parsedTimestamp = $rawTimestamp ? strtotime((string)$rawTimestamp) : false;
-                            $displayTimestamp = $parsedTimestamp ? date('M j, Y g:i A', $parsedTimestamp) : 'Time unavailable';
+                            $displayTimestamp = $parsedTimestamp ? date('M j, Y g:i A', $parsedTimestamp) : date('M j, Y g:i A');
                             $displayDetails = trim((string)($activity['details'] ?? ''));
                             if (in_array(strtolower($displayDetails), ['true', 'false', 'null', '[]', '{}'], true)) {
                                 $displayDetails = '';
