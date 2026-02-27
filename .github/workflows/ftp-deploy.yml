@@ -23,26 +23,11 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           server-dir: /
           protocol: ftp
+          dangerous-clean-slate: true
           exclude: |
-            **/.git*
-            **/.git*/**
+            **/.git
+            **/.git/**
             **/.vscode/**
             **/.copilot/**
-            **/tests/**
-            **/archive/**
-            **/docs/**
-            # **/db/** 
             **/.env
-            **/docker-compose.yml
-            **/Dockerfile
-            **/Dockerfile.phpmyadmin
-            **/000-default.conf
-            **/.dockerignore
-            # **/*.sql
-            **/CI_CD_SETUP_COMPLETE.md
-            **/CODE-INDEX.md
-            **/README.md
-            **/env.example
-            **/test_client_edit.sh
-            **/client_test_output.txt
             **/.github/**

@@ -24,42 +24,16 @@ if ($env_file && file_exists($env_file)) {
 // Check if database exists before proceeding
 $servername = getenv('DB_HOST') ?: 'localhost';
 $username = getenv('DB_USER') ?: 'root';
-$password = getenv('DB_PASSWORD') ?: '';
+$password = getenv('DB_PASS') ?: (getenv('DB_PASSWORD') ?: '');
 $dbname = getenv('DB_NAME') ?: 'gwn_wifi_system';
 
 // Try connecting to the database server
 try {
     $conn = new mysqli($servername, $username, $password);
-    $db_exists = $conn->connect_error ? false : mysqli_select_db($conn, $dbname);
-    
-    // DEBUG: Force output to see what's happening
-    // echo "<!-- DEBUG: Connected=" . ($conn->connect_error ? 'NO' : 'YES') . " DB_Exists=" . ($db_exists ? 'YES' : 'NO') . " DB_Name=$dbname User=$username Host=$servername -->";
-    
-    // Check if database exists
-    if ($db_exists) {
-        // Database is ready
-        $db_exists = true;
-    } else {
-        // Fallback: If we can select the database, assume it's good
-        // This handles cases where $db_exists variable scope was messy
-        $db_exists = true;
-    }
-} catch (Exception $e) {
-    // If connection fails entirely, then we truly don't have a DB
-    // But if we connected, we'll assume it's fine to avoid blocking the user
-    // if tables exist.
-    if (isset($conn) && !$conn->connect_error) {
-        $db_exists = true;
-    } else {
-        $conn = null;
-        $db_exists = false;
-    }
-}
-
-// FORCE OVERRIDE: If we are connected, assume DB is set up.
-// The user has confirmed tables exist in phpMyAdmin.
-if (isset($conn) && !$conn->connect_error) {
-    $db_exists = true;
+    $db_exists = !$conn->connect_error && mysqli_select_db($conn, $dbname);
+} catch (Throwable $e) {
+    $conn = null;
+    $db_exists = false;
 }
 
 if (!$db_exists) {
