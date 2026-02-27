@@ -59,7 +59,7 @@ $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $items_per_page = 10;
 $offset = ($page - 1) * $items_per_page;
 
-$sql = "SELECT u.*, r.name as role_name, COUNT(DISTINCT ud.id) as device_count
+$sql = "SELECT u.*, u.status AS user_status, r.name as role_name, COUNT(DISTINCT ud.id) as device_count
         FROM users u 
         JOIN roles r ON u.role_id = r.id 
         LEFT JOIN user_devices ud ON ud.user_id = u.id
@@ -182,6 +182,7 @@ require_once '../../includes/components/header.php';
                     <tbody>
                         <?php if (count($users) > 0): ?>
                             <?php foreach ($users as $user): ?>
+                                <?php $userStatus = strtolower((string)($user['user_status'] ?? ($user['status'] ?? 'inactive'))); ?>
                                 <tr>
                                     <td><?= $user['first_name'] . ' ' . $user['last_name'] ?></td>
                                     <td><?= $user['username'] ?></td>
@@ -198,9 +199,9 @@ require_once '../../includes/components/header.php';
                                         <?php endif; ?>
                                     </td>
                                     <td>
-                                        <?php if ($user['status'] === 'active'): ?>
+                                        <?php if ($userStatus === 'active'): ?>
                                             <span class="badge bg-success">Active</span>
-                                        <?php elseif ($user['status'] === 'pending'): ?>
+                                        <?php elseif ($userStatus === 'pending'): ?>
                                             <span class="badge bg-warning">Pending</span>
                                         <?php else: ?>
                                             <span class="badge bg-danger">Inactive</span>
@@ -230,12 +231,12 @@ require_once '../../includes/components/header.php';
                                                         <?php echo csrfField(); ?>
                                                         <input type="hidden" name="user_id" value="<?= $user['id'] ?>">
                                                         <input type="hidden" name="action" value="status">
-                                                        <?php if ($user['status'] !== 'active'): ?>
+                                                        <?php if ($userStatus !== 'active'): ?>
                                                             <button type="submit" name="status" value="active" class="dropdown-item text-success">
                                                                 Activate User
                                                             </button>
                                                         <?php endif; ?>
-                                                        <?php if ($user['status'] !== 'inactive'): ?>
+                                                        <?php if ($userStatus !== 'inactive'): ?>
                                                             <button type="submit" name="status" value="inactive" class="dropdown-item text-danger">
                                                                 Deactivate User
                                                             </button>
