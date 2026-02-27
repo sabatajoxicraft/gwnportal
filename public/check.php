@@ -50,8 +50,25 @@ try {
         echo "<p style='color:green'>✅ Connected to MySQL server!</p>";
         if ($c->select_db($db)) {
              echo "<p style='color:green'>✅ Database '$db' selected successfully!</p>";
+             
+             // Check if tables exist
+             $res = $c->query("SHOW TABLES");
+             echo "<h3>Tables in database:</h3><ul>";
+             if ($res && $res->num_rows > 0) {
+                 while($row = $res->fetch_array()) {
+                     echo "<li>" . $row[0] . "</li>";
+                 }
+             } else {
+                 echo "<li>No tables found!</li>";
+             }
+             echo "</ul>";
+
+             // Check specifically for roles table like index.php does
+             $resRoles = $c->query("SHOW TABLES LIKE 'roles'");
+             echo "<p>Checking for 'roles' table specifically: " . ($resRoles->num_rows > 0 ? "✅ Found" : "❌ NOT FOUND") . "</p>";
+             
         } else {
-             echo "<p style='color:orange'>⚠️ Connected, but database '$db' does not exist (Setup should create it).</p>";
+             echo "<p style='color:orange'>⚠️ Connected, but database '$db' does not exist.</p>";
         }
     }
 } catch (Exception $e) {
