@@ -8,7 +8,18 @@ $dbname = getenv('DB_NAME') ?: 'gwn_wifi_system';
 // Try connecting to the database server
 try {
     $conn = new mysqli($servername, $username, $password);
-    $db_exists = $conn->connect_error ? false : mysqli_select_db($conn, $dbname);
+    // Check if roles table exists as a proxy for database existence
+    try {
+        if ($db_exists) {
+            $result = $conn->query("SHOW TABLES LIKE 'roles'");
+            if ($result->num_rows === 0) {
+                // Database exists but tables don't
+                $db_exists = false;
+            }
+        }
+    } catch (Exception $e) {
+        $db_exists = false;
+    }
 } catch (Exception $e) {
     $conn = null;
     $db_exists = false;
