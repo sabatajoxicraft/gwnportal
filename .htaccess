@@ -1,12 +1,11 @@
 RewriteEngine On
-RewriteBase /
-
-# Explicitly load index.php for root
-RewriteRule ^$ public/index.php [L]
+# RewriteBase / is implied.
+# Fix for LiteSpeed: Allow valid files/directories to be served directly
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
 
 # Exclude setup_db.php from rewrite
 RewriteCond %{REQUEST_URI} !^/setup_db.php$
 
-# For everything else, rewrite to public/ if it's not already there
-RewriteCond %{REQUEST_URI} !^/public/
+# Main rewrite rule
 RewriteRule ^(.*)$ public/$1 [L]
