@@ -33,10 +33,13 @@ try {
     // Check if roles table exists as a proxy for database existence
     try {
         if ($db_exists) {
+            // Check for roles table - this indicates schema is installed
             $result = $conn->query("SHOW TABLES LIKE 'roles'");
-            if ($result->num_rows === 0) {
-                // Database exists but tables don't
+            if (!$result || $result->num_rows === 0) {
+                // Database exists but 'roles' table doesn't
                 $db_exists = false;
+                // Debug logging (remove in production)
+                // error_log("Database exists but roles table not found");
             }
         }
     } catch (Exception $e) {
