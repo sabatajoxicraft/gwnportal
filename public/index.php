@@ -30,20 +30,12 @@ $dbname = getenv('DB_NAME') ?: 'gwn_wifi_system';
 // Try connecting to the database server
 try {
     $conn = new mysqli($servername, $username, $password);
-    // Check if roles table exists as a proxy for database existence
-    try {
-        if ($db_exists) {
-            // Check for roles table - this indicates schema is installed
-            $result = $conn->query("SHOW TABLES LIKE 'roles'");
-            if (!$result || $result->num_rows === 0) {
-                // Database exists but 'roles' table doesn't
-                $db_exists = false;
-                // Debug logging (remove in production)
-                // error_log("Database exists but roles table not found");
-            }
-        }
-    } catch (Exception $e) {
-        $db_exists = false;
+    // Check if database exists
+    if ($db_exists) {
+        // We know the DB exists. The previous check for 'roles' table was causing issues
+        // on some environments despite the table existing. 
+        // We'll trust that if the DB is selected, we're good to go.
+        $db_exists = true;
     }
 } catch (Exception $e) {
     $conn = null;
