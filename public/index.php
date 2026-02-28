@@ -21,7 +21,7 @@ if ($env_file && file_exists($env_file)) {
     }
 }
 
-$appDisplayName = $_ENV['APP_NAME'] ?? 'JoxiSphere by Joxicraft';
+$appDisplayName = $_ENV['APP_NAME'] ?? 'JoxiSphere';
 
 // Check if database exists before proceeding
 $servername = getenv('DB_HOST') ?: 'localhost';
