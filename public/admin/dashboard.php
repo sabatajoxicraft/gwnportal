@@ -180,9 +180,17 @@ require_once '../../includes/components/header.php';
                             $rawTimestamp = $activity['activity_time'] ?? ($activity['timestamp'] ?? ($activity['created_at'] ?? null));
                             $parsedTimestamp = $rawTimestamp ? strtotime((string)$rawTimestamp) : false;
                             $displayTimestamp = $parsedTimestamp ? date('M j, Y g:i A', $parsedTimestamp) : date('M j, Y g:i A');
-                            $displayDetails = trim((string)($activity['details'] ?? ''));
-                            if (in_array(strtolower($displayDetails), ['true', 'false', 'null', '[]', '{}'], true)) {
-                                $displayDetails = '';
+                            $rawDetails = trim((string)($activity['details'] ?? ''));
+                            $displayDetails = '';
+                            if ($rawDetails !== '' && !in_array(strtolower($rawDetails), ['true', 'false', 'null', '[]', '{}'], true)) {
+                                $decodedDetails = json_decode($rawDetails, true);
+                                if (json_last_error() === JSON_ERROR_NONE && is_array($decodedDetails)) {
+                                    $displayDetails = trim((string)($decodedDetails['reason'] ?? ($decodedDetails['message'] ?? '')));
+                                }
+
+                                if ($displayDetails === '') {
+                                    $displayDetails = $rawDetails;
+                                }
                             }
                             ?>
                             <div class="list-group-item">
