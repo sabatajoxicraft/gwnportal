@@ -90,14 +90,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $message .= "Please login at " . BASE_URL . "/login.php\n\n";
                             $message .= "We recommend changing your password after your first login.\n\n";
                             $message .= "Regards,\n" . APP_NAME . " Admin";
-                            
-                            $headers = "From: noreply@" . $_SERVER['SERVER_NAME'] . "\r\n";
-                            
-                            if (mail($email, $subject, $message, $headers)) {
-                                $success = "Owner account created successfully and credentials sent to $email";
+
+                            $mailHost = parse_url(BASE_URL, PHP_URL_HOST) ?: ($_SERVER['SERVER_NAME'] ?? 'localhost');
+                            $mailHost = preg_replace('/:\d+$/', '', $mailHost);
+                            $mailHost = preg_replace('/^www\./i', '', $mailHost);
+                            $fromAddress = 'noreply@' . $mailHost;
+
+                            $headers = "MIME-Version: 1.0\r\n";
+                            $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
+                            $headers .= "From: " . APP_NAME . " <{$fromAddress}>\r\n";
+                            $headers .= "Reply-To: {$fromAddress}\r\n";
+                            $headers .= "X-Mailer: PHP/" . phpversion() . "\r\n";
+
+                            $mailSent = @mail($email, $subject, $message, $headers, "-f {$fromAddress}");
+
+                            $success = "Owner account created successfully.";
+                            if ($mailSent) {
+                                $success .= " Email was accepted by the server for delivery to {$email}. Ask the owner to check Inbox/Spam.";
                             } else {
-                                $success = "Owner account created successfully but failed to send credentials email";
+                                $success .= " Failed to send credentials email to {$email}.";
                             }
+
+                            $success .= "<br>Username: <strong>" . htmlspecialchars($username, ENT_QUOTES, 'UTF-8') . "</strong>";
+                            $success .= "<br>Password: <strong>" . htmlspecialchars($password, ENT_QUOTES, 'UTF-8') . "</strong>";
                         } else {
                             $success = "Owner account created successfully";
                             if ($generate_password) {
