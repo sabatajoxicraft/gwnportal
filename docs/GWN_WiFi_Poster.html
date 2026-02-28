@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Joxicraft x JoxiSphere Poster</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap');
+
+        :root {
+            --jx-maroon: #800000;
+            --jx-charcoal: #1f1f1f;
+            --jx-slate: #5e605f;
+            --jx-light: #f4f4f4;
+            --jx-soft: #d8d8d8;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Montserrat', sans-serif;
+            background-color: #e9eaec;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .poster {
+            width: 800px;
+            height: 1131px; /* A4/A3 aspect ratio */
+            background: linear-gradient(145deg, var(--jx-charcoal) 0%, #171717 52%, var(--jx-maroon) 100%);
+            color: white;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Abstract shapes for background */
+        .shape-1 {
+            position: absolute;
+            top: -100px;
+            right: -100px;
+            width: 400px;
+            height: 400px;
+            border-radius: 50%;
+            background: rgba(128, 0, 0, 0.25);
+            z-index: 0;
+        }
+
+        .shape-2 {
+            position: absolute;
+            bottom: 200px;
+            left: -150px;
+            width: 500px;
+            height: 500px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.08);
+            z-index: 0;
+        }
+
+        .header {
+            text-align: center;
+            padding: 60px 40px 30px;
+            z-index: 1;
+        }
+
+        .brand-row {
+            margin-bottom: 28px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .logo-pill {
+            background: rgba(255, 255, 255, 0.97);
+            border-radius: 16px;
+            padding: 10px 20px;
+            box-shadow: 0 8px 18px rgba(0,0,0,0.25);
+        }
+
+        .brand-logo {
+            height: 62px;
+            width: auto;
+            display: block;
+        }
+
+        .header h1 {
+            font-size: 52px;
+            font-weight: 900;
+            margin: 0 0 15px 0;
+            color: var(--jx-light);
+            text-transform: uppercase;
+            line-height: 1.1;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .header p {
+            font-size: 24px;
+            margin: 0;
+            font-weight: 700;
+            color: var(--jx-soft);
+        }
+
+        .content {
+            display: flex;
+            flex: 1;
+            padding: 0 50px;
+            z-index: 1;
+            align-items: center;
+            gap: 40px;
+        }
+
+        .left-col {
+            flex: 1;
+        }
+
+        .right-col {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.12);
+            padding: 40px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.24);
+        }
+
+        .qr-section {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .qr-code {
+            width: 200px;
+            height: 200px;
+            background: white;
+            padding: 15px;
+            border-radius: 15px;
+            margin-bottom: 15px;
+        }
+
+        .qr-caption {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--jx-light);
+        }
+
+        .steps {
+            list-style: none;
+            padding: 0;
+            margin: 0 0 40px 0;
+        }
+
+        .step-item {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 25px;
+            font-size: 18px;
+            line-height: 1.4;
+        }
+
+        .step-num {
+            background: var(--jx-maroon);
+            color: #ffffff;
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: 900;
+            font-size: 20px;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+
+        .benefits {
+            margin-top: 20px;
+        }
+
+        .benefits h3 {
+            font-size: 28px;
+            color: var(--jx-soft);
+            margin-bottom: 25px;
+        }
+
+        .benefit-item {
+            display: flex;
+            align-items: center;
+            font-size: 20px;
+            margin-bottom: 15px;
+            font-weight: 700;
+        }
+
+        .benefit-icon {
+            font-size: 24px;
+            margin-right: 15px;
+            background: rgba(128, 0, 0, 0.45);
+            width: 45px;
+            height: 45px;
+            border-radius: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .footer {
+            background: var(--jx-maroon);
+            color: #ffffff;
+            padding: 30px 50px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1;
+            font-weight: 700;
+        }
+
+        .footer-logo {
+            font-size: 24px;
+            font-weight: 900;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .footer-logo-img {
+            height: 34px;
+            width: auto;
+            filter: brightness(0) invert(1);
+        }
+
+        .footer-contact {
+            text-align: right;
+            font-size: 18px;
+        }
+        
+        .footer-contact div {
+            margin-bottom: 5px;
+        }
+        
+        .highlight {
+            color: #ffd6d6;
+        }
+    </style>
+</head>
+<body>
+
+<div class="poster">
+    <div class="shape-1"></div>
+    <div class="shape-2"></div>
+
+    <div class="header">
+        <div class="brand-row">
+            <div class="logo-pill">
+                <img src="assets/Joxicraft-2023.3.svg" alt="Joxicraft logo" class="brand-logo">
+            </div>
+        </div>
+        <h1>Stay Connected,<br>Stay Unstoppable!</h1>
+        <p>Joxicraft Student Connectivity powered by JoxiSphere.</p>
+    </div>
+
+    <div class="content">
+        <div class="left-col">
+            <ul class="steps">
+                <li class="step-item">
+                    <div class="step-num">1</div>
+                    <div>Get your <strong>Onboarding Code</strong> from the manager.</div>
+                </li>
+                <li class="step-item">
+                    <div class="step-num">2</div>
+                    <div>Scan the QR code or visit <strong class="highlight">student.joxicraft.co.za</strong>.</div>
+                </li>
+                <li class="step-item">
+                    <div class="step-num">3</div>
+                    <div>Receive your monthly vouchers automatically via <strong>WhatsApp</strong>!</div>
+                </li>
+            </ul>
+
+            <div class="benefits">
+                <h3>Why You'll Love It:</h3>
+                <div class="benefit-item">
+                    <div class="benefit-icon">🚀</div>
+                    High-Speed Browsing & Streaming
+                </div>
+                <div class="benefit-item">
+                    <div class="benefit-icon">📱</div>
+                    Automated Vouchers
+                </div>
+                <div class="benefit-item">
+                    <div class="benefit-icon">💬</div>
+                    WhatsApp & SMS Support
+                </div>
+                <div class="benefit-item">
+                    <div class="benefit-icon">🔒</div>
+                    Secure & Managed Network
+                </div>
+            </div>
+        </div>
+
+        <div class="right-col">
+            <div class="qr-section">
+                <!-- Using a placeholder QR code image that generates a QR for the URL -->
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://student.joxicraft.co.za" alt="QR Code" class="qr-code">
+                <div class="qr-caption">SCAN TO REGISTER<br>& CONNECT</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <div class="footer-logo">
+            <img src="assets/Joxicraft-2023.3.svg" alt="Joxicraft logo" class="footer-logo-img">
+            <span>Joxicraft | JoxiSphere</span>
+        </div>
+        <div class="footer-contact">
+            <div>📞 +27 78 742 6676</div>
+            <div>🌐 student.joxicraft.co.za</div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

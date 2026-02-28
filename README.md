@@ -1,4 +1,4 @@
-# GWN WiFi Portal
+# JoxiSphere by Joxicraft
 
 [![CI](https://github.com/YOUR_USERNAME/gwn-portal/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USERNAME/gwn-portal/actions/workflows/ci.yml)
 [![Docker Build & Test](https://github.com/YOUR_USERNAME/gwn-portal/actions/workflows/docker.yml/badge.svg)](https://github.com/YOUR_USERNAME/gwn-portal/actions/workflows/docker.yml)

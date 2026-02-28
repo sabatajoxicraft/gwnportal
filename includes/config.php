@@ -146,7 +146,7 @@ define('DB_NAME', getenv('DB_NAME') ?: 'gwn_wifi_system'); // Database name
 require_once __DIR__ . '/db.php';
 
 // Application settings from env file
-define('APP_NAME', $_ENV['APP_NAME'] ?? 'WiFi Management System');
+define('APP_NAME', $_ENV['APP_NAME'] ?? 'JoxiSphere by Joxicraft');
 // Normalize BASE_URL so asset links resolve correctly when served from container root
 $appUrl = $_ENV['APP_URL'] ?? '';
 $appUrl = rtrim($appUrl, '/');

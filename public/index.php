@@ -21,6 +21,8 @@ if ($env_file && file_exists($env_file)) {
     }
 }
 
+$appDisplayName = $_ENV['APP_NAME'] ?? 'JoxiSphere by Joxicraft';
+
 // Check if database exists before proceeding
 $servername = getenv('DB_HOST') ?: 'localhost';
 $username = getenv('DB_USER') ?: 'root';
@@ -45,7 +47,7 @@ if (!$db_exists) {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>WiFi Management System - <?= $pageTitle ?></title>
+        <title><?= htmlspecialchars($appDisplayName, ENT_QUOTES, 'UTF-8') ?> - <?= $pageTitle ?></title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
         <link rel="stylesheet" href="assets/css/custom.css">
@@ -53,7 +55,7 @@ if (!$db_exists) {
     <body>
         <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
             <div class="container">
-                <a class="navbar-brand" href="<?= $_SERVER['PHP_SELF'] ?>">WiFi Management System</a>
+                <a class="navbar-brand" href="<?= $_SERVER['PHP_SELF'] ?>"><?= htmlspecialchars($appDisplayName, ENT_QUOTES, 'UTF-8') ?></a>
             </div>
         </nav>
 
@@ -83,7 +85,7 @@ if (!$db_exists) {
 
         <footer class="mt-5 py-3 bg-light fixed-bottom">
             <div class="container text-center">
-                <p class="mb-0">&copy; <?= date('Y') ?> WiFi Management System. All rights reserved.</p>
+                <p class="mb-0">&copy; <?= date('Y') ?> <?= htmlspecialchars($appDisplayName, ENT_QUOTES, 'UTF-8') ?>. All rights reserved.</p>
             </div>
         </footer>
 
