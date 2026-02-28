@@ -184,8 +184,16 @@ require_once '../../includes/components/header.php';
                             $displayDetails = '';
                             if ($rawDetails !== '' && !in_array(strtolower($rawDetails), ['true', 'false', 'null', '[]', '{}'], true)) {
                                 $decodedDetails = json_decode($rawDetails, true);
-                                if (json_last_error() === JSON_ERROR_NONE && is_array($decodedDetails)) {
+                                if (json_last_error() === JSON_ERROR_NONE && is_string($decodedDetails)) {
+                                    $decodedDetails = json_decode($decodedDetails, true);
+                                }
+
+                                if (is_array($decodedDetails)) {
                                     $displayDetails = trim((string)($decodedDetails['reason'] ?? ($decodedDetails['message'] ?? '')));
+                                }
+
+                                if ($displayDetails === '' && preg_match('/"reason"\s*:\s*"([^"]+)"/', $rawDetails, $reasonMatch) === 1) {
+                                    $displayDetails = trim((string)$reasonMatch[1]);
                                 }
 
                                 if ($displayDetails === '') {
