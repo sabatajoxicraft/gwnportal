@@ -94,28 +94,27 @@ require_once '../includes/components/header.php';
                     <div class="row">
                         <div class="col-md-6">
                             <h5><i class="bi bi-envelope-fill me-2"></i> Email</h5>
-                            <p><a href="mailto:support@wifimanager.com">support@wifimanager.com</a></p>
+                            <p><a href="mailto:support@joxicraft.co.za">support@joxicraft.co.za</a></p>
                             
                             <h5><i class="bi bi-telephone-fill me-2"></i> Phone</h5>
-                            <p>+27 12 345 6789</p>
+                            <p>0530101113</p>
                             
                             <h5><i class="bi bi-whatsapp me-2"></i> WhatsApp</h5>
-                            <p>+27 98 765 4321</p>
+                            <p>+27 78 742 6676</p>
                         </div>
                         <div class="col-md-6">
                             <h5><i class="bi bi-building me-2"></i> Office Address</h5>
                             <p>
-                                123 Main Street<br>
-                                Pretoria<br>
-                                South Africa<br>
-                                0001
+                                Pikwane House<br>
+                                61 Currey Street<br>
+                                Kimberley CBD<br>
+                                Kimberley, Northern Cape<br>
+                                South Africa, 8301
                             </p>
                             
                             <h5><i class="bi bi-clock-fill me-2"></i> Office Hours</h5>
                             <p>
-                                Monday - Friday: 8:00 AM - 5:00 PM<br>
-                                Saturday: 9:00 AM - 1:00 PM<br>
-                                Sunday: Closed
+                                Monday - Friday: 8:00 AM - 5:00 PM
                             </p>
                         </div>
                     </div>

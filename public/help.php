@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Please fill in all required fields.';
     } else {
         // Simple email sending - in a production environment, you'd want more robust handling
-        $to = 'admin@example.com'; // Change this to your support email
+        $to = 'support@joxicraft.co.za';
         $subject = 'WiFi System Support Request';
         $email_message = "Name: $name\n";
         $email_message .= "Email: $email\n";

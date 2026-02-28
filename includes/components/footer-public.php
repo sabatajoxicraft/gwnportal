@@ -100,18 +100,24 @@ $extraScripts = $extraScripts ?? [];
                     <ul class="list-unstyled">
                         <li class="mb-3">
                             <i class="bi bi-geo-alt-fill text-primary me-2"></i>
-                            <span class="text-light-emphasis">Kimberley, Northern Cape<br>South Africa</span>
+                            <span class="text-light-emphasis">Pikwane House, 61 Currey Street<br>Kimberley CBD, Kimberley<br>Northern Cape, South Africa, 8301</span>
                         </li>
                         <li class="mb-3">
                             <i class="bi bi-envelope-fill text-primary me-2"></i>
-                            <a href="mailto:support@example.com" class="text-light-emphasis text-decoration-none hover-link">
-                                support@example.com
+                            <a href="mailto:support@joxicraft.co.za" class="text-light-emphasis text-decoration-none hover-link">
+                                support@joxicraft.co.za
                             </a>
                         </li>
                         <li class="mb-3">
                             <i class="bi bi-telephone-fill text-primary me-2"></i>
-                            <a href="tel:+27123456789" class="text-light-emphasis text-decoration-none hover-link">
-                                +27 12 345 6789
+                            <a href="tel:+27530101113" class="text-light-emphasis text-decoration-none hover-link">
+                                0530101113
+                            </a>
+                        </li>
+                        <li class="mb-3">
+                            <i class="bi bi-whatsapp text-primary me-2"></i>
+                            <a href="https://wa.me/27787426676" class="text-light-emphasis text-decoration-none hover-link">
+                                +27 78 742 6676
                             </a>
                         </li>
                     </ul>
