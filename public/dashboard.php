@@ -174,6 +174,7 @@ function getDashboardDataManager($conn, $userId, $accommodationId) {
  */
 function getDashboardDataOwner($conn, $userId) {
     $data = [];
+    $selectedAccommodation = null;
     
     // Get all accommodations owned by this user
     $allAccommodations = QueryService::getUserAccommodations($conn, $userId, 'owner');
@@ -212,9 +213,13 @@ function getDashboardDataOwner($conn, $userId) {
                 $data['accommodations'] = [$allAccommodations[0]];
             }
         }
+
+        $selectedAccommodation = $data['accommodations'][0] ?? null;
     }
+
+    $data['accommodations'] = array_values($allAccommodations);
     
-    // Calculate statistics for CURRENT accommodation only
+    // Calculate statistics for all accommodations
     $totalStudents = 0;
     $totalManagers = 0;
     $totalDevices = 0;
@@ -233,8 +238,8 @@ function getDashboardDataOwner($conn, $userId) {
     ];
     
     // Get recent activity for current accommodation only
-    if (!empty($data['accommodations'])) {
-        $accommodationId = $data['accommodations'][0]['id'];
+    if (!empty($selectedAccommodation['id'])) {
+        $accommodationId = $selectedAccommodation['id'];
         $data['recentActivity'] = ActivityLogger::getAccommodationActivityLog($accommodationId, 10, 0);
     } else {
         $data['recentActivity'] = [];
