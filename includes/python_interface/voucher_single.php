@@ -42,8 +42,25 @@ function sendStudentVoucher($student_id, $month) {
     
     $groupName = $accommodationName . ' - ' . $studentName . ' - ' . $month;
     $deviceNum = (int)(defined('GWN_ALLOWED_DEVICES') ? GWN_ALLOWED_DEVICES : 2);
+    if ($deviceNum < 1) {
+        $deviceNum = 1;
+    }
     $durationDays = 30; // Voucher effect duration in days
-    $expirationDays = 45; // Validity window: how many days before unused voucher expires
+
+    // Validity window for unused voucher: up to the 1st day of the next month for the selected voucher month.
+    $voucherMonth = DateTime::createFromFormat('F Y', trim((string)$month));
+    if (!$voucherMonth) {
+        $voucherMonth = new DateTime('first day of this month');
+    }
+
+    $expiryBoundary = (clone $voucherMonth)->modify('first day of next month')->setTime(0, 0, 0);
+    $now = new DateTime();
+    if ($expiryBoundary <= $now) {
+        $expiryBoundary = (clone $now)->modify('first day of next month')->setTime(0, 0, 0);
+    }
+
+    $secondsToBoundary = $expiryBoundary->getTimestamp() - $now->getTimestamp();
+    $expirationDays = (int)max(1, ceil($secondsToBoundary / 86400));
     
     $createResult = $voucherService->createVoucherGroup([
         'name'              => $groupName,
@@ -134,7 +151,7 @@ function sendStudentVoucher($student_id, $month) {
     // SMS backup: always send SMS after WhatsApp attempt to handle cases where WhatsApp API
     // accepts but Meta later drops delivery (e.g., Twilio/Meta error 63049 filtering).
     if ($sendMethod === 'WhatsApp' && !empty($student['phone_number'])) {
-        $smsBody = "Hi $studentName, your monthly WiFi voucher code for $month is: $voucher_code. Max 2 devices. Need help? WhatsApp 0846983888";
+        $smsBody = "Hi $studentName, your monthly WiFi voucher code for $month is: $voucher_code. Max {$deviceNum} devices. Need help? WhatsApp 0846983888";
         $smsSent = sendSMS($student['phone_number'], $smsBody);
         $messageSent = ($messageSent || $smsSent);
         if ($smsSent) {

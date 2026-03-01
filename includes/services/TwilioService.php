@@ -279,7 +279,11 @@ class TwilioService
         $templateSid = ($method === 'WhatsApp') ? TWILIO_WA_VOUCHER_TEMPLATE_SID : TWILIO_SMS_VOUCHER_TEMPLATE_SID;
 
         if (empty($templateSid)) {
-            $message = "Hi $studentName,\n\nBelow is your monthly WiFi Voucher code valid until {$month}'s month end, this code only grants you a max of 2 devices per month to be connected to the wifi.\n\nYour Voucher: $voucherCode\n\n#Note: Please dont reply to this message, if you need any assistance, send us a WhatsApp message to 0846983888";
+            $allowedDevices = (int)(defined('GWN_ALLOWED_DEVICES') ? GWN_ALLOWED_DEVICES : 2);
+            if ($allowedDevices < 1) {
+                $allowedDevices = 1;
+            }
+            $message = "Hi $studentName,\n\nBelow is your monthly WiFi Voucher code valid until {$month}'s month end, this code only grants you a max of {$allowedDevices} devices per month to be connected to the wifi.\n\nYour Voucher: $voucherCode\n\n#Note: Please dont reply to this message, if you need any assistance, send us a WhatsApp message to 0846983888";
             return self::sendMessage($number, $message, $method);
         }
 
