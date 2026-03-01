@@ -1,0 +1,114 @@
+name: Remote Migrate - Accommodation
+
+on:
+  workflow_dispatch:
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Generate migration filename and token
+        run: |
+          FILENAME="migrate_$(openssl rand -hex 8).php"
+          TOKEN=$(openssl rand -hex 32)
+          echo "::add-mask::$TOKEN"
+          echo "MIGRATION_FILENAME=$FILENAME" >> "$GITHUB_ENV"
+          echo "MIGRATION_TOKEN=$TOKEN"  >> "$GITHUB_ENV"
+
+      - name: Create PHP migration script
+        run: |
+          cat > "/tmp/${MIGRATION_FILENAME}" << 'PHPEOF'
+          <?php
+          $expected = 'TOKEN_PLACEHOLDER';
+          $provided = $_GET['token'] ?? '';
+          if (!hash_equals($expected, $provided)) {
+              http_response_code(403);
+              exit('Forbidden');
+          }
+
+          require_once __DIR__ . '/../includes/config.php';
+
+          if (!isset($conn)) {
+              if (function_exists('getDbConnection')) {
+                  $conn = getDbConnection();
+              } else {
+                  http_response_code(500);
+                  exit('No database connection');
+              }
+          }
+
+          $columns = [
+              'address_line1' => 'VARCHAR(255) NULL',
+              'address_line2' => 'VARCHAR(255) NULL',
+              'city'          => 'VARCHAR(100) NULL',
+              'province'      => 'VARCHAR(100) NULL',
+              'postal_code'   => 'VARCHAR(20) NULL',
+              'map_url'       => 'VARCHAR(500) NULL',
+              'max_students'  => 'INT UNSIGNED NULL',
+              'contact_phone' => 'VARCHAR(20) NULL',
+              'contact_email' => 'VARCHAR(100) NULL',
+              'notes'         => 'TEXT NULL',
+          ];
+
+          $added  = [];
+          $errors = [];
+
+          foreach ($columns as $col => $def) {
+              $stmt = $conn->prepare(
+                  "SELECT COUNT(*) FROM information_schema.COLUMNS
+                   WHERE TABLE_SCHEMA = DATABASE()
+                     AND TABLE_NAME   = 'accommodations'
+                     AND COLUMN_NAME  = ?"
+              );
+              $stmt->bind_param('s', $col);
+              $stmt->execute();
+              $stmt->bind_result($cnt);
+              $stmt->fetch();
+              $stmt->close();
+
+              if ((int)$cnt === 0) {
+                  if (!$conn->query("ALTER TABLE `accommodations` ADD COLUMN `{$col}` {$def}")) {
+                      $errors[] = "Add {$col}: " . $conn->error;
+                  } else {
+                      $added[] = $col;
+                  }
+              }
+          }
+
+          if (!$conn->query('ALTER TABLE `accommodations` MODIFY COLUMN `max_students` INT UNSIGNED NULL')) {
+              $errors[] = 'Modify max_students: ' . $conn->error;
+          }
+
+          if ($errors) {
+              http_response_code(500);
+              echo 'ERRORS: ' . implode('; ', $errors);
+          } else {
+              $msg = $added ? 'Added: ' . implode(', ', $added) . '.' : 'No new columns needed.';
+              echo 'OK. ' . $msg . ' max_students modified.';
+          }
+          PHPEOF
+          sed -i "s|TOKEN_PLACEHOLDER|${MIGRATION_TOKEN}|" "/tmp/${MIGRATION_FILENAME}"
+
+      - name: Upload script via FTP
+        run: |
+          curl --silent --show-error --fail \
+            --ftp-create-dirs \
+            -T "/tmp/${MIGRATION_FILENAME}" \
+            "ftp://ftp.joxicraft.co.za:21/public/${MIGRATION_FILENAME}" \
+            --user "${{ secrets.FTP_USERNAME }}:${{ secrets.FTP_PASSWORD }}"
+
+      - name: Execute migration via HTTP
+        run: |
+          RESPONSE=$(curl --silent --show-error --fail \
+            "https://student.joxicraft.co.za/${MIGRATION_FILENAME}?token=${MIGRATION_TOKEN}")
+          echo "$RESPONSE" | grep -qi "error" && { echo "Migration failed: error detected"; exit 1; }
+          echo "Migration succeeded."
+
+      - name: Cleanup remote script
+        if: always()
+        run: |
+          curl --silent \
+            "ftp://ftp.joxicraft.co.za:21/" \
+            --user "${{ secrets.FTP_USERNAME }}:${{ secrets.FTP_PASSWORD }}" \
+            -Q "DELE public/${MIGRATION_FILENAME}"
