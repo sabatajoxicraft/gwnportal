@@ -32,6 +32,11 @@ if (!$user) {
     redirect(BASE_URL . '/admin/users.php', 'User not found', 'danger');
 }
 
+// Normalize user status (handle case-variant column names)
+if (!isset($user['status'])) {
+    $user['status'] = $user['STATUS'] ?? 'active';
+}
+
 // Get user's accommodations (if any)
 $accommodations = [];
 if ($user['role_name'] === 'student') {
@@ -51,6 +56,17 @@ if ($user['role_name'] === 'student') {
     $accom_stmt->execute();
     $accommodations = $accom_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 }
+
+// Normalize accommodation rows (handle case-variant column names)
+foreach ($accommodations as &$accom_row) {
+    if (!isset($accom_row['name'])) {
+        $accom_row['name'] = $accom_row['NAME'] ?? '';
+    }
+    if (!isset($accom_row['created_at'])) {
+        $accom_row['created_at'] = $accom_row['CREATED_AT'] ?? null;
+    }
+}
+unset($accom_row);
 
 // Get user's devices (if student)
 $devices = [];
@@ -135,13 +151,24 @@ $activity_stmt->bind_param("i", $user_id);
 $activity_stmt->execute();
 $activity_logs = $activity_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
+// Normalize activity log rows (handle case-variant column names)
+foreach ($activity_logs as &$log_row) {
+    if (!isset($log_row['action'])) {
+        $log_row['action'] = $log_row['ACTION'] ?? '';
+    }
+    if (!isset($log_row['timestamp'])) {
+        $log_row['timestamp'] = $log_row['TIMESTAMP'] ?? null;
+    }
+}
+unset($log_row);
+
 $activity_stats['total'] = count($activity_logs);
 $today = date('Y-m-d');
 foreach ($activity_logs as $log) {
-    if (stripos($log['action'], 'login') !== false) {
+    if ($log['action'] !== '' && stripos($log['action'], 'login') !== false) {
         $activity_stats['logins']++;
     }
-    if (date('Y-m-d', strtotime($log['timestamp'])) === $today) {
+    if ($log['timestamp'] !== null && $log['timestamp'] !== '' && date('Y-m-d', strtotime($log['timestamp'])) === $today) {
         $activity_stats['today']++;
     }
 }
@@ -371,7 +398,7 @@ require_once '../../includes/components/header.php';
                                 <a href="view-accommodation.php?id=<?= $accommodation['id'] ?>" class="list-group-item list-group-item-action">
                                     <div class="d-flex w-100 justify-content-between">
                                         <h6 class="mb-1"><?= htmlspecialchars($accommodation['name']) ?></h6>
-                                        <small><?= date('M j, Y', strtotime($accommodation['created_at'])) ?></small>
+                                        <small><?= $accommodation['created_at'] ? date('M j, Y', strtotime($accommodation['created_at'])) : '—' ?></small>
                                     </div>
                                 </a>
                             <?php endforeach; ?>
@@ -634,37 +661,39 @@ require_once '../../includes/components/header.php';
                                         <?php
                                         $action_icon = 'circle-fill';
                                         $action_color = 'secondary';
+                                        $action_val = $log['action'];
                                         
-                                        if (stripos($log['action'], 'login') !== false) {
+                                        if ($action_val !== '' && stripos($action_val, 'login') !== false) {
                                             $action_icon = 'box-arrow-in-right';
                                             $action_color = 'success';
-                                        } elseif (stripos($log['action'], 'logout') !== false) {
+                                        } elseif ($action_val !== '' && stripos($action_val, 'logout') !== false) {
                                             $action_icon = 'box-arrow-left';
                                             $action_color = 'warning';
-                                        } elseif (stripos($log['action'], 'password') !== false) {
+                                        } elseif ($action_val !== '' && stripos($action_val, 'password') !== false) {
                                             $action_icon = 'key';
                                             $action_color = 'info';
-                                        } elseif (stripos($log['action'], 'device') !== false) {
+                                        } elseif ($action_val !== '' && stripos($action_val, 'device') !== false) {
                                             $action_icon = 'router';
                                             $action_color = 'primary';
-                                        } elseif (stripos($log['action'], 'voucher') !== false) {
+                                        } elseif ($action_val !== '' && stripos($action_val, 'voucher') !== false) {
                                             $action_icon = 'ticket-perforated';
                                             $action_color = 'purple';
-                                        } elseif (stripos($log['action'], 'block') !== false || stripos($log['action'], 'deny') !== false) {
+                                        } elseif ($action_val !== '' && (stripos($action_val, 'block') !== false || stripos($action_val, 'deny') !== false)) {
                                             $action_icon = 'slash-circle';
                                             $action_color = 'danger';
-                                        } elseif (stripos($log['action'], 'create') !== false || stripos($log['action'], 'add') !== false) {
+                                        } elseif ($action_val !== '' && (stripos($action_val, 'create') !== false || stripos($action_val, 'add') !== false)) {
                                             $action_icon = 'plus-circle';
                                             $action_color = 'success';
-                                        } elseif (stripos($log['action'], 'delete') !== false || stripos($log['action'], 'remove') !== false) {
+                                        } elseif ($action_val !== '' && (stripos($action_val, 'delete') !== false || stripos($action_val, 'remove') !== false)) {
                                             $action_icon = 'trash';
                                             $action_color = 'danger';
-                                        } elseif (stripos($log['action'], 'update') !== false || stripos($log['action'], 'edit') !== false) {
+                                        } elseif ($action_val !== '' && (stripos($action_val, 'update') !== false || stripos($action_val, 'edit') !== false)) {
                                             $action_icon = 'pencil';
                                             $action_color = 'info';
                                         }
                                         
-                                        $isToday = date('Y-m-d', strtotime($log['timestamp'])) === date('Y-m-d');
+                                        $ts_val = $log['timestamp'];
+                                        $isToday = ($ts_val !== null && $ts_val !== '') && date('Y-m-d', strtotime($ts_val)) === date('Y-m-d');
                                         ?>
                                         <tr class="<?= $isToday ? 'table-light' : '' ?>">
                                             <td>
@@ -678,9 +707,13 @@ require_once '../../includes/components/header.php';
                                                 <code class="small"><?= htmlspecialchars($log['ip_address'] ?: '—') ?></code>
                                             </td>
                                             <td>
-                                                <small><?= date('M j, Y H:i:s', strtotime($log['timestamp'])) ?></small>
-                                                <?php if ($isToday): ?>
-                                                    <span class="badge bg-info ms-1">Today</span>
+                                                <?php if ($ts_val !== null && $ts_val !== ''): ?>
+                                                    <small><?= date('M j, Y H:i:s', strtotime($ts_val)) ?></small>
+                                                    <?php if ($isToday): ?>
+                                                        <span class="badge bg-info ms-1">Today</span>
+                                                    <?php endif; ?>
+                                                <?php else: ?>
+                                                    <small>—</small>
                                                 <?php endif; ?>
                                             </td>
                                         </tr>
