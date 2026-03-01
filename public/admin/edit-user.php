@@ -18,6 +18,7 @@ if (!$userId || !is_numeric($userId)) {
 }
 
 $user = getUserDetails($userId);
+$user = is_array($user) ? array_change_key_case($user, CASE_LOWER) : $user;
 
 if (!$user) {
     redirect('users.php', 'User not found.', 'danger');
@@ -46,6 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $success = true;
             logActivity($conn, $_SESSION['user_id'], 'edit_user', "Updated user '{$username}' (ID {$userId})", $_SERVER['REMOTE_ADDR']);
             $user = getUserDetails($userId); // Refresh user details
+            $user = is_array($user) ? array_change_key_case($user, CASE_LOWER) : $user;
         } else {
             $error = 'Error updating user: ' . $conn->error;
         }
