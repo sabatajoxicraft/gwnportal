@@ -40,7 +40,8 @@ function sendStudentVoucher($student_id, $month) {
     require_once __DIR__ . '/../services/VoucherService.php';
     $voucherService = new VoucherService();
     
-    $groupName = $accommodationName . ' - ' . $studentName . ' - ' . $month;
+    $baseGroupName = $accommodationName . ' - ' . $studentName . ' - ' . $month;
+    $groupName = $baseGroupName;
     $deviceNum = (int)(defined('GWN_ALLOWED_DEVICES') ? GWN_ALLOWED_DEVICES : 2);
     if ($deviceNum < 1) {
         $deviceNum = 1;
@@ -62,7 +63,7 @@ function sendStudentVoucher($student_id, $month) {
     $secondsToBoundary = $expiryBoundary->getTimestamp() - $now->getTimestamp();
     $expirationDays = (int)max(1, ceil($secondsToBoundary / 86400));
     
-    $createResult = $voucherService->createVoucherGroup([
+    $createPayload = [
         'name'              => $groupName,
         'vocherNum'         => 1,              // GWN API uses "vocherNum" (their typo)
         'deviceNum'         => $deviceNum,     // Max devices per voucher (0 = no limit)
@@ -74,7 +75,10 @@ function sendStudentVoucher($student_id, $month) {
         ],
         'usageLimitType'    => 0,              // 0 = per voucher, 1 = per client
         'description'       => "Student voucher: $studentName - $month",
-    ]);
+    ];
+
+    error_log("sendStudentVoucher: Creating GWN voucher group with deviceNum={$deviceNum}, expirationDays={$expirationDays}, groupName='{$groupName}'");
+    $createResult = $voucherService->createVoucherGroup($createPayload);
     
     if (!$voucherService->responseSuccessful($createResult)) {
         $retCode = isset($createResult['retCode']) ? (int)$createResult['retCode'] : -1;
@@ -84,8 +88,17 @@ function sendStudentVoucher($student_id, $month) {
             error_log("sendStudentVoucher: GWN API createVoucherGroup failed for student $student_id: " . json_encode($createResult));
             return false;
         }
-        // retCode 16014: group name already exists on GWN Cloud – recoverable, search by name below
-        error_log("sendStudentVoucher: GWN group '$groupName' already exists (retCode $retCode), searching by name.");
+
+        // retCode 16014: group name already exists on GWN Cloud.
+        // Do not reuse the old group (it may have stale limits). Create a fresh uniquely-named group.
+        $groupName = $baseGroupName . ' - ' . date('YmdHis');
+        $createPayload['name'] = $groupName;
+        error_log("sendStudentVoucher: GWN group '{$baseGroupName}' already exists (retCode $retCode). Retrying with unique groupName '{$groupName}'.");
+        $createResult = $voucherService->createVoucherGroup($createPayload);
+        if (!$voucherService->responseSuccessful($createResult)) {
+            error_log("sendStudentVoucher: Retry createVoucherGroup failed for student $student_id: " . json_encode($createResult));
+            return false;
+        }
     }
     
     // The GWN API /voucher/save returns data:"" on success with no group ID.
