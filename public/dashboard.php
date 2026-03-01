@@ -197,9 +197,9 @@ function getDashboardDataOwner($conn, $userId) {
         
         // Only return the current accommodation
         if ($currentAccommodationId) {
-            $data['accommodations'] = array_filter($allAccommodations, function($acc) use ($currentAccommodationId) {
+            $data['accommodations'] = array_values(array_filter($allAccommodations, function($acc) use ($currentAccommodationId) {
                 return ($acc['id'] ?? null) === $currentAccommodationId;
-            });
+            }));
         } else {
             $data['accommodations'] = [];
         }
