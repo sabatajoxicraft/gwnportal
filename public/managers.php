@@ -211,8 +211,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_manager'])) {
                     
                     if ($insert_stmt->execute()) {
                         $new_user_id = $insert_stmt->insert_id;
-                        $success = 'Manager account created successfully!';
-                        
+
+                        // Send credentials email to the new manager
+                        $email_subject = 'Your ' . APP_NAME . ' Account';
+                        $email_body = "Hello " . $first_name . ",\n\n"
+                            . "Your manager account has been created.\n\n"
+                            . "Username: " . $username . "\n"
+                            . "Password: " . $password . "\n"
+                            . "Role: Manager\n\n"
+                            . "Login at: " . BASE_URL . "/login.php\n\n"
+                            . "Please change your password after your first login.";
+                        $email_sent = sendAppEmail($email, $email_subject, $email_body);
+
+                        if ($email_sent) {
+                            $success = 'Manager account created successfully! Credentials have been sent to ' . $email . '.';
+                            $flash_type = 'success';
+                        } else {
+                            $success = 'Manager account created, but the credentials email could not be sent.';
+                            $flash_type = 'warning';
+                        }
+
                         // If an accommodation was selected, assign the new manager to it
                         if ($assign_to_accommodation > 0) {
                             // Verify accommodation belongs to owner
@@ -228,17 +246,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_manager'])) {
                                         $assign_stmt->bind_param("ii", $new_user_id, $assign_to_accommodation);
                                         if ($assign_stmt->execute()) {
                                             $success .= ' Manager has been assigned to the selected accommodation.';
-                                            
+
                                             // Redirect to accommodation-specific managers page
-                                            redirect(BASE_URL . '/managers.php?accommodation_id=' . $assign_to_accommodation, $success, 'success');
+                                            redirect(BASE_URL . '/managers.php?accommodation_id=' . $assign_to_accommodation, $success, $flash_type);
                                         }
                                     }
                                 }
                             }
                         }
-                        
+
                         // If we didn't redirect above, redirect to main managers page
-                        redirect(BASE_URL . '/managers.php', $success, 'success');
+                        redirect(BASE_URL . '/managers.php', $success, $flash_type);
                     } else {
                         $error = 'Failed to create manager account. Please try again.';
                     }
