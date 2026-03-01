@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/services/TwilioService.php';
 
 /**
  * Generate a random onboarding code
@@ -161,113 +162,21 @@ function validateOnboardingCode($code) {
  * Uses Messaging Service SID if available, falls back to phone number
  */
 function sendSMS($number, $message) {
-    if (empty(TWILIO_ACCOUNT_SID) || empty(TWILIO_AUTH_TOKEN)) {
-        error_log("Twilio SMS not configured. Message to $number: $message");
-        return false;
-    }
-
-    $url = "https://api.twilio.com/2010-04-01/Accounts/" . TWILIO_ACCOUNT_SID . "/Messages.json";
-
-    $data = [
-        'To' => $number,
-        'Body' => $message
-    ];
-
-    // For SMS, use From phone number directly (Messaging Service may not have SMS sender)
-    if (!empty(TWILIO_PHONE_NUMBER)) {
-        $data['From'] = TWILIO_PHONE_NUMBER;
-    } elseif (!empty(TWILIO_MESSAGING_SERVICE_SID)) {
-        $data['MessagingServiceSid'] = TWILIO_MESSAGING_SERVICE_SID;
-    } else {
-        error_log("Twilio SMS: No From number or MessagingServiceSid configured");
-        return false;
-    }
-
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
-    curl_setopt($ch, CURLOPT_USERPWD, TWILIO_ACCOUNT_SID . ":" . TWILIO_AUTH_TOKEN);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $error = curl_error($ch);
-    curl_close($ch);
-
-    if ($error) {
-        error_log("Twilio SMS cURL error: $error");
-        return false;
-    }
-
-    $result = json_decode($response, true);
-
-    if ($httpCode >= 200 && $httpCode < 300) {
-        error_log("SMS sent to $number. SID: " . ($result['sid'] ?? 'unknown'));
-        return true;
-    }
-
-    error_log("Twilio SMS failed ($httpCode): " . ($result['message'] ?? $response));
-    return false;
+    return TwilioService::sendSMS($number, $message);
 }
 
 /**
  * Send WhatsApp message via Twilio REST API
  */
 function sendWhatsApp($number, $message) {
-    if (empty(TWILIO_ACCOUNT_SID) || empty(TWILIO_AUTH_TOKEN) || empty(TWILIO_WHATSAPP_NO)) {
-        error_log("Twilio WhatsApp not configured. Message to $number: $message");
-        return false;
-    }
-
-    $url = "https://api.twilio.com/2010-04-01/Accounts/" . TWILIO_ACCOUNT_SID . "/Messages.json";
-
-    $whatsappTo = (strpos($number, 'whatsapp:') === 0) ? $number : "whatsapp:$number";
-
-    $data = [
-        'To' => $whatsappTo,
-        'From' => TWILIO_WHATSAPP_NO,
-        'Body' => $message
-    ];
-
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
-    curl_setopt($ch, CURLOPT_USERPWD, TWILIO_ACCOUNT_SID . ":" . TWILIO_AUTH_TOKEN);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $error = curl_error($ch);
-    curl_close($ch);
-
-    if ($error) {
-        error_log("Twilio WhatsApp cURL error: $error");
-        return false;
-    }
-
-    $result = json_decode($response, true);
-
-    if ($httpCode >= 200 && $httpCode < 300) {
-        error_log("WhatsApp sent to $number. SID: " . ($result['sid'] ?? 'unknown'));
-        return true;
-    }
-
-    error_log("Twilio WhatsApp failed ($httpCode): " . ($result['message'] ?? $response));
-    return false;
+    return TwilioService::sendWhatsApp($number, $message);
 }
 
 /**
  * Route message to SMS or WhatsApp based on preferred method
  */
 function sendMessage($number, $message, $method = 'SMS') {
-    if ($method === 'WhatsApp') {
-        return sendWhatsApp($number, $message);
-    }
-    return sendSMS($number, $message);
+    return TwilioService::sendMessage($number, $message, $method);
 }
 
 /**
@@ -282,68 +191,7 @@ function sendMessage($number, $message, $method = 'SMS') {
  * @return bool
  */
 function sendVoucherMessage($number, $studentName, $month, $voucherCode, $method = 'SMS') {
-    if (empty(TWILIO_ACCOUNT_SID) || empty(TWILIO_AUTH_TOKEN)) {
-        error_log("Twilio not configured for voucher send to $number");
-        return false;
-    }
-
-    $url = "https://api.twilio.com/2010-04-01/Accounts/" . TWILIO_ACCOUNT_SID . "/Messages.json";
-
-    // Pick template SID based on method
-    $templateSid = ($method === 'WhatsApp') ? TWILIO_WA_VOUCHER_TEMPLATE_SID : TWILIO_SMS_VOUCHER_TEMPLATE_SID;
-
-    if (empty($templateSid)) {
-        // Fallback to plain text if no template configured
-        $message = "Hi $studentName,\nBelow is your monthly WiFi Voucher code valid until {$month}'s month end, this code only grants you a max of 2 devices per month to be connected to the wifi.\n\nYour Voucher: $voucherCode";
-        return sendMessage($number, $message, $method);
-    }
-
-    $data = [
-        'ContentSid' => $templateSid,
-        'ContentVariables' => json_encode([
-            '1' => $studentName,
-            '2' => $month,
-            '3' => $voucherCode
-        ])
-    ];
-
-    // Set To and From based on method
-    if ($method === 'WhatsApp') {
-        $data['To'] = (strpos($number, 'whatsapp:') === 0) ? $number : "whatsapp:$number";
-        $data['From'] = TWILIO_WHATSAPP_NO;
-    } else {
-        $data['To'] = $number;
-        // SMS: use From number directly (Messaging Service may not have SMS sender)
-        $data['From'] = TWILIO_PHONE_NUMBER;
-    }
-
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
-    curl_setopt($ch, CURLOPT_USERPWD, TWILIO_ACCOUNT_SID . ":" . TWILIO_AUTH_TOKEN);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $error = curl_error($ch);
-    curl_close($ch);
-
-    if ($error) {
-        error_log("Twilio voucher cURL error: $error");
-        return false;
-    }
-
-    $result = json_decode($response, true);
-
-    if ($httpCode >= 200 && $httpCode < 300) {
-        error_log("Voucher sent to $number via $method. SID: " . ($result['sid'] ?? 'unknown'));
-        return true;
-    }
-
-    error_log("Twilio voucher failed ($httpCode): " . ($result['message'] ?? $response));
-    return false;
+    return TwilioService::sendVoucherMessage($number, $studentName, $month, $voucherCode, $method);
 }
 
 /**
@@ -351,57 +199,25 @@ function sendVoucherMessage($number, $studentName, $month, $voucherCode, $method
  * Template variables: {{1}} = first name, {{2}} = username, {{3}} = temp password
  */
 function sendCredentialsMessage($number, $firstName, $username, $tempPassword) {
-    if (empty(TWILIO_ACCOUNT_SID) || empty(TWILIO_AUTH_TOKEN)) {
-        error_log("Twilio not configured for credentials send to $number");
-        return false;
-    }
+    return TwilioService::sendCredentialsMessage($number, $firstName, $username, $tempPassword);
+}
 
-    $url = "https://api.twilio.com/2010-04-01/Accounts/" . TWILIO_ACCOUNT_SID . "/Messages.json";
-    $templateSid = TWILIO_SMS_LOGIN_TEMPLATE_SID;
+/**
+ * Send invitation code using Twilio Content Template (SMS)
+ * Template variables: {{1}} first name, {{2}} invitation code, {{3}} register URL, {{4}} expiry date
+ * Falls back to plain SMS if TWILIO_SMS_INVITATION_TEMPLATE_SID is not set.
+ */
+function sendInvitationCodeMessage($number, $firstName, $invitationCode, $registerUrl, $expiryDate) {
+    return TwilioService::sendInvitationCodeMessage($number, $firstName, $invitationCode, $registerUrl, $expiryDate);
+}
 
-    if (empty($templateSid)) {
-        $message = "Hello $firstName,\n\nHere are your login details for the WiFi Portal:\n\nUsername: $username\nTemporary Password: $tempPassword\n\nPlease login and change your password immediately.\n\n- WiFi Management Team";
-        return sendSMS($number, $message);
-    }
-
-    $data = [
-        'ContentSid' => $templateSid,
-        'ContentVariables' => json_encode([
-            '1' => $firstName,
-            '2' => $username,
-            '3' => $tempPassword
-        ]),
-        'To' => $number,
-        'From' => TWILIO_PHONE_NUMBER
-    ];
-
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
-    curl_setopt($ch, CURLOPT_USERPWD, TWILIO_ACCOUNT_SID . ":" . TWILIO_AUTH_TOKEN);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $error = curl_error($ch);
-    curl_close($ch);
-
-    if ($error) {
-        error_log("Twilio credentials cURL error: $error");
-        return false;
-    }
-
-    $result = json_decode($response, true);
-
-    if ($httpCode >= 200 && $httpCode < 300) {
-        error_log("Credentials sent to $number via SMS. SID: " . ($result['sid'] ?? 'unknown'));
-        return true;
-    }
-
-    error_log("Twilio credentials failed ($httpCode): " . ($result['message'] ?? $response));
-    return false;
+/**
+ * Send invitation code via WhatsApp using Twilio Content Template only (no freeform).
+ * Template variables: {{1}} first name, {{2}} invitation code, {{3}} register URL, {{4}} expiry date.
+ * Uses TWILIO_WA_INVITATION_TEMPLATE_SID; falls back to TWILIO_SMS_INVITATION_TEMPLATE_SID.
+ */
+function sendInvitationCodeWhatsAppMessage($number, $firstName, $invitationCode, $registerUrl, $expiryDate) {
+    return TwilioService::sendInvitationCodeWhatsAppMessage($number, $firstName, $invitationCode, $registerUrl, $expiryDate);
 }
 
 /**

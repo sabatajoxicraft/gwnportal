@@ -111,7 +111,7 @@ if (isLoggedIn()) {
 <nav class="navbar navbar-expand-lg navbar-dark <?= $navbarClass ?>">
     <div class="container">
         <a class="navbar-brand" href="<?= isLoggedIn() ? BASE_URL . '/dashboard.php' : BASE_URL ?>">
-            <i class="bi bi-wifi me-2"></i><?= APP_NAME ?>
+            <img src="<?= BASE_URL ?>/assets/img/logo.svg" alt="Joxicraft logo" width="32" height="32" class="me-2"><?= APP_NAME ?>
         </a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>

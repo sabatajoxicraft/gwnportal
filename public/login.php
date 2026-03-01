@@ -158,7 +158,7 @@ function setupRoleSpecificSession($conn, $user) {
 $extraCss = '
 <style>
     body.login-page {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: var(--primary-gradient);
         min-height: 100vh;
     }
     .login-page-wrapper {
@@ -181,7 +181,7 @@ $extraCss = '
     }
     .login-card .card-header {
         padding: 2.5rem 1rem;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: var(--dark-gradient);
         border-bottom: none;
     }
     .login-card .card-header h3 {
@@ -205,7 +205,7 @@ require_once '../includes/components/header.php';
     <div class="card login-card">
         <!-- Card Header -->
         <div class="card-header text-white text-center">
-            <h3><i class="bi bi-wifi"></i> GWN Portal</h3>
+            <h3><i class="bi bi-wifi"></i> <?= APP_NAME ?></h3>
             <p class="small">WiFi Access Management</p>
         </div>
         

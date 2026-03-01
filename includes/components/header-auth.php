@@ -36,7 +36,7 @@ $bodyClass = $bodyClass ?? 'd-flex flex-column min-vh-100 bg-light';
         <?= $extraCss ?>
     <?php endif; ?>
     
-    <link rel="icon" type="image/x-icon" href="<?= BASE_URL ?>/assets/img/favicon.ico">
+    <link rel="icon" type="image/svg+xml" href="<?= BASE_URL ?>/assets/img/logo.svg">
 </head>
 <body class="<?= htmlspecialchars($bodyClass, ENT_QUOTES, 'UTF-8') ?>">
     
@@ -44,11 +44,12 @@ $bodyClass = $bodyClass ?? 'd-flex flex-column min-vh-100 bg-light';
     <div class="bg-white border-bottom shadow-sm py-3">
         <div class="container">
             <div class="d-flex align-items-center justify-content-between">
-                <a href="<?= BASE_URL ?>/index.php" class="text-decoration-none">
-                    <h4 class="mb-0">
-                        <i class="bi bi-wifi text-primary me-2"></i>
-                        <span class="text-dark"><?= APP_NAME ?></span>
-                    </h4>
+                <a href="<?= BASE_URL ?>/index.php" class="text-decoration-none d-flex align-items-center">
+                    <img src="<?= BASE_URL ?>/assets/img/logo.svg" alt="Joxicraft logo" width="32" height="32" class="me-2">
+                    <div>
+                        <h4 class="mb-0 text-dark fw-bold"><?= APP_NAME ?></h4>
+                        <div style="font-size: 0.65rem; font-weight: normal; opacity: 0.8; margin-top: -2px; color: #666;">Powered by Joxicraft</div>
+                    </div>
                 </a>
                 <a href="<?= BASE_URL ?>/help.php" class="text-muted text-decoration-none">
                     <i class="bi bi-question-circle me-1"></i>Need help?

@@ -156,8 +156,8 @@ function getDashboardDataManager($conn, $userId, $accommodationId) {
     
     // Get code statistics
     $data['codes'] = [
-        'total' => countCodes($conn, $userId),
-        'unused' => countCodes($conn, $userId, 'unused'),
+        'total' => countCodes($conn, $accommodationId),
+        'unused' => countCodes($conn, $accommodationId, 'unused'),
     ];
     
     // Get manager's accommodations (for switching)
@@ -321,9 +321,9 @@ function getRecentStudents($conn, $accommodationId, $limit = 5) {
     return $students ?: [];
 }
 
-function countCodes($conn, $userId, $status = null) {
-    $query = "SELECT COUNT(*) as count FROM onboarding_codes WHERE created_by = ?";
-    $params = [$userId];
+function countCodes($conn, $accommodationId, $status = null) {
+    $query = "SELECT COUNT(*) as count FROM onboarding_codes WHERE accommodation_id = ?";
+    $params = [$accommodationId];
     $types = "i";
     
     if ($status) {

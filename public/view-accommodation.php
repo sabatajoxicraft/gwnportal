@@ -110,14 +110,17 @@ if ($map_url !== '') {
         }
     }
 
-    $small_map_embed_url = 'https://maps.google.com/maps?q=' . rawurlencode($map_query) . '&z=4&output=embed';
+    $small_map_embed_url = 'https://maps.google.com/maps?q=' . rawurlencode($map_query) . '&z=17&output=embed';
     if ($lat !== null && $lng !== null) {
-        $street_view_embed_url = 'https://www.google.com/maps?q=&layer=c&cbll=' . rawurlencode($lat . ',' . $lng) . '&cbp=12,0,0,0,0&output=svembed';
+        $street_view_embed_url = 'https://www.google.com/maps?layer=c&cbll=' . rawurlencode($lat . ',' . $lng) . '&cbp=12,0,0,0,0&output=svembed';
     } else {
         $street_view_embed_url = 'https://www.google.com/maps?q=' . rawurlencode($map_query) . '&layer=c&output=embed';
     }
     }
 }
+
+$sv_api_key = defined('GOOGLE_MAPS_API_KEY') ? GOOGLE_MAPS_API_KEY : '';
+$use_sv_js = $show_map_previews && isset($lat, $lng) && $lat !== null && $lng !== null && $sv_api_key !== '';
 
 // Get managers for this accommodation
 $managers = [];
@@ -282,19 +285,23 @@ require_once '../includes/components/header.php';
                                 <div class="col-12 col-lg-8">
                                     <h6 class="mb-2">Street View Preview</h6>
                                     <div class="accom-map-frame">
-                                        <div class="ratio ratio-16x9">
-                                            <iframe
-                                                src="<?= htmlspecialchars($street_view_embed_url, ENT_QUOTES, 'UTF-8') ?>"
-                                                style="border:0;"
-                                                allowfullscreen
-                                                loading="lazy"
-                                                referrerpolicy="no-referrer-when-downgrade"></iframe>
-                                        </div>
+                                        <?php if ($use_sv_js): ?>
+                                            <div id="sv-canvas-owner" style="width:100%;height:360px;"></div>
+                                        <?php else: ?>
+                                            <div class="ratio ratio-16x9">
+                                                <iframe
+                                                    src="<?= htmlspecialchars($street_view_embed_url, ENT_QUOTES, 'UTF-8') ?>"
+                                                    style="border:0;"
+                                                    allowfullscreen
+                                                    loading="lazy"
+                                                    referrerpolicy="no-referrer-when-downgrade"></iframe>
+                                            </div>
+                                        <?php endif; ?>
                                     </div>
                                     <div class="accom-map-note">Street View depends on coverage and may be unavailable for some areas.</div>
                                 </div>
                                 <div class="col-12 col-lg-4">
-                                    <h6 class="mb-2">Map Overview (Zoom 4)</h6>
+                                    <h6 class="mb-2">Map View (Street Level)</h6>
                                     <div class="accom-map-frame">
                                         <div class="ratio ratio-4x3">
                                             <iframe
@@ -351,4 +358,19 @@ require_once '../includes/components/header.php';
     </div>
 </div>
 
-<?php require_once '../includes/components/footer.php'; ?>
+<?php $extraScripts = $extraScripts ?? [];
+if ($use_sv_js) {
+    $sv_lat_val = (float)$lat;
+    $sv_lng_val = (float)$lng;
+    $extraScripts[] = '<script>
+function initOwnerStreetView() {
+    new google.maps.StreetViewPanorama(document.getElementById("sv-canvas-owner"), {
+        position: {lat: ' . $sv_lat_val . ', lng: ' . $sv_lng_val . '},
+        pov: {heading: 34, pitch: 10},
+        zoom: 1
+    });
+}
+</script>
+<script src="https://maps.googleapis.com/maps/api/js?key=' . htmlspecialchars($sv_api_key, ENT_QUOTES, 'UTF-8') . '&callback=initOwnerStreetView" async defer></script>';
+}
+require_once '../includes/components/footer.php'; ?>

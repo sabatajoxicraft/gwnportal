@@ -16,9 +16,10 @@ $extraScripts = $extraScripts ?? [];
                 <!-- Branding Column -->
                 <div class="col-lg-4 col-md-6">
                     <div class="mb-4">
-                        <h4 class="text-white mb-3">
-                            <i class="bi bi-wifi me-2"></i><?= APP_NAME ?>
+                        <h4 class="text-white mb-1">
+                            <img src="<?= BASE_URL ?>/assets/img/logo.svg" alt="Joxicraft logo" width="32" height="32" class="me-2 footer-logo"><?= APP_NAME ?>
                         </h4>
+                        <p class="text-light-emphasis small mb-3">Powered by Joxicraft</p>
                         <p class="text-light-emphasis mb-4">
                             A complete WiFi management solution for student accommodations. 
                             Simplifying network access and management for institutions across South Africa.

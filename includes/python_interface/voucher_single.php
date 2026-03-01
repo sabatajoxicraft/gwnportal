@@ -60,8 +60,15 @@ function sendStudentVoucher($student_id, $month) {
     ]);
     
     if (!$voucherService->responseSuccessful($createResult)) {
-        error_log("sendStudentVoucher: GWN API createVoucherGroup failed for student $student_id: " . json_encode($createResult));
-        return false;
+        $retCode = isset($createResult['retCode']) ? (int)$createResult['retCode'] : -1;
+        $isDuplicate = ($retCode === 16014) ||
+            (isset($createResult['message']) && stripos($createResult['message'], 'exist') !== false);
+        if (!$isDuplicate) {
+            error_log("sendStudentVoucher: GWN API createVoucherGroup failed for student $student_id: " . json_encode($createResult));
+            return false;
+        }
+        // retCode 16014: group name already exists on GWN Cloud – recoverable, search by name below
+        error_log("sendStudentVoucher: GWN group '$groupName' already exists (retCode $retCode), searching by name.");
     }
     
     // The GWN API /voucher/save returns data:"" on success with no group ID.
@@ -117,12 +124,24 @@ function sendStudentVoucher($student_id, $month) {
     
     // --- Step 3: Send voucher code to student via SMS/WhatsApp ---
     $messageSent = false;
+    $loggedSendMethod = $sendMethod;
     if (!empty($phoneNumber)) {
         // Use the template-aware sendVoucherMessage() which supports Twilio Content Templates
         // Template variables: {{1}} = student name, {{2}} = month, {{3}} = voucher code
         $messageSent = sendVoucherMessage($phoneNumber, $studentName, $month, $voucher_code, $sendMethod);
     }
-    
+
+    // SMS backup: always send SMS after WhatsApp attempt to handle cases where WhatsApp API
+    // accepts but Meta later drops delivery (e.g., Twilio/Meta error 63049 filtering).
+    if ($sendMethod === 'WhatsApp' && !empty($student['phone_number'])) {
+        $smsBody = "Hi $studentName, your monthly WiFi voucher code for $month is: $voucher_code. Max 2 devices. Need help? WhatsApp 0846983888";
+        $smsSent = sendSMS($student['phone_number'], $smsBody);
+        $messageSent = ($messageSent || $smsSent);
+        if ($smsSent) {
+            $loggedSendMethod = 'SMS'; // SMS is the reliable fallback channel
+        }
+    }
+
     // Log even if messaging fails (voucher was created on GWN Cloud)
     if (!$messageSent) {
         error_log("sendStudentVoucher: Voucher $voucher_code created but message delivery failed for student $student_id ($sendMethod to $phoneNumber)");
@@ -131,27 +150,42 @@ function sendStudentVoucher($student_id, $month) {
     // --- Step 3b: Create in-app notification for the student ---
     createNotification(
         $student['user_id'],
-        "Your WiFi voucher for $month has been generated. Code: $voucher_code (sent via $sendMethod).",
+        "Your WiFi voucher for $month has been generated. Code: $voucher_code (sent via $loggedSendMethod).",
         'voucher'
     );
     
     // --- Step 4: Log to voucher_logs ---
-    $sql = "INSERT INTO voucher_logs (user_id, voucher_code, voucher_month, sent_via, status, sent_at, gwn_voucher_id, gwn_group_id) 
-            VALUES (?, ?, ?, ?, 'sent', NOW(), ?, ?)";
-    $stmt = $conn->prepare($sql);
+    // Try full schema first; fall back to legacy schema if gwn_voucher_id/gwn_group_id columns are absent.
+    $sqlFull   = "INSERT INTO voucher_logs (user_id, voucher_code, voucher_month, sent_via, status, sent_at, gwn_voucher_id, gwn_group_id) 
+                  VALUES (?, ?, ?, ?, 'sent', NOW(), ?, ?)";
+    $sqlLegacy = "INSERT INTO voucher_logs (user_id, voucher_code, voucher_month, sent_via, status, sent_at) 
+                  VALUES (?, ?, ?, ?, 'sent', NOW())";
+    $stmt = safeQueryPrepare($conn, $sqlFull, false);
+    $useLegacy = ($stmt === false);
+    if ($useLegacy) {
+        $stmt = safeQueryPrepare($conn, $sqlLegacy, false);
+    }
     if ($stmt) {
-        $stmt->bind_param("isssii", $student['user_id'], $voucher_code, $month, $sendMethod, $gwn_voucher_id, $groupId);
+        if ($useLegacy) {
+            $stmt->bind_param("isss", $student['user_id'], $voucher_code, $month, $loggedSendMethod);
+        } else {
+            $stmt->bind_param("isssii", $student['user_id'], $voucher_code, $month, $loggedSendMethod, $gwn_voucher_id, $groupId);
+        }
         $stmt->execute();
+    } else {
+        error_log("sendStudentVoucher: voucher_logs insert failed – " . $conn->error);
     }
     
     // --- Step 5: Record the GWN voucher group for tracking ---
     $networkId = defined('GWN_NETWORK_ID') ? GWN_NETWORK_ID : '';
     $sqlGroup = "INSERT INTO gwn_voucher_groups (gwn_group_id, group_name, accommodation_id, voucher_month, network_id, voucher_count, created_at) 
                  VALUES (?, ?, ?, ?, ?, 1, NOW())";
-    $stmtGroup = $conn->prepare($sqlGroup);
+    $stmtGroup = safeQueryPrepare($conn, $sqlGroup, false);
     if ($stmtGroup) {
         $stmtGroup->bind_param("isiss", $groupId, $groupName, $student['accommodation_id'], $month, $networkId);
         $stmtGroup->execute();
+    } else {
+        error_log("sendStudentVoucher: gwn_voucher_groups insert failed – " . $conn->error);
     }
     
     return true;

@@ -27,16 +27,28 @@ $currentMonth = date('F Y');          // "February 2026"
 $currentMonthAlt = date('Y-m');       // "2026-02"
 
 // Check eligibility: has the student received an active voucher this month?
-$stmtCheck = safeQueryPrepare($conn, 
-    "SELECT * FROM voucher_logs WHERE user_id = ? AND (voucher_month = ? OR voucher_month = ?) AND status = 'sent' AND is_active = 1");
-$stmtCheck->bind_param("iss", $userId, $currentMonth, $currentMonthAlt);
-$stmtCheck->execute();
-$existingVoucher = $stmtCheck->get_result()->fetch_assoc();
+// Fallback omits is_active filter if the column doesn't exist yet.
+$queryErrorMessage = '';
+$stmtCheck = safeQueryPrepare($conn,
+    "SELECT * FROM voucher_logs WHERE user_id = ? AND (voucher_month = ? OR voucher_month = ?) AND status = 'sent' AND is_active = 1",
+    false);
+if ($stmtCheck === false) {
+    $stmtCheck = safeQueryPrepare($conn,
+        "SELECT * FROM voucher_logs WHERE user_id = ? AND (voucher_month = ? OR voucher_month = ?) AND status = 'sent'");
+}
+if ($stmtCheck !== false) {
+    $stmtCheck->bind_param("iss", $userId, $currentMonth, $currentMonthAlt);
+    $stmtCheck->execute();
+    $existingVoucher = $stmtCheck->get_result()->fetch_assoc();
+} else {
+    $existingVoucher = null;
+    $queryErrorMessage = 'Unable to verify voucher eligibility right now. Please try again later.';
+}
 
 $isEligible = !$existingVoucher && $studentActive;
 $justRequested = false;
 $newVoucherCode = '';
-$errorMessage = '';
+$errorMessage = $queryErrorMessage;
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isEligible) {
@@ -51,29 +63,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isEligible) {
             $isEligible = false;
 
             // Re-fetch the voucher that was just created
-            $stmtCheck->execute();
-            $existingVoucher = $stmtCheck->get_result()->fetch_assoc();
-            $newVoucherCode = $existingVoucher ? $existingVoucher['voucher_code'] : '';
+            if ($stmtCheck !== false) {
+                $stmtCheck->execute();
+                $existingVoucher = $stmtCheck->get_result()->fetch_assoc();
+                $newVoucherCode = $existingVoucher ? $existingVoucher['voucher_code'] : '';
+            } else {
+                $newVoucherCode = '';
+            }
 
             // Log activity
             logActivity($conn, $userId, 'voucher_self_request', 
                 "Student self-requested voucher {$newVoucherCode} for {$currentMonth}");
         } else {
-            $errorMessage = "Unable to generate your voucher right now. Please try again or contact your manager.";
+            // Reconciliation: sendStudentVoucher may have succeeded despite returning false.
+            // Re-check the DB before surfacing an error to the user.
+            $reconciled = false;
+            if ($stmtCheck !== false) {
+                $stmtCheck->execute();
+                $reconciledVoucher = $stmtCheck->get_result()->fetch_assoc();
+                if ($reconciledVoucher) {
+                    $justRequested    = true;
+                    $isEligible       = false;
+                    $existingVoucher  = $reconciledVoucher;
+                    $newVoucherCode   = $reconciledVoucher['voucher_code'];
+                    $reconciled       = true;
+                }
+            }
+            if (!$reconciled) {
+                $errorMessage = "Unable to generate your voucher right now. Please try again or contact your manager.";
+            }
         }
     }
 }
 
-// Get voucher history
-$stmtHistory = safeQueryPrepare($conn, 
+// Get voucher history; fallback selects compatibility aliases if optional columns are missing.
+$stmtHistory = safeQueryPrepare($conn,
     "SELECT voucher_code, voucher_month, sent_via, status, sent_at, is_active, revoked_at
-     FROM voucher_logs 
-     WHERE user_id = ? 
-     ORDER BY sent_at DESC 
-     LIMIT 12");
-$stmtHistory->bind_param("i", $userId);
-$stmtHistory->execute();
-$voucherHistory = $stmtHistory->get_result()->fetch_all(MYSQLI_ASSOC);
+     FROM voucher_logs
+     WHERE user_id = ?
+     ORDER BY sent_at DESC
+     LIMIT 12",
+    false);
+if ($stmtHistory === false) {
+    $stmtHistory = safeQueryPrepare($conn,
+        "SELECT voucher_code, voucher_month, sent_via, status, sent_at, 1 AS is_active, NULL AS revoked_at
+         FROM voucher_logs
+         WHERE user_id = ?
+         ORDER BY sent_at DESC
+         LIMIT 12");
+}
+if ($stmtHistory !== false) {
+    $stmtHistory->bind_param("i", $userId);
+    $stmtHistory->execute();
+    $voucherHistory = $stmtHistory->get_result()->fetch_all(MYSQLI_ASSOC);
+} else {
+    $voucherHistory = [];
+    if ($queryErrorMessage === '') {
+        $queryErrorMessage = 'Unable to load voucher history right now. Please try again later.';
+    }
+}
+
+if ($errorMessage === '') {
+    $errorMessage = $queryErrorMessage;
+}
 
 include '../../includes/components/header.php';
 ?>
@@ -147,7 +199,7 @@ include '../../includes/components/header.php';
                                         <tr>
                                             <td class="text-end fw-bold">Status:</td>
                                             <td class="text-start">
-                                                <?php if ($existingVoucher['is_active']): ?>
+                                                <?php if (!isset($existingVoucher['is_active']) || $existingVoucher['is_active'] == 1): ?>
                                                     <span class="badge bg-success">Active</span>
                                                 <?php else: ?>
                                                     <span class="badge bg-danger">Revoked</span>

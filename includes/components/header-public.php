@@ -39,15 +39,19 @@ $bodyClass = $bodyClass ?? 'd-flex flex-column min-vh-100';
     <?php endif; ?>
     
     <!-- Additional Meta Tags -->
-    <link rel="icon" type="image/x-icon" href="<?= BASE_URL ?>/assets/img/favicon.ico">
+    <link rel="icon" type="image/svg+xml" href="<?= BASE_URL ?>/assets/img/logo.svg">
 </head>
 <body class="<?= htmlspecialchars($bodyClass, ENT_QUOTES, 'UTF-8') ?>">
     
     <!-- Simple Public Navigation -->
     <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm sticky-top">
         <div class="container">
-            <a class="navbar-brand fw-bold" href="<?= BASE_URL ?>/index.php">
-                <i class="bi bi-wifi text-primary me-2"></i><?= APP_NAME ?>
+            <a class="navbar-brand fw-bold d-flex align-items-center" href="<?= BASE_URL ?>/index.php">
+                <img src="<?= BASE_URL ?>/assets/img/logo.svg" alt="Joxicraft logo" width="32" height="32" class="me-2">
+                <div>
+                    <div><?= APP_NAME ?></div>
+                    <div style="font-size: 0.65rem; font-weight: normal; opacity: 0.8; margin-top: -4px;">Powered by Joxicraft</div>
+                </div>
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#publicNav">
                 <span class="navbar-toggler-icon"></span>

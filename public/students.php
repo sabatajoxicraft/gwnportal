@@ -7,8 +7,36 @@ require_once '../includes/permissions.php';
 requireManagerLogin();
 
 $userId = $_SESSION['user_id'] ?? 0;
-$accommodation_id = $_SESSION['accommodation_id'] ?? 0;
 $conn = getDbConnection();
+
+// Load manager's accessible accommodations and store for switcher bar
+$managerAccommodations = QueryService::getUserAccommodations($conn, $userId, 'manager');
+$_SESSION['manager_accommodations'] = $managerAccommodations;
+
+// Handle accommodation switch request
+if (isset($_GET['switch_accommodation'])) {
+    $requestedId = (int)$_GET['switch_accommodation'];
+    $hasAccess = false;
+    foreach ($managerAccommodations as $accom) {
+        if ($accom['id'] == $requestedId) {
+            $hasAccess = true;
+            break;
+        }
+    }
+    if ($hasAccess) {
+        $_SESSION['accommodation_id'] = $requestedId;
+    }
+    header('Location: ' . BASE_URL . '/students.php');
+    exit;
+}
+
+// Resolve the current accommodation: validate session value or default to first accessible
+$accommodation_id = (int)($_SESSION['accommodation_id'] ?? 0);
+$validIds = array_column($managerAccommodations, 'id');
+if (!in_array($accommodation_id, $validIds) && !empty($validIds)) {
+    $accommodation_id = (int)$validIds[0];
+    $_SESSION['accommodation_id'] = $accommodation_id;
+}
 
 // Handle student action if requested
 if (isset($_GET['action']) && isset($_GET['id'])) {

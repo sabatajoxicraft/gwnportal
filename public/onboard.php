@@ -24,6 +24,32 @@ if (!isset($_SESSION['onboarding'])) {
 // Get connection
 $conn = getDbConnection();
 
+// Handle self-register mode: initialize session when arriving via self_register=1
+if (isset($_GET['self_register']) && $_GET['self_register'] == '1' && empty($_SESSION['onboarding']['self_register'])) {
+    $stmtRole = safeQueryPrepare($conn, "SELECT id FROM roles WHERE name = 'student'", false);
+    if (!$stmtRole) {
+        $error = "Registration is temporarily unavailable. Please contact support.";
+    } else {
+        $stmtRole->execute();
+        $roleRow = $stmtRole->get_result()->fetch_assoc();
+        if (!$roleRow) {
+            $error = "Student role not found. Please contact support.";
+        } else {
+            $_SESSION['onboarding'] = [
+                'code'               => '',
+                'user_role'          => 'student',
+                'role_id'            => $roleRow['id'],
+                'entity_id'          => '',
+                'accommodation_id'   => '',
+                'accommodation_name' => '',
+                'step'               => 2,
+                'self_register'      => true,
+                'send_method'        => 'none',
+            ];
+        }
+    }
+}
+
 // Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     requireCsrfToken();
@@ -87,20 +113,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Step 2: Create user account
     if (isset($_POST['create_account'])) {
         // Verify session data is available
-        if (!isset($_SESSION['onboarding']) || empty($_SESSION['onboarding']['user_role']) || empty($_SESSION['onboarding']['accommodation_id'])) {
+        if (!isset($_SESSION['onboarding']) || empty($_SESSION['onboarding']['user_role'])) {
             $error = "Session expired or invalid. Please start over.";
             error_log("Missing onboarding session data at step 2: " . print_r($_SESSION['onboarding'] ?? [], true));
             redirect(BASE_URL . '/onboard.php');
         }
+        // In normal (code-based) mode, accommodation_id must already be set in session
+        if (empty($_SESSION['onboarding']['self_register']) && empty($_SESSION['onboarding']['accommodation_id'])) {
+            $error = "Session expired or invalid. Please start over.";
+            error_log("Missing accommodation in onboarding session: " . print_r($_SESSION['onboarding'] ?? [], true));
+            redirect(BASE_URL . '/onboard.php');
+        }
+
+        // In self-register mode, validate and apply the chosen accommodation
+        if (!empty($_SESSION['onboarding']['self_register'])) {
+            $selfRegAccomId = intval($_POST['accommodation_id'] ?? 0);
+            if ($selfRegAccomId <= 0) {
+                $error = "Please select an accommodation.";
+            } else {
+                $stmtAccom = safeQueryPrepare($conn, "SELECT id, name FROM accommodations WHERE id = ?");
+                $stmtAccom->bind_param("i", $selfRegAccomId);
+                $stmtAccom->execute();
+                $accomRow = $stmtAccom->get_result()->fetch_assoc();
+                if (!$accomRow) {
+                    $error = "Invalid accommodation selected.";
+                } else {
+                    $_SESSION['onboarding']['accommodation_id']   = $accomRow['id'];
+                    $_SESSION['onboarding']['accommodation_name'] = $accomRow['name'];
+                }
+            }
+        }
         
-        // Get form data
+        // Get form data (only proceed if no accommodation error)
+        if (empty($error)) {
         $firstName = trim($_POST['first_name']);
         $lastName = trim($_POST['last_name']);
         $email = trim($_POST['email']);
         $confirmEmail = trim($_POST['confirm_email'] ?? '');
         $phone = trim($_POST['phone'] ?? '');
         $whatsappNumber = trim($_POST['whatsapp_number'] ?? '');
-        $preferredCommunication = $_POST['preferred_communication'] ?? 'WhatsApp';
+        $rawPreferredCommunication = trim($_POST['preferred_communication'] ?? '');
+        $preferredCommunication = (strtolower($rawPreferredCommunication) === 'whatsapp') ? 'WhatsApp' : 'SMS';
         $password = $_POST['password'];
         $confirmPassword = $_POST['confirm_password'];
         
@@ -147,11 +200,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Debug
                 error_log("Creating user with username: $username, email: $email, role_id: $roleId, photo: $profile_photo");
                 
-                // Create user
+                // Create user — try with profile_photo first, fall back if column absent
                 $stmt = safeQueryPrepare($conn, "INSERT INTO users (username, password, email, first_name, last_name, phone_number, whatsapp_number, preferred_communication, role_id, status, profile_photo, created_at) 
-                                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, NOW())");
-                $stmt->bind_param("ssssssssis", $username, $passwordHash, $email, $firstName, $lastName, $formattedPhone, $formattedWhatsapp, $preferredCommunication, $roleId, $profile_photo);
-                
+                                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, NOW())", false);
+                if ($stmt !== false) {
+                    $stmt->bind_param("ssssssssis", $username, $passwordHash, $email, $firstName, $lastName, $formattedPhone, $formattedWhatsapp, $preferredCommunication, $roleId, $profile_photo);
+                } else {
+                    $stmt = safeQueryPrepare($conn, "INSERT INTO users (username, password, email, first_name, last_name, phone_number, whatsapp_number, preferred_communication, role_id, status, created_at) 
+                                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', NOW())", false);
+                    if ($stmt === false) {
+                        throw new Exception('Database error. Please try again later.');
+                    }
+                    $stmt->bind_param("sssssssis", $username, $passwordHash, $email, $firstName, $lastName, $formattedPhone, $formattedWhatsapp, $preferredCommunication, $roleId);
+                }
+
                 if (!$stmt->execute()) {
                     throw new Exception("Failed to create user: " . $conn->error);
                 }
@@ -182,12 +244,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $studentTableId = $stmt->insert_id;
                 }
                 
-                // Update onboarding code to used and mark who used it
-                $stmt = safeQueryPrepare($conn, "UPDATE onboarding_codes SET status = 'used', used_by = ?, used_at = NOW() WHERE code = ?");
-                $stmt->bind_param("is", $userId, $_SESSION['onboarding']['code']);
-                
-                if (!$stmt->execute()) {
-                    throw new Exception("Failed to update onboarding code: " . $conn->error);
+                // Only mark code as used when a code exists (not in self-register mode)
+                if (!empty($_SESSION['onboarding']['code'])) {
+                    $stmt = safeQueryPrepare($conn, "UPDATE onboarding_codes SET status = 'used', used_by = ?, used_at = NOW() WHERE code = ?");
+                    $stmt->bind_param("is", $userId, $_SESSION['onboarding']['code']);
+                    if (!$stmt->execute()) {
+                        throw new Exception("Failed to update onboarding code: " . $conn->error);
+                    }
                 }
                 
                 // Commit transaction
@@ -222,7 +285,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = "Error creating account: " . $e->getMessage();
                 error_log("Onboarding error: " . $e->getMessage() . " - Stack trace: " . $e->getTraceAsString());
             }
-        }
+        } // end else (validation passed)
+        } // end if (empty($error))
     }
 }
 
@@ -332,6 +396,30 @@ require_once '../includes/components/header.php';
                         </div>
                         <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF']) . '?step=2' ?>">
                             <?php echo csrfField(); ?>
+                            <?php if (!empty($_SESSION['onboarding']['self_register'])): ?>
+                                <?php
+                                $accomStmt = safeQueryPrepare($conn, "SELECT id, name FROM accommodations ORDER BY name ASC", false);
+                                if ($accomStmt) {
+                                    $accomStmt->execute();
+                                    $accomResult = $accomStmt->get_result();
+                                }
+                                ?>
+                                <div class="mb-3">
+                                    <label for="accommodation_id" class="form-label">Accommodation <span class="text-danger">*</span></label>
+                                    <?php if (!isset($accomResult)): ?>
+                                        <p class="text-muted small">Accommodations could not be loaded. Please refresh or contact support.</p>
+                                    <?php else: ?>
+                                    <select class="form-select" id="accommodation_id" name="accommodation_id" required>
+                                        <option value="">-- Select your accommodation --</option>
+                                        <?php while ($accomOpt = $accomResult->fetch_assoc()): ?>
+                                            <option value="<?= $accomOpt['id'] ?>" <?= (isset($_POST['accommodation_id']) && $_POST['accommodation_id'] == $accomOpt['id']) ? 'selected' : '' ?>>
+                                                <?= htmlspecialchars($accomOpt['name']) ?>
+                                            </option>
+                                        <?php endwhile; ?>
+                                    </select>
+                                    <?php endif; ?>
+                                </div>
+                            <?php endif; ?>
                             <div class="row mb-3">
                                 <div class="col">
                                     <label for="first_name" class="form-label">First Name</label>

@@ -60,7 +60,7 @@ class ErrorHandler {
             'file' => $file,
             'line' => $line,
             'timestamp' => date('Y-m-d H:i:s'),
-            'trace' => debug_backtrace()
+            'trace' => debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 20)
         ];
 
         self::log($error);

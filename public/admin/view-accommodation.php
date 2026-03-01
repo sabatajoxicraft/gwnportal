@@ -33,6 +33,77 @@ if (!$accommodation) {
 
 $accommodation_name = (string) ($accommodation['name'] ?? $accommodation['NAME'] ?? '');
 
+$map_url = trim((string)($accommodation['map_url'] ?? ''));
+$show_map_previews = false;
+$street_view_embed_url = '';
+$small_map_embed_url = '';
+
+if ($map_url !== '') {
+    if (!preg_match('/^https?:\/\//i', $map_url)) {
+        $map_url = 'https://' . ltrim($map_url, '/');
+    }
+
+    $map_host = strtolower((string)(parse_url($map_url, PHP_URL_HOST) ?? ''));
+    $is_google_maps_link = strpos($map_host, 'google.') !== false
+        || strpos($map_host, 'goo.gl') !== false
+        || strpos($map_host, 'maps.app.goo.gl') !== false;
+
+    if ($is_google_maps_link) {
+        $show_map_previews = true;
+        $parse_url = $map_url;
+        if (($map_host === 'maps.app.goo.gl' || $map_host === 'goo.gl') && function_exists('curl_init')) {
+            $ch = curl_init($map_url);
+            curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_NOBODY, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
+            curl_setopt($ch, CURLOPT_MAXREDIRS, 5);
+            curl_exec($ch);
+            $effective = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
+            curl_close($ch);
+            if (!empty($effective) && $effective !== $map_url) {
+                $parse_url = $effective;
+            }
+        }
+
+        $map_query = $parse_url;
+        $lat = null;
+        $lng = null;
+        if (preg_match('/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/', $parse_url, $matches)) {
+            $lat = $matches[1];
+            $lng = $matches[2];
+            $map_query = $lat . ',' . $lng;
+        } elseif (preg_match('/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/', $parse_url, $matches)) {
+            $lat = $matches[1];
+            $lng = $matches[2];
+            $map_query = $lat . ',' . $lng;
+        } else {
+            $parts = parse_url($parse_url);
+            if (!empty($parts['query'])) {
+                parse_str($parts['query'], $queryParams);
+                if (!empty($queryParams['q'])) {
+                    $map_query = (string)$queryParams['q'];
+                    if (preg_match('/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/', $map_query, $coordMatch)) {
+                        $lat = $coordMatch[1];
+                        $lng = $coordMatch[2];
+                    }
+                }
+            }
+        }
+
+        $small_map_embed_url = 'https://maps.google.com/maps?q=' . rawurlencode($map_query) . '&z=17&output=embed';
+        if ($lat !== null && $lng !== null) {
+            $street_view_embed_url = 'https://www.google.com/maps?layer=c&cbll=' . rawurlencode($lat . ',' . $lng) . '&cbp=12,0,0,0,0&output=svembed';
+        } else {
+            $street_view_embed_url = 'https://www.google.com/maps?q=' . rawurlencode($map_query) . '&layer=c&output=embed';
+        }
+    }
+}
+
+$sv_api_key = defined('GOOGLE_MAPS_API_KEY') ? GOOGLE_MAPS_API_KEY : '';
+$use_sv_js = $show_map_previews && isset($lat, $lng) && $lat !== null && $lng !== null && $sv_api_key !== '';
+
 // Get associated users (managers and students)
 $users_stmt = safeQueryPrepare($conn, "SELECT u.*, r.name as role_name 
                                     FROM users u 
@@ -99,10 +170,10 @@ require_once '../../includes/components/header.php';
                             ]))), ENT_QUOTES, 'UTF-8') ?></td>
                         </tr>
                         <?php endif; ?>
-                        <?php if (!empty($accommodation['map_url'])): ?>
+                        <?php if ($map_url !== ''): ?>
                         <tr>
                             <th>Map:</th>
-                            <td><a href="<?= htmlspecialchars($accommodation['map_url'], ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer">Open Map</a></td>
+                            <td><a href="<?= htmlspecialchars($map_url, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer">Open Map</a></td>
                         </tr>
                         <?php endif; ?>
                         <?php if (!empty($accommodation['max_students'])): ?>
@@ -182,6 +253,31 @@ require_once '../../includes/components/header.php';
                     </div>
                 </div>
             </div>
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Map Preview</h5>
+                </div>
+                <div class="card-body">
+                    <?php if ($show_map_previews && $street_view_embed_url !== '' && $small_map_embed_url !== ''): ?>
+                        <h6 class="mb-2">Street View</h6>
+                        <?php if ($use_sv_js): ?>
+                            <div id="sv-canvas-admin" class="mb-3" style="width:100%;height:360px;border-radius:4px;overflow:hidden;"></div>
+                        <?php else: ?>
+                            <div class="ratio ratio-16x9 mb-3">
+                                <iframe src="<?= htmlspecialchars($street_view_embed_url, ENT_QUOTES, 'UTF-8') ?>" loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>
+                            </div>
+                        <?php endif; ?>
+                        <h6 class="mb-2">Map View (Street Level)</h6>
+                        <div class="ratio ratio-16x9">
+                            <iframe src="<?= htmlspecialchars($small_map_embed_url, ENT_QUOTES, 'UTF-8') ?>" loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>
+                        </div>
+                    <?php elseif ($map_url !== ''): ?>
+                        <p class="text-muted small mb-0">Preview is unavailable for this link. <a href="<?= htmlspecialchars($map_url, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer">Open map</a>.</p>
+                    <?php else: ?>
+                        <p class="text-muted small mb-0">No map URL available.</p>
+                    <?php endif; ?>
+                </div>
+            </div>
         </div>
     </div>
     
@@ -243,4 +339,19 @@ require_once '../../includes/components/header.php';
     </div>
 </div>
 
-<?php require_once '../../includes/components/footer.php'; ?>
+<?php $extraScripts = $extraScripts ?? [];
+if ($use_sv_js) {
+    $sv_lat_val = (float)$lat;
+    $sv_lng_val = (float)$lng;
+    $extraScripts[] = '<script>
+function initAdminStreetView() {
+    new google.maps.StreetViewPanorama(document.getElementById("sv-canvas-admin"), {
+        position: {lat: ' . $sv_lat_val . ', lng: ' . $sv_lng_val . '},
+        pov: {heading: 34, pitch: 10},
+        zoom: 1
+    });
+}
+</script>
+<script src="https://maps.googleapis.com/maps/api/js?key=' . htmlspecialchars($sv_api_key, ENT_QUOTES, 'UTF-8') . '&callback=initAdminStreetView" async defer></script>';
+}
+require_once '../../includes/components/footer.php'; ?>

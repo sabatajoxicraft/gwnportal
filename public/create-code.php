@@ -75,6 +75,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $count = (int)($_POST['count'] ?? 1);
     $expiry_days = (int)($_POST['expiry_days'] ?? CODE_EXPIRY_DAYS);
     $send_method = $_POST['send_method'] ?? 'none';
+    // Student onboarding (role 4) must always be delivered via SMS
+    if ($code_role_id === 4) {
+        $send_method = 'sms';
+    }
     $recipient = trim($_POST['recipient'] ?? '');
     
     // Get student name if provided (only for student codes)
@@ -83,6 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     // Handle profile photo upload
     $profile_photo_path = null;
+    $photo_warning = '';
     if (!empty($_POST['photo_data'])) {
         $photo_data = $_POST['photo_data'];
         
@@ -92,12 +97,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $type = strtolower($type[1]); // jpg, png, gif
             
             if (!in_array($type, ['jpg', 'jpeg', 'png', 'gif'])) {
-                $error = 'Invalid image type';
+                $photo_warning = 'Profile photo not saved: invalid image type.';
             } else {
                 $photo_data = base64_decode($photo_data);
                 
                 if ($photo_data === false) {
-                    $error = 'Base64 decode failed';
+                    $photo_warning = 'Profile photo not saved: base64 decode failed.';
                 } else {
                     // Create uploads directory if it doesn't exist
                     $upload_dir = PUBLIC_PATH . '/uploads/profile_photos';
@@ -109,11 +114,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $filename = 'profile_' . uniqid() . '_' . time() . '.' . $type;
                     $filepath = $upload_dir . '/' . $filename;
                     
-                    // Save the file
-                    if (file_put_contents($filepath, $photo_data)) {
+                    // Save the file; suppress warning to avoid escalation (e.g. errno=12)
+                    $write_result = @file_put_contents($filepath, $photo_data);
+                    if ($write_result !== false) {
                         $profile_photo_path = 'uploads/profile_photos/' . $filename;
                     } else {
-                        $error = 'Failed to save profile photo';
+                        $last_err = error_get_last();
+                        $err_msg = $last_err ? $last_err['message'] : 'unknown error';
+                        error_log('create-code.php: failed to write profile photo to ' . $filepath . ': ' . $err_msg);
+                        $photo_warning = 'Profile photo could not be saved; code was still generated.';
                     }
                 }
             }
@@ -140,13 +149,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Generate code
             $code = generateUniqueCode();
             
-            // Insert code with profile photo, phone number, and send method
+            // Insert code — try extended schema first, fall back to base schema
             $stmt = safeQueryPrepare($conn, "INSERT INTO onboarding_codes 
                                        (code, created_by, accommodation_id, role_id, status, expires_at, profile_photo, student_first_name, student_last_name, phone_number, send_method) 
-                                       VALUES (?, ?, ?, ?, 'unused', ?, ?, ?, ?, ?, ?)");
-            $stmt->bind_param("siiissssss", $code, $user_id, $accommodation_id, $code_role_id, $expires_at, $profile_photo_path, $student_first_name, $student_last_name, $recipient, $send_method);
-            
-            if ($stmt->execute()) {
+                                       VALUES (?, ?, ?, ?, 'unused', ?, ?, ?, ?, ?, ?)", false);
+            if ($stmt !== false) {
+                $stmt->bind_param("siiissssss", $code, $user_id, $accommodation_id, $code_role_id, $expires_at, $profile_photo_path, $student_first_name, $student_last_name, $recipient, $send_method);
+            } else {
+                // Fallback: base schema without extended columns
+                $stmt = safeQueryPrepare($conn, "INSERT INTO onboarding_codes 
+                                           (code, created_by, accommodation_id, role_id, status, expires_at) 
+                                           VALUES (?, ?, ?, ?, 'unused', ?)", false);
+                if ($stmt !== false) {
+                    $stmt->bind_param("siiis", $code, $user_id, $accommodation_id, $code_role_id, $expires_at);
+                } else {
+                    $error = 'Database error. Please try again later.';
+                }
+            }
+
+            if (empty($error) && $stmt->execute()) {
                 $generated_codes[] = $code;
                 $success = "Invitation code generated successfully.";
                 
@@ -154,6 +175,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $success .= " Student photo saved for verification.";
                 }
                 
+                if ($photo_warning) {
+                    $success .= ' ' . $photo_warning;
+                }
+                
+                // Compute absolute registration URL for invitation links
+                $_base = (defined('BASE_URL') && BASE_URL !== '')
+                    ? BASE_URL
+                    : ((!empty($_ENV['APP_URL'])) ? $_ENV['APP_URL']
+                        : ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http')
+                            . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost')));
+                $registration_url = rtrim($_base, '/') . '/#student-onboarding';
+
                 // Handle sending of code
                 switch ($send_method) {
                     case 'email':
@@ -161,7 +194,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $subject = "Your " . APP_NAME . " Invitation";
                             $message = "Hello,\n\nYou have been invited to join " . APP_NAME . ".\n\n";
                             $message .= "Your invitation code is: " . $code . "\n\n";
-                            $message .= "Please visit " . BASE_URL . "/register.php to create your account.\n\n";
+                            $message .= "Please visit " . $registration_url . " to create your account.\n\n";
                             $message .= "This code will expire on " . ($expires_at ? date('F j, Y', strtotime($expires_at)) : 'never') . ".\n\n";
                             $message .= "Regards,\n" . APP_NAME . " Team";
                             
@@ -176,12 +209,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         break;
                         
                     case 'sms':
-                        // Send via Twilio SMS
-                        $sms_message = "Your invitation code for " . APP_NAME . " is: " . $code . "\n\n";
-                        $sms_message .= "Please visit " . BASE_URL . "/onboard.php to create your account.\n\n";
-                        $sms_message .= "This code will expire on " . ($expires_at ? date('F j, Y', strtotime($expires_at)) : 'never') . ".";
-                        
-                        if (sendSMS($recipient, $sms_message)) {
+                        // Send via Twilio SMS (uses Content Template if SID configured, else plain text)
+                        $inv_first_name  = !empty($student_first_name) ? $student_first_name : 'Student';
+                        $inv_register_url = $registration_url;
+                        $inv_expiry_date  = $expires_at ? date('F j, Y', strtotime($expires_at)) : 'never';
+
+                        if (sendInvitationCodeMessage($recipient, $inv_first_name, $code, $inv_register_url, $inv_expiry_date)) {
                             $success .= " The code has been sent via SMS to " . $recipient;
                         } else {
                             $error = "Failed to send SMS. The code was generated but you'll need to share it manually.";
@@ -189,19 +222,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         break;
                         
                     case 'whatsapp':
-                        // Send via Twilio WhatsApp
-                        $whatsapp_message = "Your invitation code for " . APP_NAME . " is: *" . $code . "*\n\n";
-                        $whatsapp_message .= "Please visit " . BASE_URL . " to create your account.\n\n";
-                        $whatsapp_message .= "This code will expire on " . ($expires_at ? date('F j, Y', strtotime($expires_at)) : 'never') . ".";
-                        
-                        if (sendWhatsApp($recipient, $whatsapp_message)) {
+                        // Send via Twilio WhatsApp Content Template (no freeform body)
+                        $inv_first_name   = !empty($student_first_name) ? $student_first_name : 'Student';
+                        $inv_register_url = $registration_url;
+                        $inv_expiry_date  = $expires_at ? date('F j, Y', strtotime($expires_at)) : 'never';
+
+                        if (sendInvitationCodeWhatsAppMessage($recipient, $inv_first_name, $code, $inv_register_url, $inv_expiry_date)) {
                             $success .= " The code has been sent via WhatsApp to " . $recipient;
                         } else {
-                            $error = "Failed to send WhatsApp message. The code was generated but you'll need to share it manually.";
+                            $error = "Invitation code generated, but WhatsApp delivery failed. This can happen outside the 24-hour session window — use an approved WhatsApp template or ask the recipient to message your number first, then share the code manually.";
                         }
                         break;
                 }
-            } else {
+            } else if (empty($error)) {
                 $error = 'Failed to generate code: ' . $conn->error;
             }
         }
@@ -332,39 +365,55 @@ require_once '../includes/components/header.php';
                             <div class="form-text">How many days until this invitation expires.</div>
                         </div>
 
-                        <div class="mb-3">
-                            <label class="form-label">Share Invitation Code</label>
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="send_method" id="send_none" value="none" checked>
-                                <label class="form-check-label" for="send_none">
-                                    Don't send - I'll share it myself
-                                </label>
+                        <?php if ($code_role_id === 4): ?>
+                            <!-- Student onboarding: SMS only -->
+                            <div class="alert alert-info py-2 mb-3">
+                                <i class="bi bi-phone me-2"></i>Initial student onboarding codes are sent via SMS only.
                             </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="send_method" id="send_email" value="email">
-                                <label class="form-check-label" for="send_email">
-                                    Send via Email
-                                </label>
+                            <input type="hidden" name="send_method" value="sms">
+                            <div class="mb-3">
+                                <label for="recipient" class="form-label">Student Phone Number *</label>
+                                <input type="text" class="form-control" id="recipient" name="recipient"
+                                       placeholder="+27831234567"
+                                       value="<?= htmlspecialchars($_POST['recipient'] ?? '') ?>"
+                                       required>
+                                <div class="form-text">Enter the student's mobile number with country code.</div>
                             </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="send_method" id="send_sms" value="sms">
-                                <label class="form-check-label" for="send_sms">
-                                    Send via SMS
-                                </label>
+                        <?php else: ?>
+                            <div class="mb-3">
+                                <label class="form-label">Share Invitation Code</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="send_method" id="send_none" value="none" checked>
+                                    <label class="form-check-label" for="send_none">
+                                        Don't send - I'll share it myself
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="send_method" id="send_email" value="email">
+                                    <label class="form-check-label" for="send_email">
+                                        Send via Email
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="send_method" id="send_sms" value="sms">
+                                    <label class="form-check-label" for="send_sms">
+                                        Send via SMS
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="send_method" id="send_whatsapp" value="whatsapp">
+                                    <label class="form-check-label" for="send_whatsapp">
+                                        Send via WhatsApp
+                                    </label>
+                                </div>
                             </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="send_method" id="send_whatsapp" value="whatsapp">
-                                <label class="form-check-label" for="send_whatsapp">
-                                    Send via WhatsApp
-                                </label>
+
+                            <div id="recipient_field" class="mb-3 d-none">
+                                <label for="recipient" class="form-label">Recipient</label>
+                                <input type="text" class="form-control" id="recipient" name="recipient" placeholder="Email, phone number, etc.">
+                                <div class="form-text" id="recipient_help">Enter the recipient's information.</div>
                             </div>
-                        </div>
-                        
-                        <div id="recipient_field" class="mb-3 d-none">
-                            <label for="recipient" class="form-label">Recipient</label>
-                            <input type="text" class="form-control" id="recipient" name="recipient" placeholder="Email, phone number, etc.">
-                            <div class="form-text" id="recipient_help">Enter the recipient's information.</div>
-                        </div>
+                        <?php endif; ?>
 
                         <div class="d-flex justify-content-between">
                             <a href="<?= ($user_role === 'owner') ? BASE_URL . '/managers.php' : BASE_URL . '/codes.php' ?>" class="btn btn-secondary">Cancel</a>
@@ -448,39 +497,41 @@ require_once '../includes/components/header.php';
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Handle showing/hiding the recipient field
-    const sendMethodRadios = document.querySelectorAll('input[name="send_method"]');
+    // Handle showing/hiding the recipient field (non-student flows only)
+    const sendMethodRadios = document.querySelectorAll('input[name="send_method"][type="radio"]');
     const recipientField = document.getElementById('recipient_field');
     const recipientHelp = document.getElementById('recipient_help');
     const recipientInput = document.getElementById('recipient');
     
-    sendMethodRadios.forEach(radio => {
-        radio.addEventListener('change', function() {
-            if (this.value === 'none') {
-                recipientField.classList.add('d-none');
-                recipientInput.required = false;
-            } else {
-                recipientField.classList.remove('d-none');
-                recipientInput.required = true;
-                
-                // Update placeholder and help text
-                switch(this.value) {
-                    case 'email':
-                        recipientInput.placeholder = 'example@email.com';
-                        recipientHelp.textContent = 'Enter the recipient\'s email address.';
-                        break;
-                    case 'sms':
-                        recipientInput.placeholder = '+123456789';
-                        recipientHelp.textContent = 'Enter the recipient\'s phone number with country code.';
-                        break;
-                    case 'whatsapp':
-                        recipientInput.placeholder = '+123456789';
-                        recipientHelp.textContent = 'Enter the recipient\'s WhatsApp number with country code.';
-                        break;
+    if (sendMethodRadios.length > 0 && recipientField && recipientInput) {
+        sendMethodRadios.forEach(radio => {
+            radio.addEventListener('change', function() {
+                if (this.value === 'none') {
+                    recipientField.classList.add('d-none');
+                    recipientInput.required = false;
+                } else {
+                    recipientField.classList.remove('d-none');
+                    recipientInput.required = true;
+                    
+                    // Update placeholder and help text
+                    switch(this.value) {
+                        case 'email':
+                            recipientInput.placeholder = 'example@email.com';
+                            if (recipientHelp) recipientHelp.textContent = 'Enter the recipient\'s email address.';
+                            break;
+                        case 'sms':
+                            recipientInput.placeholder = '+123456789';
+                            if (recipientHelp) recipientHelp.textContent = 'Enter the recipient\'s phone number with country code.';
+                            break;
+                        case 'whatsapp':
+                            recipientInput.placeholder = '+123456789';
+                            if (recipientHelp) recipientHelp.textContent = 'Enter the recipient\'s WhatsApp number with country code.';
+                            break;
+                    }
                 }
-            }
+            });
         });
-    });
+    }
     
     // Copy code to clipboard
     document.querySelectorAll('.copy-code').forEach(button => {
@@ -529,16 +580,19 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         capturePhotoBtn.addEventListener('click', function() {
-            // Set canvas dimensions to match video
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            
+            // Scale proportionally so longest side is max 640px
+            const srcW = video.videoWidth || 640;
+            const srcH = video.videoHeight || 480;
+            const scale = Math.min(1, 640 / Math.max(srcW, srcH));
+            canvas.width  = Math.round(srcW * scale);
+            canvas.height = Math.round(srcH * scale);
+
             // Draw video frame to canvas
             const context = canvas.getContext('2d');
             context.drawImage(video, 0, 0, canvas.width, canvas.height);
             
             // Convert to base64
-            const photoData = canvas.toDataURL('image/jpeg', 0.9);
+            const photoData = canvas.toDataURL('image/jpeg', 0.7);
             photoDataInput.value = photoData;
             
             // Show preview

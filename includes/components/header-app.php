@@ -36,7 +36,7 @@ $bodyClass = $bodyClass ?? '';
         <?= $extraCss ?>
     <?php endif; ?>
     
-    <link rel="icon" type="image/x-icon" href="<?= BASE_URL ?>/assets/img/favicon.ico">
+    <link rel="icon" type="image/svg+xml" href="<?= BASE_URL ?>/assets/img/logo.svg">
 </head>
 <body class="<?= htmlspecialchars($bodyClass, ENT_QUOTES, 'UTF-8') ?>">
     <?php 

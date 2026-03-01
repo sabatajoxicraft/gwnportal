@@ -1,32 +1,32 @@
 /* Custom Colorful Styles for WiFi Management System */
 
 :root {
-	/* Color Theme */
-	--primary-color: #4e54c8;
-	--primary-gradient: linear-gradient(to right, #4e54c8, #8f94fb);
-	--secondary-color: #ff8c00;
-	--secondary-gradient: linear-gradient(to right, #ff8c00, #ffaf4b);
+	/* Joxicraft Branding Color Theme */
+	--primary-color: #800000;
+	--primary-gradient: linear-gradient(135deg, #800000 0%, #a52a2a 100%);
+	--secondary-color: #5e605f;
+	--secondary-gradient: linear-gradient(135deg, #5e605f 0%, #959497 100%);
 	--success-color: #2ecc71;
 	--success-gradient: linear-gradient(to right, #2ecc71, #7bed9f);
 	--info-color: #3498db;
 	--info-gradient: linear-gradient(to right, #3498db, #79d2fb);
-	--warning-color: #f39c12;
-	--warning-gradient: linear-gradient(to right, #f39c12, #ffc048);
+	--warning-color: #808000;
+	--warning-gradient: linear-gradient(135deg, #808000 0%, #bdb76b 100%);
 	--danger-color: #e74c3c;
 	--danger-gradient: linear-gradient(to right, #e74c3c, #ff7675);
-	--dark-color: #2d3436;
-	--dark-gradient: linear-gradient(to right, #2d3436, #636e72);
-	--light-color: #f5f6fa;
-	--light-gradient: linear-gradient(to right, #f5f6fa, #dfe6e9);
-	--admin-color: #9b59b6;
-	--admin-gradient: linear-gradient(to right, #9b59b6, #cd84f1);
-	--owner-color: #00cec9;
-	--owner-gradient: linear-gradient(to right, #00cec9, #55efc4);
-	--manager-color: #0984e3;
-	--manager-gradient: linear-gradient(to right, #0984e3, #74b9ff);
-	--student-color: #26de81;
-	--student-gradient: linear-gradient(to right, #26de81, #78e08f);
-	--body-bg: #f8f9fe;
+	--dark-color: #000000;
+	--dark-gradient: linear-gradient(to right, #000000, #2d3436);
+	--light-color: #f8f9fa;
+	--light-gradient: linear-gradient(135deg, #f8f9fa 0%, #dfe6e9 100%);
+	--admin-color: #800000;
+	--admin-gradient: linear-gradient(135deg, #800000 0%, #5e605f 100%);
+	--owner-color: #5e605f;
+	--owner-gradient: linear-gradient(135deg, #5e605f 0%, #000000 100%);
+	--manager-color: #808000;
+	--manager-gradient: linear-gradient(135deg, #808000 0%, #5e605f 100%);
+	--student-color: #800000;
+	--student-gradient: linear-gradient(135deg, #800000 0%, #808000 100%);
+	--body-bg: #ffffff;
 }
 
 /* General Body Styling */
@@ -37,14 +37,34 @@ body {
 
 /* Navbar Styling */
 .navbar {
-	background-image: var(--primary-gradient) !important;
 	box-shadow: 0 2px 15px rgba(0, 0, 0, 0.1);
 	padding: 0.8rem 1rem;
+}
+
+.navbar.bg-primary,
+.navbar.navbar-dark:not(.bg-white):not(.bg-light) {
+	background-image: var(--primary-gradient) !important;
 }
 
 .navbar-brand {
 	font-weight: 700;
 	letter-spacing: 0.5px;
+	display: flex;
+	align-items: center;
+}
+
+.navbar-brand img {
+	object-fit: contain;
+}
+
+/* Ensure brand text is visible in navbar-light */
+.navbar-light .navbar-brand {
+	color: var(--primary-color) !important;
+}
+
+.footer-logo {
+	filter: brightness(0) invert(1);
+	opacity: 0.9;
 }
 
 .navbar-dark .navbar-nav .nav-link {

@@ -58,7 +58,7 @@ header('X-XSS-Protection: 1; mode=block');
 // Referrer policy - don't leak URLs to external sites
 header('Referrer-Policy: strict-origin-when-cross-origin');
 // Basic Content Security Policy
-header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://cdn.jsdelivr.net; img-src 'self' data: https://api.qrserver.com; frame-src 'self' https://www.google.com https://maps.google.com; child-src 'self' https://www.google.com https://maps.google.com;");
+header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://maps.googleapis.com https://maps.gstatic.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src 'self' https://cdn.jsdelivr.net https://fonts.gstatic.com; connect-src 'self' https://cdn.jsdelivr.net https://maps.googleapis.com https://maps.gstatic.com; img-src 'self' data: https://api.qrserver.com https://maps.googleapis.com https://maps.gstatic.com; frame-src 'self' https://www.google.com https://maps.google.com; child-src 'self' https://www.google.com https://maps.google.com;");
 
 // Session timeout check - only for authenticated users
 if (isset($_SESSION['user_id']) && isset($_SESSION['LAST_ACTIVITY'])) {
@@ -163,8 +163,11 @@ define('TWILIO_PHONE_NUMBER', getenv('TWILIO_PHONE_NUMBER') ?: '');
 define('TWILIO_WHATSAPP_NO', getenv('TWILIO_WHATSAPP_NO') ?: '');
 define('TWILIO_MESSAGING_SERVICE_SID', getenv('TWILIO_MESSAGING_SERVICE_SID') ?: '');
 define('TWILIO_WA_VOUCHER_TEMPLATE_SID', getenv('TWILIO_WA_VOUCHER_TEMPLATE_SID') ?: '');
+define('TWILIO_WA_FREEFORM_TEMPLATE_SID', getenv('TWILIO_WA_FREEFORM_TEMPLATE_SID') ?: '');
 define('TWILIO_SMS_VOUCHER_TEMPLATE_SID', getenv('TWILIO_SMS_VOUCHER_TEMPLATE_SID') ?: '');
 define('TWILIO_SMS_LOGIN_TEMPLATE_SID', getenv('TWILIO_SMS_LOGIN_TEMPLATE_SID') ?: '');
+define('TWILIO_SMS_INVITATION_TEMPLATE_SID', getenv('TWILIO_SMS_INVITATION_TEMPLATE_SID') ?: '');
+define('TWILIO_WA_INVITATION_TEMPLATE_SID', getenv('TWILIO_WA_INVITATION_TEMPLATE_SID') ?: '');
 
 // GWN Cloud API Configuration
 define('GWN_API_URL', getenv('GWN_API_URL') ?: '');
@@ -175,6 +178,9 @@ define('GWN_ALLOWED_DEVICES', getenv('GWN_ALLOWED_DEVICES') ?: '2');
 
 // Python integration
 define('PYTHON_SCRIPT_PATH', getenv('PYTHON_SCRIPT_PATH') ?: (getenv('PYTHON_SCRIPT') ?: ''));
+
+// Google Maps API
+define('GOOGLE_MAPS_API_KEY', getenv('GOOGLE_MAPS_API_KEY') ?: '');
 
 // Microsoft 365 Graph Configuration
 define('M365_GRAPH_ENABLED', getenv('M365_GRAPH_ENABLED') ?: '1');

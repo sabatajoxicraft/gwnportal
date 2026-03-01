@@ -144,11 +144,51 @@ $extraCss = '<style>
     .feature-card:hover .feature-icon {
         transform: scale(1.2);
     }
+    html {
+        scroll-behavior: smooth;
+    }
     .hero-section {
-        background-image: var(--primary-gradient);
-        color: white;
-        padding: 5rem 0;
-        border-radius: 0 0 50% 50% / 10%;
+        position: relative;
+        width: 100%;
+        min-height: 100vh;
+        color: #fff;
+        padding: 6rem 0;
+        display: flex;
+        align-items: center;
+        background: url("assets/img/landing-hero-new.jpg") center center / cover no-repeat;
+        overflow: hidden;
+    }
+    .hero-section::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.3);
+    }
+    .hero-content {
+        position: relative;
+        z-index: 1;
+        max-width: 760px;
+    }
+    .hero-section h1,
+    .hero-section p {
+        text-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+    }
+    .hero-chip {
+        display: inline-flex;
+        align-items: center;
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 999px;
+        padding: 0.35rem 0.9rem;
+        font-weight: 600;
+        font-size: 0.875rem;
+    }
+    .hero-logo {
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.9);
+    }
+    #student-onboarding {
+        scroll-margin-top: 5rem;
     }
     .animated-element {
         animation: fadeInUp 1s ease;
@@ -171,28 +211,24 @@ require_once '../includes/components/header.php';
 
 <div class="hero-section">
     <div class="container">
-        <div class="row align-items-center">
-            <div class="col-md-7 animated-element">
-                <h1 class="display-4 fw-bold">Welcome to <?= APP_NAME ?></h1>
-                <p class="lead fs-4">The unified platform for student accommodation WiFi management</p>
-                <p class="mb-4">Manage accommodations, student onboarding, and WiFi vouchers from one place.</p>
-                <?php if (!isLoggedIn()): ?>
-                    <div>
-                        <a href="<?= BASE_URL ?>/login.php" class="btn btn-light btn-lg me-2">
-                            <i class="bi bi-box-arrow-in-right me-2"></i> Login
-                        </a>
-                        <a href="<?= BASE_URL ?>/contact.php" class="btn btn-outline-light btn-lg">
-                            <i class="bi bi-info-circle me-2"></i> Learn More
-                        </a>
-                    </div>
-                <?php else: ?>
-                    <a href="<?= getDashboardUrl() ?>" class="btn btn-light btn-lg">
-                        <i class="bi bi-speedometer2 me-2"></i> Go to Dashboard
-                    </a>
-                <?php endif; ?>
+        <div class="hero-content animated-element">
+            <div class="hero-chip mb-3">
+                <img src="<?= BASE_URL ?>/assets/img/logo.svg" alt="Joxicraft logo" width="24" height="24" class="hero-logo me-2">
+                Student onboarding made simple
             </div>
-            <div class="col-md-5 d-none d-md-block animated-element" style="animation-delay: 0.3s">
-                <img src="<?= BASE_URL ?>/assets/img/wifi-illustration.svg" alt="WiFi Management" class="img-fluid">
+            <h1 class="display-4 fw-bold">JoxiSphere: The Future of Student WiFi</h1>
+            <p class="lead fs-4">Experience seamless connectivity with our guided onboarding system. Powered by Joxicraft.</p>
+            <p class="mb-4">Start below if you have an onboarding code, or use login and support if you need account help.</p>
+            <div class="d-flex flex-wrap gap-2">
+                <a href="#student-onboarding" class="btn btn-primary btn-lg">
+                    <i class="bi bi-arrow-down-circle me-2"></i> Start Student Onboarding
+                </a>
+                <a href="<?= BASE_URL ?>/login.php" class="btn btn-outline-light btn-lg">
+                    <i class="bi bi-box-arrow-in-right me-2"></i> Login
+                </a>
+                <a href="<?= BASE_URL ?>/contact.php" class="btn btn-outline-light btn-lg">
+                    <i class="bi bi-life-preserver me-2"></i> Support
+                </a>
             </div>
         </div>
     </div>
@@ -235,7 +271,7 @@ require_once '../includes/components/header.php';
 </div>
 
 <!-- Add Onboarding Section -->
-<div class="container my-5">
+<div id="student-onboarding" class="container my-5">
     <div class="row justify-content-center">
         <div class="col-lg-10">
             <div class="card shadow border-0">
@@ -249,6 +285,11 @@ require_once '../includes/components/header.php';
                     <a href="<?= BASE_URL ?>/onboard.php" class="btn btn-lg btn-primary">
                         <i class="bi bi-arrow-right-circle me-2"></i> Start Onboarding Process
                     </a>
+                    <div class="mt-3">
+                        <a href="<?= BASE_URL ?>/onboard.php?self_register=1&step=2" class="btn btn-link text-muted">
+                            No onboarding code received?
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
@@ -265,8 +306,8 @@ require_once '../includes/components/header.php';
         <div class="col-md-4 mb-4 animated-element" style="animation-delay: 0.7s">
             <div class="card feature-card h-100">
                 <div class="card-body text-center p-4">
-                    <div class="text-primary mb-3">
-                        <i class="bi bi-building feature-icon"></i>
+                    <div class="mb-3">
+                        <img src="<?= BASE_URL ?>/assets/img/student-accom.png" alt="Accommodation Management" class="img-fluid mb-3 rounded shadow-sm" style="max-height: 160px; width: 100%; object-fit: cover;">
                     </div>
                     <h4 class="card-title">Accommodation Management</h4>
                     <p class="card-text">Easily manage multiple student accommodations and assign managers to oversee operations.</p>
@@ -276,8 +317,8 @@ require_once '../includes/components/header.php';
         <div class="col-md-4 mb-4 animated-element" style="animation-delay: 0.9s">
             <div class="card feature-card h-100">
                 <div class="card-body text-center p-4">
-                    <div class="text-success mb-3">
-                        <i class="bi bi-people feature-icon"></i>
+                    <div class="mb-3">
+                        <img src="<?= BASE_URL ?>/assets/img/wifi-mgmt.png" alt="Student Onboarding" class="img-fluid mb-3 rounded shadow-sm" style="max-height: 160px; width: 100%; object-fit: cover;">
                     </div>
                     <h4 class="card-title">Student Onboarding</h4>
                     <p class="card-text">Streamlined student registration process with secure onboarding codes and verification.</p>
@@ -287,8 +328,8 @@ require_once '../includes/components/header.php';
         <div class="col-md-4 mb-4 animated-element" style="animation-delay: 1.1s">
             <div class="card feature-card h-100">
                 <div class="card-body text-center p-4">
-                    <div class="text-info mb-3">
-                        <i class="bi bi-wifi feature-icon"></i>
+                    <div class="mb-3">
+                        <img src="<?= BASE_URL ?>/assets/img/voucher-delivery-new.png" alt="WiFi Voucher System" class="img-fluid mb-3 rounded shadow-sm" style="max-height: 160px; width: 100%; object-fit: cover;">
                     </div>
                     <h4 class="card-title">WiFi Voucher System</h4>
                     <p class="card-text">Automated voucher generation and delivery to students via SMS, WhatsApp or email.</p>
