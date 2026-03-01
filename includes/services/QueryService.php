@@ -170,7 +170,23 @@ class QueryService {
         // Owner can see their own accommodations
         if ($userRole === ROLE_OWNER) {
             $stmt = $conn->prepare("
-                SELECT id, name, owner_id
+                SELECT 
+                    id, 
+                    name, 
+                    owner_id,
+                    COALESCE(
+                        NULLIF(CONCAT_WS(', ',
+                            NULLIF(TRIM(address_line1), ''),
+                            NULLIF(TRIM(address_line2), ''),
+                            NULLIF(TRIM(city), ''),
+                            NULLIF(TRIM(province), ''),
+                            NULLIF(TRIM(postal_code), '')
+                        ), ''),
+                        CASE
+                            WHEN NULLIF(TRIM(map_url), '') IS NOT NULL THEN 'Map location available'
+                            ELSE 'Not set'
+                        END
+                    ) AS address
                 FROM accommodations
                 WHERE owner_id = ?
                 ORDER BY name
