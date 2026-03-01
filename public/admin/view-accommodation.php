@@ -31,6 +31,8 @@ if (!$accommodation) {
     redirect(BASE_URL . '/admin/accommodations.php', 'Accommodation not found', 'danger');
 }
 
+$accommodation_name = (string) ($accommodation['name'] ?? $accommodation['NAME'] ?? '');
+
 // Get associated users (managers and students)
 $users_stmt = safeQueryPrepare($conn, "SELECT u.*, r.name as role_name 
                                     FROM users u 
@@ -57,12 +59,12 @@ require_once '../../includes/components/header.php';
         <ol class="breadcrumb">
             <li class="breadcrumb-item"><a href="<?= BASE_URL ?>/admin/dashboard.php">Dashboard</a></li>
             <li class="breadcrumb-item"><a href="<?= BASE_URL ?>/admin/accommodations.php">Accommodations</a></li>
-            <li class="breadcrumb-item active"><?= htmlspecialchars($accommodation['name']) ?></li>
+            <li class="breadcrumb-item active"><?= htmlspecialchars($accommodation_name, ENT_QUOTES, 'UTF-8') ?></li>
         </ol>
     </nav>
     
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2><?= htmlspecialchars($accommodation['name']) ?></h2>
+        <h2><?= htmlspecialchars($accommodation_name, ENT_QUOTES, 'UTF-8') ?></h2>
         <div>
             <a href="edit-accommodation.php?id=<?= $accommodation_id ?>" class="btn btn-primary">
                 <i class="bi bi-pencil"></i> Edit
@@ -83,8 +85,50 @@ require_once '../../includes/components/header.php';
                     <table class="table">
                         <tr>
                             <th>Name:</th>
-                            <td><?= htmlspecialchars($accommodation['name']) ?></td>
+                            <td><?= htmlspecialchars($accommodation_name, ENT_QUOTES, 'UTF-8') ?></td>
                         </tr>
+                        <?php if (!empty($accommodation['address_line1']) || !empty($accommodation['address_line2']) || !empty($accommodation['city']) || !empty($accommodation['province']) || !empty($accommodation['postal_code'])): ?>
+                        <tr>
+                            <th>Address:</th>
+                            <td><?= htmlspecialchars(trim(implode(', ', array_filter([
+                                $accommodation['address_line1'] ?? '',
+                                $accommodation['address_line2'] ?? '',
+                                $accommodation['city'] ?? '',
+                                $accommodation['province'] ?? '',
+                                $accommodation['postal_code'] ?? ''
+                            ]))), ENT_QUOTES, 'UTF-8') ?></td>
+                        </tr>
+                        <?php endif; ?>
+                        <?php if (!empty($accommodation['map_url'])): ?>
+                        <tr>
+                            <th>Map:</th>
+                            <td><a href="<?= htmlspecialchars($accommodation['map_url'], ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer">Open Map</a></td>
+                        </tr>
+                        <?php endif; ?>
+                        <?php if (!empty($accommodation['max_students'])): ?>
+                        <tr>
+                            <th>Maximum Students:</th>
+                            <td><?= (int)$accommodation['max_students'] ?></td>
+                        </tr>
+                        <?php endif; ?>
+                        <?php if (!empty($accommodation['contact_phone'])): ?>
+                        <tr>
+                            <th>Contact Phone:</th>
+                            <td><?= htmlspecialchars($accommodation['contact_phone'], ENT_QUOTES, 'UTF-8') ?></td>
+                        </tr>
+                        <?php endif; ?>
+                        <?php if (!empty($accommodation['contact_email'])): ?>
+                        <tr>
+                            <th>Contact Email:</th>
+                            <td><?= htmlspecialchars($accommodation['contact_email'], ENT_QUOTES, 'UTF-8') ?></td>
+                        </tr>
+                        <?php endif; ?>
+                        <?php if (!empty($accommodation['notes'])): ?>
+                        <tr>
+                            <th>Notes:</th>
+                            <td><?= nl2br(htmlspecialchars($accommodation['notes'], ENT_QUOTES, 'UTF-8')) ?></td>
+                        </tr>
+                        <?php endif; ?>
                         <tr>
                             <th>Owner:</th>
                             <td>

@@ -58,7 +58,7 @@ header('X-XSS-Protection: 1; mode=block');
 // Referrer policy - don't leak URLs to external sites
 header('Referrer-Policy: strict-origin-when-cross-origin');
 // Basic Content Security Policy
-header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://cdn.jsdelivr.net; img-src 'self' data: https://api.qrserver.com;");
+header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://cdn.jsdelivr.net; img-src 'self' data: https://api.qrserver.com; frame-src 'self' https://www.google.com https://maps.google.com; child-src 'self' https://www.google.com https://maps.google.com;");
 
 // Session timeout check - only for authenticated users
 if (isset($_SESSION['user_id']) && isset($_SESSION['LAST_ACTIVITY'])) {
@@ -175,6 +175,13 @@ define('GWN_ALLOWED_DEVICES', getenv('GWN_ALLOWED_DEVICES') ?: '2');
 
 // Python integration
 define('PYTHON_SCRIPT_PATH', getenv('PYTHON_SCRIPT_PATH') ?: (getenv('PYTHON_SCRIPT') ?: ''));
+
+// Microsoft 365 Graph Configuration
+define('M365_GRAPH_ENABLED', getenv('M365_GRAPH_ENABLED') ?: '1');
+define('M365_TENANT_ID', getenv('M365_TENANT_ID') ?: (getenv('TENANT_ID') ?: ''));
+define('M365_CLIENT_ID', getenv('M365_CLIENT_ID') ?: (getenv('CLIENT_ID') ?: ''));
+define('M365_CLIENT_SECRET', getenv('M365_CLIENT_SECRET') ?: (getenv('CLIENT_SECRET') ?: ''));
+define('M365_SENDER_EMAIL', getenv('M365_SENDER_EMAIL') ?: 'system@joxicraft.co.za');
 
 // Path settings
 define('PUBLIC_PATH', __DIR__ . '/../public');

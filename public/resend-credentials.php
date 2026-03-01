@@ -54,14 +54,9 @@ if (!empty($sendNumber)) {
     $sent = sendCredentialsMessage($sendNumber, $student['first_name'], $student['username'], $temp_password);
 } else {
     // Fallback to email
+    $subject = 'WiFi Portal - Login Credentials';
     $message = "Hello {$student['first_name']},\n\nHere are your login details for the WiFi Portal:\n\nUsername: {$student['username']}\nTemporary Password: {$temp_password}\n\nPlease login and change your password immediately.\n\n- WiFi Management Team";
-    $from_email = defined('SYSTEM_EMAIL') ? SYSTEM_EMAIL : 'noreply@kimwifi.co.za';
-    $sent = mail(
-        $student['email'],
-        'WiFi Portal - Login Credentials',
-        $message,
-        'From: ' . $from_email
-    );
+    $sent = sendAppEmail($student['email'], $subject, $message);
     $method = 'Email';
 }
 

@@ -33,12 +33,12 @@ if ($stmt === false) {
 // Get recent activity with normalized timestamp (handles legacy null/zero values)
 $stmt_activity = safeQueryPrepare($conn, "SELECT 
                                     al.*,
-                                    COALESCE(NULLIF(al.timestamp, '0000-00-00 00:00:00'), NOW()) AS activity_time,
+                                    al.timestamp AS activity_time,
                                     CONCAT(u.first_name, ' ', u.last_name) AS user_name,
                                     u.username
                                  FROM activity_log al
                                  LEFT JOIN users u ON al.user_id = u.id
-                                 ORDER BY COALESCE(NULLIF(al.timestamp, '0000-00-00 00:00:00'), NOW()) DESC
+                                 ORDER BY al.timestamp DESC
                                  LIMIT 5");
 if ($stmt_activity === false) {
     $error = "Unable to load recent activity. Please try again later.";
@@ -147,9 +147,6 @@ require_once '../../includes/components/header.php';
                 <div class="list-group list-group-flush">
                     <a href="<?= BASE_URL ?>/admin/create-accommodation.php" class="list-group-item list-group-item-action">
                         <i class="bi bi-building-add me-2"></i> Add New Accommodation
-                    </a>
-                    <a href="<?= BASE_URL ?>/admin/create-owner.php" class="list-group-item list-group-item-action">
-                        <i class="bi bi-person-plus-fill me-2"></i> Add New Owner
                     </a>
                     <a href="<?= BASE_URL ?>/admin/create-user.php" class="list-group-item list-group-item-action">
                         <i class="bi bi-person-plus me-2"></i> Add New User

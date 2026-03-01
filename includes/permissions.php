@@ -575,7 +575,7 @@ function getAccommodationWithOwner($accommodation_id) {
     $accommodation_id = (int)$accommodation_id;
     
     $stmt = safeQueryPrepare($conn, "
-        SELECT a.*, u.first_name, u.last_name, u.email as owner_email
+        SELECT a.*, a.NAME AS name, u.first_name, u.last_name, u.email as owner_email
         FROM accommodations a
         JOIN users u ON a.owner_id = u.id
         WHERE a.id = ?

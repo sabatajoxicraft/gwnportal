@@ -142,6 +142,7 @@ if ($isAdmin) {
 // Set page variables
 $pageTitle = $isAdmin ? "Manage Accommodations" : "My Accommodations";
 $activePage = "accommodations";
+$headerType = 'app';
 
 // Include header
 require_once '../../includes/components/header.php';
@@ -217,11 +218,11 @@ require_once '../../includes/components/header.php';
                                     </td>
                                     <td class="<?= $isAdmin ? '' : 'text-end' ?>">
                                         <div class="btn-group btn-group-sm" role="group">
-                                            <a href="<?= BASE_URL ?>/admin/view-accommodation.php?id=<?= $accommodation['id'] ?>" 
+                                            <a href="<?= BASE_URL ?><?= $isAdmin ? '/admin/view-accommodation.php' : '/view-accommodation.php' ?>?id=<?= $accommodation['id'] ?>" 
                                                class="btn btn-outline-primary" title="View Details">
                                                 <i class="bi bi-eye"></i>
                                             </a>
-                                            <a href="<?= BASE_URL ?>/admin/edit-accommodation.php?id=<?= $accommodation['id'] ?>" 
+                                            <a href="<?= BASE_URL ?><?= $isAdmin ? '/admin/edit-accommodation.php' : '/edit-accommodation.php' ?>?id=<?= $accommodation['id'] ?>" 
                                                class="btn btn-outline-secondary" title="Edit">
                                                 <i class="bi bi-pencil"></i>
                                             </a>

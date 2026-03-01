@@ -97,6 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $firstName = trim($_POST['first_name']);
         $lastName = trim($_POST['last_name']);
         $email = trim($_POST['email']);
+        $confirmEmail = trim($_POST['confirm_email'] ?? '');
         $phone = trim($_POST['phone'] ?? '');
         $whatsappNumber = trim($_POST['whatsapp_number'] ?? '');
         $preferredCommunication = $_POST['preferred_communication'] ?? 'WhatsApp';
@@ -105,8 +106,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         // Validate form data
         if (empty($firstName) || empty($lastName) || empty($email) || 
-            empty($password)) {
+            empty($confirmEmail) || empty($password)) {
             $error = "All required fields must be completed.";
+        } elseif (strtolower($email) !== strtolower($confirmEmail)) {
+            $error = "Email addresses do not match.";
         } elseif ($password !== $confirmPassword) {
             $error = "Passwords do not match.";
         } elseif (strlen($password) < 8) {
@@ -345,6 +348,11 @@ require_once '../includes/components/header.php';
                                 <label for="email" class="form-label">Email Address</label>
                                 <input type="email" class="form-control" id="email" name="email" 
                                     value="<?= htmlspecialchars($_POST['email'] ?? '') ?>" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="confirm_email" class="form-label">Confirm Email Address</label>
+                                <input type="email" class="form-control" id="confirm_email" name="confirm_email" 
+                                    value="<?= htmlspecialchars($_POST['confirm_email'] ?? '') ?>" required>
                             </div>
                             
                             <div class="mb-3">

@@ -104,7 +104,7 @@ if (!empty($types)) {
 $total_pages = ceil($total_users / $items_per_page);
 
 // Get all roles for filter
-$roles_stmt = safeQueryPrepare($conn, "SELECT * FROM roles ORDER BY name");
+$roles_stmt = safeQueryPrepare($conn, "SELECT id, NAME AS name FROM roles ORDER BY NAME");
 $roles_stmt->execute();
 $roles = $roles_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
@@ -137,8 +137,9 @@ require_once '../../includes/components/header.php';
                     <select name="role" id="role" class="form-select">
                         <option value="all" <?= $role_filter === 'all' ? 'selected' : '' ?>>All Roles</option>
                         <?php foreach ($roles as $role): ?>
-                            <option value="<?= $role['name'] ?>" <?= $role_filter === $role['name'] ? 'selected' : '' ?>>
-                                <?= ucfirst($role['name']) ?>
+                            <?php $role_name = (string)($role['name'] ?? $role['NAME'] ?? ''); ?>
+                            <option value="<?= $role_name ?>" <?= $role_filter === $role_name ? 'selected' : '' ?>>
+                                <?= ucfirst($role_name) ?>
                             </option>
                         <?php endforeach; ?>
                     </select>

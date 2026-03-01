@@ -165,7 +165,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $message .= "This code will expire on " . ($expires_at ? date('F j, Y', strtotime($expires_at)) : 'never') . ".\n\n";
                             $message .= "Regards,\n" . APP_NAME . " Team";
                             
-                            if (mail($recipient, $subject, $message)) {
+                            if (sendAppEmail($recipient, $subject, $message)) {
                                 $success .= " The code has been sent to " . $recipient;
                             } else {
                                 $error = "Failed to send email. The code was generated but you'll need to share it manually.";

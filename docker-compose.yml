@@ -25,7 +25,7 @@ services:
     container_name: gwn-portal-app
     restart: unless-stopped
     ports:
-      - "3040:80"
+      - "127.0.0.1:3040:80"
     environment:
       DB_HOST: gwn-db
       DB_USER: ${DB_USER:-gwn_user}
@@ -58,7 +58,7 @@ services:
     container_name: gwn-portal-phpmyadmin
     restart: unless-stopped
     ports:
-      - "3041:80"
+      - "127.0.0.1:3041:80"
     environment:
       PMA_HOST: gwn-db
       PMA_PORT: 3306

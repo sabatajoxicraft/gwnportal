@@ -43,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $conn = getDbConnection();
     
     // Verify the role being created is allowed for this user
-    $roleNameStmt = safeQueryPrepare($conn, "SELECT name FROM roles WHERE id = ?");
+    $roleNameStmt = safeQueryPrepare($conn, "SELECT NAME AS name FROM roles WHERE id = ?");
     $roleNameStmt->bind_param("i", $role_id);
     $roleNameStmt->execute();
     $roleNameResult = $roleNameStmt->get_result()->fetch_assoc();
@@ -125,8 +125,8 @@ if ($userRole === 'admin') {
 $accommodations = $accom_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
 // Get roles for select dropdown - only show roles the user can create
-$rolesQuery = "SELECT id, name FROM roles WHERE name IN ('" . implode("','", $allowedRoles) . "') ORDER BY 
-    CASE name 
+$rolesQuery = "SELECT id, NAME AS name FROM roles WHERE NAME IN ('" . implode("','", $allowedRoles) . "') ORDER BY 
+    CASE NAME 
         WHEN 'owner' THEN 1 
         WHEN 'manager' THEN 2 
         WHEN 'student' THEN 3 
@@ -194,8 +194,9 @@ require_once '../../includes/components/header.php';
                             <select class="form-select" id="role_id" name="role_id" required>
                                 <option value="">-- Select Role --</option>
                                 <?php foreach ($roles as $role): ?>
+                                    <?php $role_name = (string)($role['name'] ?? $role['NAME'] ?? ''); ?>
                                     <option value="<?= $role['id'] ?>" <?= ($_POST['role_id'] ?? '') == $role['id'] ? 'selected' : '' ?>>
-                                        <?= ucfirst($role['name']) ?>
+                                        <?= ucfirst($role_name) ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>

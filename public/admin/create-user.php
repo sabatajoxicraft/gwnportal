@@ -105,9 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $message .= "We recommend changing your password after your first login.\n\n";
                         $message .= "Regards,\n" . APP_NAME . " Admin";
                         
-                        $headers = "From: noreply@" . $_SERVER['SERVER_NAME'] . "\r\n";
-                        
-                        if (mail($email, $subject, $message, $headers)) {
+                        if (sendAppEmail($email, $subject, $message)) {
                             $success = "User created successfully and credentials sent to $email";
                         } else {
                             $success = "User created successfully but failed to send credentials email";
@@ -133,9 +131,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Get all roles for select dropdown
 $conn = getDbConnection();
-$roles_stmt = safeQueryPrepare($conn, "SELECT * FROM roles ORDER BY name");
+$roles_stmt = safeQueryPrepare($conn, "SELECT id, NAME AS name, description, created_at FROM roles ORDER BY NAME");
 $roles_stmt->execute();
 $roles = $roles_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+
+$requested_role = strtolower(trim($_GET['role'] ?? ''));
+$default_role_id = '';
+if ($requested_role !== '') {
+    foreach ($roles as $role) {
+        $role_name = strtolower((string)($role['name'] ?? $role['NAME'] ?? ''));
+        if ($role_name === $requested_role) {
+            $default_role_id = (string)$role['id'];
+            break;
+        }
+    }
+}
+$selected_role_id = $_POST['role_id'] ?? $default_role_id;
 
 // Set page title
 $pageTitle = "Create User";
@@ -222,8 +233,9 @@ require_once '../../includes/components/header.php';
                         <select class="form-select" id="role_id" name="role_id" required>
                             <option value="">-- Select Role --</option>
                             <?php foreach ($roles as $role): ?>
-                                <option value="<?= $role['id'] ?>" <?= ($_POST['role_id'] ?? '') == $role['id'] ? 'selected' : '' ?>>
-                                    <?= ucfirst($role['name']) ?>
+                                <?php $role_name = (string)($role['name'] ?? $role['NAME'] ?? ''); ?>
+                                <option value="<?= $role['id'] ?>" <?= $selected_role_id == $role['id'] ? 'selected' : '' ?>>
+                                    <?= ucfirst($role_name) ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>

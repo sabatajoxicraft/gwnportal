@@ -1124,3 +1124,285 @@ function timeAgo($datetime) {
         return date('M j, Y', $timestamp);
     }
 }
+
+function resolveSenderEmail($preferGraphSender = false) {
+    $m365Sender = defined('M365_SENDER_EMAIL') ? M365_SENDER_EMAIL : '';
+    if ($preferGraphSender && !empty($m365Sender) && filter_var($m365Sender, FILTER_VALIDATE_EMAIL)) {
+        return $m365Sender;
+    }
+
+    // Priority 1 (fallback mail): Valid SMTP_FROM env
+    $smtpFrom = getenv('SMTP_FROM');
+    if ($smtpFrom !== false && !empty($smtpFrom) && filter_var($smtpFrom, FILTER_VALIDATE_EMAIL)) {
+        return $smtpFrom;
+    }
+
+    // Priority 2: Valid M365 sender
+    if (!empty($m365Sender) && filter_var($m365Sender, FILTER_VALIDATE_EMAIL)) {
+        return $m365Sender;
+    }
+
+    // Priority 3: noreply@host from BASE_URL, SERVER_NAME, or localhost
+    $host = 'localhost';
+    if (defined('BASE_URL') && !empty(BASE_URL)) {
+        $parsedHost = parse_url(BASE_URL, PHP_URL_HOST);
+        if ($parsedHost) {
+            $host = $parsedHost;
+        } elseif (!empty($_SERVER['SERVER_NAME'])) {
+            $host = $_SERVER['SERVER_NAME'];
+        }
+    } elseif (!empty($_SERVER['SERVER_NAME'])) {
+        $host = $_SERVER['SERVER_NAME'];
+    }
+
+    // Strip port and leading www
+    $host = preg_replace('/:\d+$/', '', $host);
+    $host = preg_replace('/^www\./i', '', $host);
+
+    return 'noreply@' . $host;
+}
+
+function getGraphToken() {
+    if (empty(M365_TENANT_ID) || empty(M365_CLIENT_ID) || empty(M365_CLIENT_SECRET)) {
+        return null;
+    }
+
+    $tokenUrl = 'https://login.microsoftonline.com/' . M365_TENANT_ID . '/oauth2/v2.0/token';
+    $postData = [
+        'client_id' => M365_CLIENT_ID,
+        'client_secret' => M365_CLIENT_SECRET,
+        'scope' => 'https://graph.microsoft.com/.default',
+        'grant_type' => 'client_credentials'
+    ];
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $tokenUrl);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/x-www-form-urlencoded']);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($response === false || $httpCode !== 200) {
+        error_log("Graph token request failed: HTTP $httpCode");
+        return null;
+    }
+
+    return json_decode($response, true);
+}
+
+function sendGraphEmail($to, $subject, $body, $contentType = 'Text', $sender = null) {
+    if (!$sender) {
+        $sender = resolveSenderEmail(true);
+    }
+
+    $tokenData = getGraphToken();
+    if (!$tokenData || empty($tokenData['access_token'])) {
+        error_log("Graph email failed: No token");
+        return false;
+    }
+
+    $sendMailUrl = 'https://graph.microsoft.com/v1.0/users/' . urlencode($sender) . '/sendMail';
+
+    $email = [
+        'message' => [
+            'subject' => $subject,
+            'body' => [
+                'contentType' => $contentType,
+                'content' => $body
+            ],
+            'toRecipients' => [
+                ['emailAddress' => ['address' => $to]]
+            ]
+        ]
+    ];
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $sendMailUrl);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($email));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: Bearer ' . $tokenData['access_token'],
+        'Content-Type: application/json'
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode === 202) {
+        return true;
+    }
+
+    error_log("Graph email failed: HTTP $httpCode");
+    return false;
+}
+
+function resolveAppEmailUrl($url) {
+    $url = trim((string) $url);
+    if ($url === '') {
+        return '';
+    }
+
+    if (preg_match('/^https?:\/\//i', $url)) {
+        return $url;
+    }
+
+    if ($url[0] === '/') {
+        if (defined('BASE_URL') && !empty(BASE_URL)) {
+            return rtrim((string) BASE_URL, '/') . $url;
+        }
+        $host = $_SERVER['HTTP_HOST'] ?? ($_SERVER['SERVER_NAME'] ?? '');
+        if (!empty($host)) {
+            $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+            return $scheme . '://' . $host . $url;
+        }
+        return $url;
+    }
+
+    if (!preg_match('/^[a-z]+:\/\//i', $url) && preg_match('/^[a-z0-9.-]+\.[a-z]{2,}/i', $url)) {
+        return 'https://' . $url;
+    }
+
+    return $url;
+}
+
+function formatPlainAppEmailBody($message) {
+    $lines = preg_split('/\r\n|\r|\n/', (string) $message);
+    $paragraphLines = [];
+    $credentialRows = [];
+    $actionUrl = '';
+
+    foreach ($lines as $line) {
+        $trimmed = trim((string) $line);
+
+        if ($trimmed === '') {
+            $paragraphLines[] = '';
+            continue;
+        }
+
+        if (preg_match('/^(Username|Password|Temporary Password|Role)\s*:\s*(.+)$/i', $trimmed, $matches)) {
+            $credentialRows[] = [
+                'label' => $matches[1],
+                'value' => $matches[2]
+            ];
+            continue;
+        }
+
+        if (preg_match('/^Your invitation code is:\s*(.+)$/i', $trimmed, $matches)) {
+            $credentialRows[] = [
+                'label' => 'Invitation Code',
+                'value' => $matches[1]
+            ];
+            continue;
+        }
+
+        if (preg_match('/^You can login at\s+(.+)$/i', $trimmed, $matches)) {
+            $actionUrl = resolveAppEmailUrl($matches[1]);
+            continue;
+        }
+
+        if ($actionUrl === '' && preg_match('/^Please visit\s+(.+?)\s+to\s+/i', $trimmed, $matches)) {
+            $actionUrl = resolveAppEmailUrl($matches[1]);
+        }
+
+        $paragraphLines[] = $trimmed;
+    }
+
+    $bodyHtml = '';
+    $currentParagraph = [];
+
+    foreach ($paragraphLines as $line) {
+        if ($line === '') {
+            if (!empty($currentParagraph)) {
+                $bodyHtml .= '<p style="margin:0 0 14px 0;">' . htmlspecialchars(implode(' ', $currentParagraph), ENT_QUOTES, 'UTF-8') . '</p>';
+                $currentParagraph = [];
+            }
+            continue;
+        }
+
+        $currentParagraph[] = $line;
+    }
+
+    if (!empty($currentParagraph)) {
+        $bodyHtml .= '<p style="margin:0 0 14px 0;">' . htmlspecialchars(implode(' ', $currentParagraph), ENT_QUOTES, 'UTF-8') . '</p>';
+    }
+
+    if (!empty($credentialRows)) {
+        $bodyHtml .= '<div style="margin:18px 0;padding:14px;border:1px solid #dbe4ff;background:#f8faff;border-radius:10px;">';
+        $bodyHtml .= '<div style="font-weight:700;color:#1e3a8a;margin-bottom:10px;">Account Details</div>';
+        $bodyHtml .= '<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">';
+        foreach ($credentialRows as $row) {
+            $label = htmlspecialchars((string) $row['label'], ENT_QUOTES, 'UTF-8');
+            $value = htmlspecialchars((string) $row['value'], ENT_QUOTES, 'UTF-8');
+            $bodyHtml .= '<tr>'
+                . '<td style="padding:6px 10px 6px 0;color:#4b5563;width:150px;vertical-align:top;">' . $label . '</td>'
+                . '<td style="padding:6px 0;color:#111827;"><strong>' . $value . '</strong></td>'
+                . '</tr>';
+        }
+        $bodyHtml .= '</table></div>';
+    }
+
+    if ($actionUrl !== '') {
+        $safeActionUrl = htmlspecialchars($actionUrl, ENT_QUOTES, 'UTF-8');
+        $bodyHtml .= '<div style="margin:18px 0 16px 0;">'
+            . '<a href="' . $safeActionUrl . '" style="display:inline-block;background:#0d6efd;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:8px;font-weight:600;">Open Portal</a>'
+            . '</div>'
+            . '<p style="margin:0 0 14px 0;font-size:12px;color:#6b7280;">If the button does not work, copy and paste this link into your browser:<br>' . $safeActionUrl . '</p>';
+    }
+
+    return $bodyHtml;
+}
+
+function wrapAppEmailContent($subject, $bodyHtml) {
+    $appName = defined('APP_NAME') ? (string) APP_NAME : 'System';
+    $safeAppName = htmlspecialchars($appName, ENT_QUOTES, 'UTF-8');
+    $safeSubject = htmlspecialchars((string) $subject, ENT_QUOTES, 'UTF-8');
+    $year = date('Y');
+
+    return '<!doctype html><html><body style="margin:0;padding:24px;background:#f5f7fb;font-family:Arial,sans-serif;">'
+        . '<div style="max-width:640px;margin:0 auto;">'
+        . '<div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">'
+        . '<div style="padding:16px 20px;background:#0d6efd;color:#ffffff;font-size:16px;font-weight:700;">' . $safeAppName . '</div>'
+        . '<div style="padding:20px;">'
+        . '<h2 style="margin:0 0 16px 0;font-size:20px;color:#111827;">' . $safeSubject . '</h2>'
+        . '<div style="font-size:14px;line-height:1.6;color:#1f2937;">' . $bodyHtml . '</div>'
+        . '</div>'
+        . '<div style="padding:14px 20px;border-top:1px solid #e5e7eb;font-size:12px;color:#6b7280;">&copy; ' . $year . ' ' . $safeAppName . '</div>'
+        . '</div>'
+        . '</div>'
+        . '</body></html>';
+}
+
+function sendAppEmail($to, $subject, $message, $isHtml = false) {
+    if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
+        return false;
+    }
+
+    $graphSender = resolveSenderEmail(true);
+    $mailSender = resolveSenderEmail(false);
+    $bodyContent = $isHtml
+        ? (string) $message
+        : formatPlainAppEmailBody($message);
+    $htmlMessage = wrapAppEmailContent($subject, $bodyContent);
+
+    // Try Graph API first if enabled and configured
+    if (M365_GRAPH_ENABLED === '1' && !empty(M365_TENANT_ID) && !empty(M365_CLIENT_ID) && !empty(M365_CLIENT_SECRET)) {
+        if (sendGraphEmail($to, $subject, $htmlMessage, 'HTML', $graphSender)) {
+            return true;
+        }
+    }
+
+    // Fallback to PHP mail()
+    $headers = "MIME-Version: 1.0\r\n";
+    $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
+    $headers .= "From: " . (defined('APP_NAME') ? APP_NAME : 'System') . " <{$mailSender}>\r\n";
+    $headers .= "Reply-To: {$mailSender}\r\n";
+    $headers .= "X-Mailer: PHP/" . phpversion() . "\r\n";
+
+    return @mail($to, $subject, $htmlMessage, $headers, "-f {$mailSender}");
+}

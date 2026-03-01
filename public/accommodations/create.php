@@ -141,7 +141,7 @@ require_once '../../includes/components/header.php';
                         <div class="alert alert-warning">
                             <h5>No owners available</h5>
                             <p>You need to create at least one owner account before you can create an accommodation.</p>
-                            <a href="<?= BASE_URL ?>/admin/create-owner.php" class="btn btn-primary">Create Owner Account</a>
+                            <a href="<?= BASE_URL ?>/admin/create-user.php?role=owner" class="btn btn-primary">Create Owner User</a>
                         </div>
                     <?php else: ?>
                         <form method="post" action="">
