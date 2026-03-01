@@ -305,9 +305,7 @@ require_once '../includes/components/header.php';
 ?>
 
 <div class="container mt-4">
-    <?php if (isset($error)): ?>
-        <div class="alert alert-danger"><?= $error ?></div>
-    <?php endif; ?>
+    <?php require_once '../includes/components/messages.php'; ?>
 
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2><?= $pageTitle ?></h2>
@@ -482,7 +480,7 @@ require_once '../includes/components/header.php';
                     
                     <div class="mb-3">
                         <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="assign_manager" onchange="toggleAccommodationSelect()">
+                            <input class="form-check-input" type="checkbox" id="assign_manager" name="assign_manager" checked onchange="toggleAccommodationSelect()">
                             <label class="form-check-label" for="assign_manager">
                                 Assign to current accommodation
                             </label>
