@@ -100,10 +100,24 @@ jobs:
 
       - name: Execute migration via HTTP
         run: |
-          RESPONSE=$(curl --silent --show-error --fail \
-            "https://student.joxicraft.co.za/${MIGRATION_FILENAME}?token=${MIGRATION_TOKEN}")
-          echo "$RESPONSE" | grep -qi "error" && { echo "Migration failed: error detected"; exit 1; }
-          echo "Migration succeeded."
+          ROOT_STATUS=$(curl --silent --output /tmp/mig_root.txt --write-out "%{http_code}" \
+            "https://student.joxicraft.co.za/${MIGRATION_FILENAME}?token=${MIGRATION_TOKEN}" || true)
+          ROOT_STATUS=${ROOT_STATUS:-000}
+          ROOT_BODY=$(cat /tmp/mig_root.txt 2>/dev/null || true)
+
+          PUB_STATUS=$(curl --silent --output /tmp/mig_pub.txt --write-out "%{http_code}" \
+            "https://student.joxicraft.co.za/public/${MIGRATION_FILENAME}?token=${MIGRATION_TOKEN}" || true)
+          PUB_STATUS=${PUB_STATUS:-000}
+          PUB_BODY=$(cat /tmp/mig_pub.txt 2>/dev/null || true)
+
+          if { [ "$ROOT_STATUS" = "200" ] && ! echo "$ROOT_BODY" | grep -qi "error"; }; then
+            echo "Migration succeeded."
+          elif { [ "$PUB_STATUS" = "200" ] && ! echo "$PUB_BODY" | grep -qi "error"; }; then
+            echo "Migration succeeded."
+          else
+            echo "Migration failed. Status root/public: ${ROOT_STATUS}/${PUB_STATUS}"
+            exit 1
+          fi
 
       - name: Cleanup remote script
         if: always()
