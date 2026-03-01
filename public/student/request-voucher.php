@@ -15,12 +15,24 @@ $studentId = $_SESSION['student_id'] ?? 0;
 
 $conn = getDbConnection();
 
-// Verify student is active
-$stmtStatus = safeQueryPrepare($conn, "SELECT status FROM students WHERE id = ?");
+// Fallback: resolve studentId from user_id if session value is missing or zero
+if (!$studentId && $userId) {
+    $stmtSid = safeQueryPrepare($conn, "SELECT id FROM students WHERE user_id = ?");
+    $stmtSid->bind_param("i", $userId);
+    $stmtSid->execute();
+    $sidRow = $stmtSid->get_result()->fetch_assoc();
+    if ($sidRow) {
+        $studentId = (int)$sidRow['id'];
+        $_SESSION['student_id'] = $studentId;
+    }
+}
+
+// Verify student is active (STATUS column may be uppercase in schema; normalize for comparison)
+$stmtStatus = safeQueryPrepare($conn, "SELECT STATUS AS status FROM students WHERE id = ?");
 $stmtStatus->bind_param("i", $studentId);
 $stmtStatus->execute();
 $studentRow = $stmtStatus->get_result()->fetch_assoc();
-$studentActive = ($studentRow && $studentRow['status'] === 'active');
+$studentActive = ($studentRow && strtolower($studentRow['status'] ?? '') === 'active');
 
 // Current month in both formats for robust matching (legacy data may use "2026-02" format)
 $currentMonth = date('F Y');          // "February 2026"
