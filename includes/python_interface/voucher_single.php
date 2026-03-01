@@ -41,7 +41,7 @@ function sendStudentVoucher($student_id, $month) {
     $voucherService = new VoucherService();
     
     $baseGroupName = $accommodationName . ' - ' . $studentName . ' - ' . $month;
-    $groupName = $baseGroupName;
+    $groupName = date('ymdHis') . ' - ' . $baseGroupName;
     $deviceNum = (int)(defined('GWN_ALLOWED_DEVICES') ? GWN_ALLOWED_DEVICES : 2);
     if ($deviceNum < 1) {
         $deviceNum = 1;
@@ -65,15 +65,16 @@ function sendStudentVoucher($student_id, $month) {
     
     $createPayload = [
         'name'              => $groupName,
-        'vocherNum'         => 1,              // GWN API uses "vocherNum" (their typo)
-        'deviceNum'         => $deviceNum,     // Max devices per voucher (0 = no limit)
-        'expiration'        => $expirationDays, // Required: validity time in days (1-1095)
-        'effectDurationMap' => [               // Required: effect duration (strings!)
+        'vocherNum'         => 1,                // GWN typo key (kept for compatibility)
+        'voucherNum'        => 1,                // Standard key (some tenants require this)
+        'deviceNum'         => (string)$deviceNum, // Send as string to match GWN map style
+        'expiration'        => $expirationDays,   // Required: validity time in days (1-1095)
+        'effectDurationMap' => [                 // Required: effect duration (strings!)
             'd' => (string)$durationDays,
             'h' => '0',
             'm' => '0',
         ],
-        'usageLimitType'    => 0,              // 0 = per voucher, 1 = per client
+        'usageLimitType'    => 0,                // 0 = per voucher, 1 = per client
         'description'       => "Student voucher: $studentName - $month",
     ];
 
@@ -91,7 +92,7 @@ function sendStudentVoucher($student_id, $month) {
 
         // retCode 16014: group name already exists on GWN Cloud.
         // Do not reuse the old group (it may have stale limits). Create a fresh uniquely-named group.
-        $groupName = $baseGroupName . ' - ' . date('YmdHis');
+        $groupName = date('ymdHis') . '-' . substr(sha1((string)microtime(true)), 0, 6) . ' - ' . $baseGroupName;
         $createPayload['name'] = $groupName;
         error_log("sendStudentVoucher: GWN group '{$baseGroupName}' already exists (retCode $retCode). Retrying with unique groupName '{$groupName}'.");
         $createResult = $voucherService->createVoucherGroup($createPayload);
