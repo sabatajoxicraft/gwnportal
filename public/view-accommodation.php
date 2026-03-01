@@ -10,6 +10,25 @@ requireOwnerLogin();
 $owner_id = $_SESSION['user_id'] ?? 0;
 $conn = getDbConnection();
 
+// Handle accommodation switch request
+if (isset($_GET['switch_accommodation'])) {
+    $switch_accommodation_id = (int)$_GET['switch_accommodation'];
+    $stmt_switch = safeQueryPrepare($conn, "SELECT id FROM accommodations WHERE id = ? AND owner_id = ?");
+
+    if ($stmt_switch !== false) {
+        $stmt_switch->bind_param("ii", $switch_accommodation_id, $owner_id);
+        $stmt_switch->execute();
+        $switch_result = $stmt_switch->get_result();
+
+        if ($switch_result->num_rows > 0) {
+            $_SESSION['current_accommodation'] = ['id' => $switch_accommodation_id];
+            redirect(BASE_URL . '/view-accommodation.php?id=' . $switch_accommodation_id);
+        }
+    }
+
+    redirect(BASE_URL . '/accommodations/', 'Accommodation not found or you do not have permission to switch to it.', 'danger');
+}
+
 // Get accommodation ID from query param
 $accommodation_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
@@ -24,7 +43,7 @@ if ($stmt === false) {
     
     // Check if accommodation exists and belongs to this owner
     if ($result->num_rows === 0) {
-        redirect(BASE_URL . '/owner/accommodations.php', 'Accommodation not found or you do not have permission to view it.', 'danger');
+        redirect(BASE_URL . '/accommodations/', 'Accommodation not found or you do not have permission to view it.', 'danger');
     }
     
     $accommodation = $result->fetch_assoc();
