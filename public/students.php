@@ -49,21 +49,21 @@ if (isset($_GET['action']) && isset($_GET['id'])) {
     
     if ($_GET['action'] == 'activate') {
         // Also re-enable the user account (needed when restoring archived students)
-        $lookupStmt = $conn->prepare("SELECT user_id FROM students WHERE id = ?");
+        $lookupStmt = safeQueryPrepare($conn, "SELECT user_id FROM students WHERE id = ?");
         $lookupStmt->bind_param("i", $student_id);
         $lookupStmt->execute();
         $row = $lookupStmt->get_result()->fetch_assoc();
         $lookupStmt->close();
 
-        $conn->prepare("UPDATE students SET status = 'active' WHERE id = ?")->execute([$student_id]);
+        safeQueryPrepare($conn, "UPDATE students SET status = 'active' WHERE id = ?")->execute([$student_id]);
         if ($row) {
-            $conn->prepare("UPDATE users SET status = 'active' WHERE id = ?")->execute([$row['user_id']]);
+            safeQueryPrepare($conn, "UPDATE users SET status = 'active' WHERE id = ?")->execute([$row['user_id']]);
         }
         logActivity($conn, $_SESSION['user_id'], 'activate_student', "Activated student ID {$student_id}", $_SERVER['REMOTE_ADDR']);
         redirect(BASE_URL . '/students.php', 'Student activated successfully.', 'success');
     }
     elseif ($_GET['action'] == 'deactivate') {
-        $stmt = $conn->prepare("UPDATE students SET status = 'inactive' WHERE id = ?");
+        $stmt = safeQueryPrepare($conn, "UPDATE students SET status = 'inactive' WHERE id = ?");
         $stmt->bind_param("i", $student_id);
         $stmt->execute();
         logActivity($conn, $_SESSION['user_id'], 'deactivate_student', "Deactivated student ID {$student_id}", $_SERVER['REMOTE_ADDR']);
@@ -71,7 +71,7 @@ if (isset($_GET['action']) && isset($_GET['id'])) {
     }
     elseif ($_GET['action'] == 'archive') {
         // Get user_id for the student
-        $lookupStmt = $conn->prepare("SELECT user_id FROM students WHERE id = ?");
+        $lookupStmt = safeQueryPrepare($conn, "SELECT user_id FROM students WHERE id = ?");
         $lookupStmt->bind_param("i", $student_id);
         $lookupStmt->execute();
         $studentRow = $lookupStmt->get_result()->fetch_assoc();
@@ -98,13 +98,13 @@ if (isset($_GET['action']) && isset($_GET['id'])) {
             }
 
             // Mark all vouchers as inactive
-            $conn->prepare("UPDATE voucher_logs SET is_active = 0 WHERE user_id = ? AND is_active = 1")
+            safeQueryPrepare($conn, "UPDATE voucher_logs SET is_active = 0 WHERE user_id = ? AND is_active = 1")
                  ->execute([$archiveUserId]);
 
             // Archive: set student status to 'archived' and disable user login
-            $conn->prepare("UPDATE students SET status = 'archived' WHERE id = ?")
+            safeQueryPrepare($conn, "UPDATE students SET status = 'archived' WHERE id = ?")
                  ->execute([$student_id]);
-            $conn->prepare("UPDATE users SET status = 'inactive' WHERE id = ?")
+            safeQueryPrepare($conn, "UPDATE users SET status = 'inactive' WHERE id = ?")
                  ->execute([$archiveUserId]);
 
             logActivity($conn, $_SESSION['user_id'], 'archive_student', "Archived student ID {$student_id}", $_SERVER['REMOTE_ADDR']);
@@ -156,7 +156,7 @@ if ($stmt !== false) {
 }
 
 // Get student stats
-$stmt_stats = $conn->prepare("SELECT 
+$stmt_stats = safeQueryPrepare($conn, "SELECT 
     COUNT(*) as total,
     SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active,
     SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
@@ -323,3 +323,4 @@ require_once '../includes/components/header.php';
     </div>
 
 <?php require_once '../includes/components/footer.php'; ?>
+

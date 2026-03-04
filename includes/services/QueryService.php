@@ -6,7 +6,7 @@
  * This eliminates code duplication and makes queries consistent across the codebase.
  * 
  * Usage: QueryService::getAccommodationDetails($id)
- * Instead of inline: $stmt = $conn->prepare("SELECT ... FROM accommodations WHERE id = ?");
+ * Instead of inline: $stmt = safeQueryPrepare($conn, "SELECT ... FROM accommodations WHERE id = ?");
  */
 
 class QueryService {
@@ -19,7 +19,7 @@ class QueryService {
      * @return array|null Accommodation data or null if not found
      */
     public static function getAccommodationDetails($conn, $accommodationId) {
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             SELECT 
                 a.id,
                 a.name,
@@ -56,7 +56,7 @@ class QueryService {
      * @return array|null User data with role details or null if not found
      */
     public static function getUserWithRole($conn, $userId) {
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             SELECT 
                 u.id,
                 u.username,
@@ -101,7 +101,7 @@ class QueryService {
      * @return array|null User data or null if not found
      */
     public static function getUserByUsername($conn, $username) {
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             SELECT 
                 u.id,
                 u.username,
@@ -152,7 +152,7 @@ class QueryService {
 
         // Admin can see all accommodations
         if ($userRole === ROLE_ADMIN) {
-            $stmt = $conn->prepare("
+            $stmt = safeQueryPrepare($conn, "
                 SELECT id, name, owner_id
                 FROM accommodations
                 ORDER BY name
@@ -169,7 +169,7 @@ class QueryService {
 
         // Owner can see their own accommodations
         if ($userRole === ROLE_OWNER) {
-            $stmt = $conn->prepare("
+            $stmt = safeQueryPrepare($conn, "
                 SELECT 
                     id, 
                     name, 
@@ -204,7 +204,7 @@ class QueryService {
 
         // Manager can see assigned accommodations
         if ($userRole === ROLE_MANAGER) {
-            $stmt = $conn->prepare("
+            $stmt = safeQueryPrepare($conn, "
                 SELECT DISTINCT a.id, a.name, a.owner_id
                 FROM accommodations a
                 INNER JOIN user_accommodation ua ON a.id = ua.accommodation_id
@@ -224,7 +224,7 @@ class QueryService {
 
         // Student can see their assigned accommodation
         if ($userRole === ROLE_STUDENT) {
-            $stmt = $conn->prepare("
+            $stmt = safeQueryPrepare($conn, "
                 SELECT a.id, a.name, a.owner_id
                 FROM accommodations a
                 INNER JOIN students s ON a.id = s.accommodation_id
@@ -292,7 +292,7 @@ class QueryService {
 
         $query .= " ORDER BY s.room_number, u.last_name";
 
-        $stmt = $conn->prepare($query);
+        $stmt = safeQueryPrepare($conn, $query);
         if (!$stmt) {
             error_log("QueryService::getAccommodationStudents - Prepare error: " . $conn->error);
             return [];
@@ -320,7 +320,7 @@ class QueryService {
      * @return array|null Student data or null if not found
      */
     public static function getStudentInfo($conn, $studentUserId) {
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             SELECT 
                 s.id,
                 s.user_id,
@@ -413,7 +413,7 @@ class QueryService {
         $params[] = $offset;
         $types .= "ii";
 
-        $stmt = $conn->prepare($query);
+        $stmt = safeQueryPrepare($conn, $query);
         if (!$stmt) {
             error_log("QueryService::searchUsers - Prepare error: " . $conn->error);
             return [];
@@ -463,7 +463,7 @@ class QueryService {
             $types .= "ssss";
         }
 
-        $stmt = $conn->prepare($query);
+        $stmt = safeQueryPrepare($conn, $query);
         if (!$stmt) {
             error_log("QueryService::countSearchResults - Prepare error: " . $conn->error);
             return 0;
@@ -489,7 +489,7 @@ class QueryService {
      * @return array|null Code data or null if not found
      */
     public static function getOnboardingCode($conn, $code) {
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             SELECT 
                 oc.id,
                 oc.code,
@@ -529,4 +529,3 @@ class QueryService {
 
 }
 
-?>

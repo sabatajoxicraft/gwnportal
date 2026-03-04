@@ -32,4 +32,3 @@ function executePythonCommand($command, $params = []) {
         'return_code' => $return_var
     ];
 }
-?>

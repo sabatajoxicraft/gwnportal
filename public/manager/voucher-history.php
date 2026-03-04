@@ -80,7 +80,7 @@ $count_sql = "SELECT COUNT(*) as total
               JOIN users u ON vl.user_id = u.id
               JOIN students s ON u.id = s.user_id
               WHERE $where_sql";
-$count_stmt = $conn->prepare($count_sql);
+$count_stmt = safeQueryPrepare($conn, $count_sql);
 $count_stmt->bind_param($param_types, ...$params);
 $count_stmt->execute();
 $total_records = $count_stmt->get_result()->fetch_assoc()['total'];
@@ -96,7 +96,7 @@ $sql = "SELECT vl.*, u.first_name, u.last_name, u.email,
         ORDER BY $sort_column $sort_order
         LIMIT ? OFFSET ?";
 
-$stmt = $conn->prepare($sql);
+$stmt = safeQueryPrepare($conn, $sql);
 $params[] = $per_page;
 $params[] = $offset;
 $param_types .= "ii";
@@ -110,7 +110,7 @@ $months_sql = "SELECT DISTINCT voucher_month FROM voucher_logs
                JOIN students s ON u.id = s.user_id
                WHERE s.accommodation_id = ?
                ORDER BY voucher_month DESC";
-$months_stmt = $conn->prepare($months_sql);
+$months_stmt = safeQueryPrepare($conn, $months_sql);
 $months_stmt->bind_param("i", $accommodation_id);
 $months_stmt->execute();
 $available_months = $months_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -437,3 +437,4 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <?php require_once '../../includes/components/footer.php'; ?>
+

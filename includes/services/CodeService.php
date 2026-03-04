@@ -34,7 +34,7 @@ class CodeService {
 
         $expirationDate = date('Y-m-d H:i:s', strtotime("+$expirationDays days"));
 
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             INSERT INTO onboarding_codes (
                 code, created_by, accommodation_id, role_id, expires_at, status
             ) VALUES (?, ?, ?, ?, ?, 'unused')
@@ -99,7 +99,7 @@ class CodeService {
         }
 
         // Mark code as used
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             UPDATE onboarding_codes
             SET status = 'used', used_by = ?, used_at = NOW()
             WHERE code = ?
@@ -166,7 +166,7 @@ class CodeService {
             return false;
         }
 
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             UPDATE onboarding_codes
             SET status = 'expired'
             WHERE id = ? AND status = 'unused'
@@ -226,7 +226,7 @@ class CodeService {
 
         $query .= " ORDER BY oc.created_at DESC";
 
-        $stmt = $conn->prepare($query);
+        $stmt = safeQueryPrepare($conn, $query);
         if (!$stmt) {
             error_log("CodeService::getAccommodationCodes - Prepare error: " . $conn->error);
             return [];
@@ -249,7 +249,7 @@ class CodeService {
      * @return int Number of deleted codes
      */
     public static function cleanupExpiredCodes($conn, $daysOld = 30) {
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             DELETE FROM onboarding_codes
             WHERE status = 'expired'
             AND expires_at < DATE_SUB(NOW(), INTERVAL ? DAY)
@@ -289,7 +289,7 @@ class CodeService {
             $code = self::generateCodeString();
 
             // Check if code already exists
-            $stmt = $conn->prepare("SELECT id FROM onboarding_codes WHERE code = ?");
+            $stmt = safeQueryPrepare($conn, "SELECT id FROM onboarding_codes WHERE code = ?");
             if (!$stmt) {
                 continue;
             }
@@ -335,4 +335,3 @@ class CodeService {
 
 }
 
-?>

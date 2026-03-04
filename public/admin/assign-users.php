@@ -13,7 +13,7 @@ if ($accommodation_id <= 0) {
 }
 
 // Get accommodation details
-$stmt = $conn->prepare("SELECT * FROM accommodations WHERE id = ?");
+$stmt = safeQueryPrepare($conn, "SELECT * FROM accommodations WHERE id = ?");
 $stmt->bind_param("i", $accommodation_id);
 $stmt->execute();
 $accommodation = $stmt->get_result()->fetch_assoc();
@@ -34,23 +34,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'assign') {
         // Check if already assigned
-        $check = $conn->prepare("SELECT 1 FROM user_accommodation WHERE user_id = ? AND accommodation_id = ?");
+        $check = safeQueryPrepare($conn, "SELECT 1 FROM user_accommodation WHERE user_id = ? AND accommodation_id = ?");
         $check->bind_param("ii", $user_id, $accommodation_id);
         $check->execute();
         if ($check->get_result()->num_rows > 0) {
             redirect(BASE_URL . "/admin/assign-users.php?id={$accommodation_id}", 'User is already assigned to this accommodation.', 'warning');
         }
 
-        $ins = $conn->prepare("INSERT INTO user_accommodation (user_id, accommodation_id) VALUES (?, ?)");
+        $ins = safeQueryPrepare($conn, "INSERT INTO user_accommodation (user_id, accommodation_id) VALUES (?, ?)");
         $ins->bind_param("ii", $user_id, $accommodation_id);
         if ($ins->execute()) {
             // If student, also update students.accommodation_id
-            $roleCheck = $conn->prepare("SELECT r.name FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = ?");
+            $roleCheck = safeQueryPrepare($conn, "SELECT r.name FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = ?");
             $roleCheck->bind_param("i", $user_id);
             $roleCheck->execute();
             $roleRow = $roleCheck->get_result()->fetch_assoc();
             if ($roleRow && $roleRow['name'] === 'student') {
-                $conn->prepare("UPDATE students SET accommodation_id = ? WHERE user_id = ?")->execute([$accommodation_id, $user_id]);
+                safeQueryPrepare($conn, "UPDATE students SET accommodation_id = ? WHERE user_id = ?")->execute([$accommodation_id, $user_id]);
             }
             logActivity($conn, $_SESSION['user_id'], 'assign_user', "Assigned user ID {$user_id} to accommodation '{$accommodation['name']}' (ID {$accommodation_id})", $_SERVER['REMOTE_ADDR']);
             redirect(BASE_URL . "/admin/assign-users.php?id={$accommodation_id}", 'User assigned successfully.', 'success');
@@ -59,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
     } elseif ($action === 'remove') {
-        $del = $conn->prepare("DELETE FROM user_accommodation WHERE user_id = ? AND accommodation_id = ?");
+        $del = safeQueryPrepare($conn, "DELETE FROM user_accommodation WHERE user_id = ? AND accommodation_id = ?");
         $del->bind_param("ii", $user_id, $accommodation_id);
         if ($del->execute()) {
             logActivity($conn, $_SESSION['user_id'], 'remove_user_assignment', "Removed user ID {$user_id} from accommodation '{$accommodation['name']}' (ID {$accommodation_id})", $_SERVER['REMOTE_ADDR']);
@@ -71,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Get currently assigned users
-$assigned = $conn->prepare(
+$assigned = safeQueryPrepare($conn, 
     "SELECT u.id, u.first_name, u.last_name, u.email, u.username, r.name as role_name
      FROM user_accommodation ua
      JOIN users u ON ua.user_id = u.id
@@ -185,3 +185,4 @@ require_once '../../includes/components/header.php';
 </div>
 
 <?php require_once '../../includes/components/footer.php'; ?>
+

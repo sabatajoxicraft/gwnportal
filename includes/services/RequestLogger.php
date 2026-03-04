@@ -43,7 +43,7 @@ class RequestLogger {
 
         $contextJson = json_encode($context);
 
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             INSERT INTO activity_logs 
             (user_id, action, entity_type, details, ip_address)
             VALUES (?, ?, 'page_view', ?, ?)
@@ -95,7 +95,7 @@ class RequestLogger {
         $executionTime = self::getExecutionTime();
         $ipAddress = self::getClientIpAddress();
 
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             INSERT INTO activity_logs 
             (user_id, action, entity_type, details, ip_address)
             VALUES (?, ?, 'api_call', ?, ?)
@@ -141,7 +141,7 @@ class RequestLogger {
         }
 
         // Don't log query text for security
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             INSERT INTO activity_logs 
             (user_id, action, entity_type, details)
             VALUES (?, ?, 'database_query', ?)
@@ -346,4 +346,3 @@ class RequestLogger {
 
 }
 
-?>

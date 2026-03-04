@@ -35,4 +35,3 @@ function csrfField() {
     $token = getCsrfToken();
     return '<input type="hidden" name="csrf_token" value="' . htmlspecialchars($token) . '">';
 }
-?>

@@ -1,6 +1,8 @@
 # Environment Variables (SECRETS - NEVER commit)
 .env
 .env.local
+.env.development
+.env.production
 .env.*.local
 
 # OS Files

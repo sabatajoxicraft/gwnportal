@@ -26,7 +26,7 @@ class AccommodationService {
             return false;
         }
 
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             INSERT INTO accommodations (name, owner_id)
             VALUES (?, ?)
         ");
@@ -89,7 +89,7 @@ class AccommodationService {
         $params[] = $accommodationId;
         $types .= "i";
 
-        $stmt = $conn->prepare($query);
+        $stmt = safeQueryPrepare($conn, $query);
         if (!$stmt) {
             error_log("AccommodationService::updateAccommodation - Prepare error: " . $conn->error);
             return false;
@@ -119,7 +119,7 @@ class AccommodationService {
             return false;
         }
 
-        $stmt = $conn->prepare("DELETE FROM accommodations WHERE id = ?");
+        $stmt = safeQueryPrepare($conn, "DELETE FROM accommodations WHERE id = ?");
 
         if (!$stmt) {
             error_log("AccommodationService::deleteAccommodation - Prepare error: " . $conn->error);
@@ -162,7 +162,7 @@ class AccommodationService {
             return false;
         }
 
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             INSERT INTO user_accommodation (user_id, accommodation_id)
             VALUES (?, ?)
             ON DUPLICATE KEY UPDATE user_id=user_id
@@ -198,7 +198,7 @@ class AccommodationService {
             return false;
         }
 
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             DELETE FROM user_accommodation
             WHERE user_id = ? AND accommodation_id = ?
         ");
@@ -232,7 +232,7 @@ class AccommodationService {
             return [];
         }
 
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             SELECT 
                 u.id,
                 u.username,
@@ -272,7 +272,7 @@ class AccommodationService {
             return false;
         }
 
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             SELECT id FROM accommodations
             WHERE id = ? AND owner_id = ?
         ");
@@ -304,7 +304,7 @@ class AccommodationService {
             return false;
         }
 
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             SELECT id FROM user_accommodation
             WHERE user_id = ? AND accommodation_id = ?
         ");
@@ -335,7 +335,7 @@ class AccommodationService {
             return null;
         }
 
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             SELECT 
                 a.id,
                 a.name,
@@ -363,4 +363,3 @@ class AccommodationService {
 
 }
 
-?>

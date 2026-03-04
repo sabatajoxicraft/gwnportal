@@ -12,7 +12,7 @@ $conn = getDbConnection();
 $student_id = $_GET['student_id'] ?? ($_GET['id'] ?? 0);
 
 // Verify student belongs to this manager and fetch user details
-$stmt = $conn->prepare("SELECT s.id, s.status, s.created_at, s.user_id, u.first_name, u.last_name, u.email, u.phone_number, u.whatsapp_number, u.preferred_communication
+$stmt = safeQueryPrepare($conn, "SELECT s.id, s.status, s.created_at, s.user_id, u.first_name, u.last_name, u.email, u.phone_number, u.whatsapp_number, u.preferred_communication
                         FROM students s
                         JOIN users u ON s.user_id = u.id
                         WHERE s.id = ? AND s.accommodation_id = ?");
@@ -27,7 +27,7 @@ if ($result->num_rows === 0) {
 $student = $result->fetch_assoc();
 
 // Get voucher history
-$stmt_vouchers = $conn->prepare("SELECT * FROM voucher_logs WHERE user_id = ? ORDER BY sent_at DESC");
+$stmt_vouchers = safeQueryPrepare($conn, "SELECT * FROM voucher_logs WHERE user_id = ? ORDER BY sent_at DESC");
 $stmt_vouchers->bind_param("i", $student['user_id']);
 $stmt_vouchers->execute();
 $vouchers = $stmt_vouchers->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -758,3 +758,4 @@ function getDeviceEmoji($deviceType, $os = '', $manufacturer = '') {
 
 require_once '../includes/components/footer.php'; 
 ?>
+

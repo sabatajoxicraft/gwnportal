@@ -42,4 +42,3 @@ function getDbConnection() {
 
 // Establish initial connection
 $conn = getDbConnection();
-?>

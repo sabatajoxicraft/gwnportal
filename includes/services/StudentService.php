@@ -37,7 +37,7 @@ class StudentService {
 
         $status = 'pending';
 
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             INSERT INTO students (user_id, accommodation_id, room_number, status)
             VALUES (?, ?, ?, ?)
         ");
@@ -77,7 +77,7 @@ class StudentService {
             return null;
         }
 
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             SELECT id, user_id, accommodation_id, room_number, status, created_at, updated_at
             FROM students
             WHERE user_id = ?
@@ -110,7 +110,7 @@ class StudentService {
             return false;
         }
 
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             UPDATE students
             SET room_number = ?
             WHERE user_id = ?
@@ -148,7 +148,7 @@ class StudentService {
             return false;
         }
 
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             UPDATE students
             SET status = ?
             WHERE user_id = ?
@@ -216,7 +216,7 @@ class StudentService {
             return false;
         }
 
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             SELECT id FROM students WHERE user_id = ?
         ");
 
@@ -246,7 +246,7 @@ class StudentService {
             return false;
         }
 
-        $stmt = $conn->prepare("DELETE FROM students WHERE user_id = ?");
+        $stmt = safeQueryPrepare($conn, "DELETE FROM students WHERE user_id = ?");
 
         if (!$stmt) {
             error_log("StudentService::unregisterStudent - Prepare error: " . $conn->error);
@@ -288,4 +288,3 @@ class StudentService {
 
 }
 
-?>

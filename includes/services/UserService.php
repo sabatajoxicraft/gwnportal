@@ -39,7 +39,7 @@ class UserService {
         $whatsappNumber = $userData['whatsapp_number'] ?? null;
         $preferredCommunication = $userData['preferred_communication'] ?? 'SMS';
 
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             INSERT INTO users (
                 username, password, email, first_name, last_name,
                 id_number, phone_number, whatsapp_number, preferred_communication,
@@ -122,7 +122,7 @@ class UserService {
         $params[] = $userId;
         $types .= "i";
 
-        $stmt = $conn->prepare($query);
+        $stmt = safeQueryPrepare($conn, $query);
         if (!$stmt) {
             error_log("UserService::updateUser - Prepare error: " . $conn->error);
             return false;
@@ -157,7 +157,7 @@ class UserService {
         $hashedPassword = password_hash($newPassword, PASSWORD_BCRYPT);
         $resetFlag = $requireReset ? 0 : 0; // After change, reset not required
 
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             UPDATE users
             SET password = ?, password_reset_required = ?
             WHERE id = ?
@@ -209,7 +209,7 @@ class UserService {
         }
 
         // Query user by username OR email
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             SELECT 
                 u.id,
                 u.username,
@@ -275,7 +275,7 @@ class UserService {
             return false;
         }
 
-        $stmt = $conn->prepare("DELETE FROM users WHERE id = ?");
+        $stmt = safeQueryPrepare($conn, "DELETE FROM users WHERE id = ?");
 
         if (!$stmt) {
             error_log("UserService::deleteUser - Prepare error: " . $conn->error);
@@ -313,7 +313,7 @@ class UserService {
             $types .= "i";
         }
 
-        $stmt = $conn->prepare($query);
+        $stmt = safeQueryPrepare($conn, $query);
         if (!$stmt) {
             return false;
         }
@@ -346,7 +346,7 @@ class UserService {
             $types .= "i";
         }
 
-        $stmt = $conn->prepare($query);
+        $stmt = safeQueryPrepare($conn, $query);
         if (!$stmt) {
             return false;
         }
@@ -375,7 +375,7 @@ class UserService {
             return false;
         }
 
-        $stmt = $conn->prepare("UPDATE users SET status = ? WHERE id = ?");
+        $stmt = safeQueryPrepare($conn, "UPDATE users SET status = ? WHERE id = ?");
 
         if (!$stmt) {
             error_log("UserService::setStatus - Prepare error: " . $conn->error);
@@ -409,7 +409,7 @@ class UserService {
 
         $flag = $required ? 1 : 0;
 
-        $stmt = $conn->prepare("UPDATE users SET password_reset_required = ? WHERE id = ?");
+        $stmt = safeQueryPrepare($conn, "UPDATE users SET password_reset_required = ? WHERE id = ?");
 
         if (!$stmt) {
             error_log("UserService::requirePasswordReset - Prepare error: " . $conn->error);
@@ -430,4 +430,3 @@ class UserService {
 
 }
 
-?>

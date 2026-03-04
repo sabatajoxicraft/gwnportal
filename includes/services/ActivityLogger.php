@@ -40,7 +40,7 @@ class ActivityLogger {
         $timestamp = date('Y-m-d H:i:s');
 
         $conn = self::getConn();
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             INSERT INTO activity_log (user_id, action, details, ip_address, timestamp)
             VALUES (?, ?, ?, ?, ?)
         ");
@@ -168,7 +168,7 @@ class ActivityLogger {
     public static function getActivityLog($userId, $limit = 50, $offset = 0) {
         $conn = self::getConn();
         
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             SELECT 
                 id,
                 user_id,
@@ -214,7 +214,7 @@ class ActivityLogger {
         $conn = self::getConn();
         
         // Filter activity logs by users assigned to this accommodation (exclude system logs with NULL user_id)
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             SELECT 
                 al.id,
                 al.user_id,
@@ -305,7 +305,7 @@ class ActivityLogger {
         $params[] = $offset;
         $types .= "ii";
 
-        $stmt = $conn->prepare($query);
+        $stmt = safeQueryPrepare($conn, $query);
         if (!$stmt) {
             error_log("ActivityLogger::getAllActivityLogs - Prepare error: " . $conn->error);
             return [];
@@ -352,7 +352,7 @@ class ActivityLogger {
     public static function clearOldLogs($daysToKeep = 90) {
         $conn = self::getConn();
         
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             DELETE FROM activity_log
             WHERE timestamp < DATE_SUB(NOW(), INTERVAL ? DAY)
         ");
@@ -378,4 +378,3 @@ class ActivityLogger {
 
 }
 
-?>

@@ -19,7 +19,7 @@ if (isset($_GET['format']) && $_GET['format'] == 'csv') {
            FROM students s 
            JOIN users u ON s.user_id = u.id
            WHERE s.accommodation_id = ?";
-    $stmt = $conn->prepare($sql);
+    $stmt = safeQueryPrepare($conn, $sql);
     $stmt->bind_param("i", $manager_id);
     $stmt->execute();
     $result = $stmt->get_result();
@@ -67,7 +67,7 @@ if (isset($_GET['format']) && $_GET['format'] == 'csv') {
 
 // Get student count
 $sql_count = "SELECT COUNT(*) as count FROM students WHERE accommodation_id = ?";
-$stmt_count = $conn->prepare($sql_count);
+$stmt_count = safeQueryPrepare($conn, $sql_count);
 $stmt_count->bind_param("i", $manager_id);
 $stmt_count->execute();
 $student_count = $stmt_count->get_result()->fetch_assoc()['count'];
@@ -78,7 +78,7 @@ $sql_status = "SELECT
     SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
     SUM(CASE WHEN status = 'inactive' THEN 1 ELSE 0 END) as inactive
     FROM students WHERE accommodation_id = ?";
-$stmt_status = $conn->prepare($sql_status);
+$stmt_status = safeQueryPrepare($conn, $sql_status);
 $stmt_status->bind_param("i", $manager_id);
 $stmt_status->execute();
 $status_counts = $stmt_status->get_result()->fetch_assoc();
@@ -160,3 +160,4 @@ require_once '../includes/components/header.php';
     </div>
 
 <?php require_once '../includes/components/footer.php'; ?>
+

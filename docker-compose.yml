@@ -27,24 +27,9 @@ services:
     ports:
       - "127.0.0.1:3040:80"
     environment:
+      # Only DB_HOST needs a Docker override (container network name)
+      # All other vars load from .env.development via the env-loader
       DB_HOST: gwn-db
-      DB_USER: ${DB_USER:-gwn_user}
-      DB_PASS: ${DB_PASSWORD:-gwn_password}
-      DB_PASSWORD: ${DB_PASSWORD:-gwn_password}
-      DB_NAME: gwn_wifi_system
-      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
-      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
-      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER:-}
-      TWILIO_WHATSAPP_NO: ${TWILIO_WHATSAPP_NO:-}
-      TWILIO_MESSAGING_SERVICE_SID: ${TWILIO_MESSAGING_SERVICE_SID:-}
-      TWILIO_WA_VOUCHER_TEMPLATE_SID: ${TWILIO_WA_VOUCHER_TEMPLATE_SID:-}
-      TWILIO_SMS_VOUCHER_TEMPLATE_SID: ${TWILIO_SMS_VOUCHER_TEMPLATE_SID:-}
-      TWILIO_SMS_LOGIN_TEMPLATE_SID: ${TWILIO_SMS_LOGIN_TEMPLATE_SID:-}
-      GWN_API_URL: ${GWN_API_URL:-}
-      GWN_APP_ID: ${GWN_APP_ID:-}
-      GWN_SECRET_KEY: ${GWN_SECRET_KEY:-}
-      GWN_NETWORK_ID: ${GWN_NETWORK_ID:-}
-      GWN_ALLOWED_DEVICES: ${GWN_ALLOWED_DEVICES:-2}
     depends_on:
       gwn-db:
         condition: service_healthy

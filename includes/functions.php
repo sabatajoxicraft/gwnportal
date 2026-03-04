@@ -237,8 +237,9 @@ function safeQueryPrepare($conn, $sql, $debug = true) {
         $prepareError = "(" . $e->getCode() . ") " . $e->getMessage();
         error_log("Database exception in SQL: $sql - " . $prepareError);
     }
-    
+
     if ($stmt === false) {
+        $stmt = new DummyStatement();
         // Log the error regardless
         $dbError = $prepareError !== '' ? $prepareError : "(" . $conn->errno . ") " . $conn->error;
         error_log("Database error in SQL: $sql - " . $dbError);
@@ -260,8 +261,8 @@ function safeQueryPrepare($conn, $sql, $debug = true) {
             ";
         }
         
-        // Return false instead of showing an error message
-        return false;
+        // Return the DummyStatement so ->bind_param() calls won't fatal
+        return $stmt;
     }
     
     return $stmt;
@@ -744,7 +745,7 @@ function revokeVoucher($voucher_id, $reason, $revoked_by_user_id) {
                 revoke_reason = ?
             WHERE id = ? AND is_active = 1";
     
-    $stmt = $conn->prepare($sql);
+    $stmt = safeQueryPrepare($conn, $sql);
     $stmt->bind_param("isi", $revoked_by_user_id, $reason, $voucher_id);
     
     return $stmt->execute() && $stmt->affected_rows > 0;
@@ -1222,3 +1223,28 @@ function sendAppEmail($to, $subject, $message, $isHtml = false) {
 
     return @mail($to, $subject, $htmlMessage, $headers, "-f {$mailSender}");
 }
+
+/**
+ * Dummy Statement class
+ */
+class DummyStatement {
+    public $error = 'Dummy statement execution';
+    public $errno = -1;
+    public $insert_id = 0;
+    public $affected_rows = 0;
+    
+    public function bind_param(...$args) { return true; }
+    public function execute() { return false; }
+    public function get_result() { return new DummyResult(); }
+    public function fetch() { return false; }
+    public function close() { return true; }
+}
+
+class DummyResult {
+    public $num_rows = 0;
+    public function fetch_assoc() { return null; }
+    public function fetch_all() { return []; }
+    public function fetch_object() { return null; }
+    public function free() { return true; }
+}
+

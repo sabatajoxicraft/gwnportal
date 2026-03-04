@@ -13,7 +13,7 @@ $conn = getDbConnection();
 $student_id = $_GET['id'] ?? 0;
 
 // Verify student belongs to this manager and fetch details
-$stmt = $conn->prepare("SELECT s.id, s.status, s.user_id, u.first_name, u.last_name, u.email, u.phone_number, u.whatsapp_number, u.preferred_communication
+$stmt = safeQueryPrepare($conn, "SELECT s.id, s.status, s.user_id, u.first_name, u.last_name, u.email, u.phone_number, u.whatsapp_number, u.preferred_communication
                         FROM students s
                         JOIN users u ON s.user_id = u.id
                         WHERE s.id = ? AND s.accommodation_id = ?");
@@ -43,15 +43,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Student must be active to receive vouchers. Please activate the student first.';
     } else {
         // Send voucher to student
-        $sent = sendStudentVoucher($student_id, $month);
+        require_once '../includes/services/VoucherService.php';
+        $voucherService = new VoucherService();
+        $voucher_result = $voucherService->sendStudentVoucher($student_id, $month);
         
-        if ($sent) {
-            // Get the latest voucher for this student
-            $stmt_voucher = $conn->prepare("SELECT * FROM voucher_logs WHERE user_id = ? ORDER BY sent_at DESC LIMIT 1");
-            $stmt_voucher->bind_param("i", $student['user_id']);
-            $stmt_voucher->execute();
-            $voucher_result = $stmt_voucher->get_result()->fetch_assoc();
-            
+        if ($voucher_result) {
             $success = true;
             logActivity($conn, $_SESSION['user_id'], 'send_voucher', "Sent voucher to {$student['first_name']} {$student['last_name']} (student ID {$student_id}) for {$month}", $_SERVER['REMOTE_ADDR']);
         } else {
@@ -182,3 +178,4 @@ require_once '../includes/components/header.php';
     </script>
 
 <?php require_once '../includes/components/footer.php'; ?>
+

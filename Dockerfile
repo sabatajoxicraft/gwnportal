@@ -16,6 +16,13 @@ RUN a2enmod rewrite
 # Add ServerName directive to suppress Apache warnings
 RUN echo "ServerName localhost" >> /etc/apache2/apache2.conf
 
+# Install and configure Xdebug for local debugging
+RUN pecl install xdebug \
+    && docker-php-ext-enable xdebug \
+    && echo "xdebug.mode=debug" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
+    && echo "xdebug.client_host=host.docker.internal" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
+    && echo "xdebug.start_with_request=yes" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
+
 # Set working directory
 WORKDIR /var/www/html
 

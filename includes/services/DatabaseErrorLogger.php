@@ -101,7 +101,7 @@ class DatabaseErrorLogger {
             $stackTrace = self::getStackTrace();
         }
 
-        $stmt = self::$conn->prepare("
+        $stmt = self::safeQueryPrepare($conn, "
             INSERT INTO error_logs 
             (error_type, severity, message, context, stack_trace, user_id, ip_address, url, method, response_code)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -172,7 +172,7 @@ class DatabaseErrorLogger {
             return [];
         }
 
-        $stmt = self::$conn->prepare("SELECT * FROM error_logs WHERE id = ? LIMIT 1");
+        $stmt = self::safeQueryPrepare($conn, "SELECT * FROM error_logs WHERE id = ? LIMIT 1");
         if (!$stmt) {
             return [];
         }
@@ -263,7 +263,7 @@ class DatabaseErrorLogger {
             return [];
         }
 
-        $stmt = self::$conn->prepare("
+        $stmt = self::safeQueryPrepare($conn, "
             SELECT * FROM error_logs
             WHERE error_type = ?
             ORDER BY created_at DESC
@@ -300,7 +300,7 @@ class DatabaseErrorLogger {
             return false;
         }
 
-        $stmt = self::$conn->prepare("
+        $stmt = self::safeQueryPrepare($conn, "
             UPDATE error_logs
             SET resolved = TRUE, resolved_at = NOW(), resolved_by = ?, notes = ?
             WHERE id = ?
@@ -439,4 +439,3 @@ class DatabaseErrorLogger {
 
 }
 
-?>

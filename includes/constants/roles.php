@@ -131,5 +131,3 @@ function isRoleHigherPrivilege($roleA, $roleB) {
 function getRoleDisplayName($roleName) {
     return ROLE_DESCRIPTIONS[$roleName] ?? 'Unknown Role';
 }
-
-?>

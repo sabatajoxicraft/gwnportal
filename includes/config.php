@@ -19,6 +19,17 @@ if (session_status() == PHP_SESSION_NONE) {
     session_start();
 }
 
+// ============================================================================
+// ENVIRONMENT LOADING (must be early – other code depends on APP_ENV)
+// ============================================================================
+// CRA-style priority: .env.{APP_ENV}.local → .env.local → .env.{APP_ENV} → .env
+require_once __DIR__ . '/env-loader.php';
+$env_vars = loadEnvironment();
+
+define('APP_ENV', $env_vars['APP_ENV'] ?? 'development');
+define('IS_PRODUCTION', APP_ENV === 'production');
+define('APP_DEBUG', (bool)(getenv('APP_DEBUG') ?: (IS_PRODUCTION ? '0' : '1')));
+
 // PSR-4 autoloader for services and utilities
 spl_autoload_register(static function ($className) {
     // Try services directory first
@@ -43,8 +54,8 @@ require_once __DIR__ . '/utilities/ErrorHandler.php';
 require_once __DIR__ . '/utilities/PermissionHelper.php';
 require_once __DIR__ . '/utilities/ActivityDashboardWidget.php';
 
-// Initialize error handling in development mode
-ErrorHandler::init(false);  // Set to false for development, true for production
+// Initialize error handling based on environment
+ErrorHandler::init(IS_PRODUCTION);
 
 // ============================================================================
 // SECURITY HEADERS (M1-T7)
@@ -92,46 +103,6 @@ if (isset($_SESSION['user_id'])) {
         // Regenerate session ID periodically (every hour by default)
         session_regenerate_id(true);
         $_SESSION['CREATED'] = time();
-    }
-}
-
-// Load environment variables from .env file
-$env_file = realpath(__DIR__ . '/../.env');
-
-// Fallback to env.production if .env doesn't exist
-if (!$env_file || !file_exists($env_file)) {
-    $env_file = realpath(__DIR__ . '/../env.production');
-}
-
-$env_vars = [];
-
-if (file_exists($env_file)) {
-    $lines = file($env_file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    foreach ($lines as $line) {
-        // Skip comments and invalid lines
-        if (strpos(trim($line), '#') === 0 || strpos($line, '=') === false) {
-            continue;
-        }
-        
-        list($name, $value) = explode('=', $line, 2);
-        $name = trim($name);
-        $value = trim($value);
-        
-        // Remove quotes if present
-        if (preg_match('/^"(.+)"$/', $value, $matches)) {
-            $value = $matches[1];
-        } else if (preg_match("/^'(.+)'$/", $value, $matches)) {
-            $value = $matches[1];
-        }
-        
-        // Handle variable interpolation
-        $value = preg_replace_callback('/\${([a-zA-Z0-9_]+)}/', function ($matches) use ($env_vars) {
-            return isset($env_vars[$matches[1]]) ? $env_vars[$matches[1]] : '';
-        }, $value);
-        
-        $env_vars[$name] = $value;
-        putenv("$name=$value");
-        $_ENV[$name] = $value;
     }
 }
 
@@ -193,10 +164,17 @@ define('M365_SENDER_EMAIL', getenv('M365_SENDER_EMAIL') ?: 'system@joxicraft.co.
 define('PUBLIC_PATH', __DIR__ . '/../public');
 define('INCLUDES_PATH', __DIR__);
 
-// Enable error reporting for development (remove in production)
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
+// Error reporting – verbose in development, silent in production
+if (APP_DEBUG) {
+    ini_set('display_errors', 1);
+    ini_set('display_startup_errors', 1);
+    error_reporting(E_ALL);
+} else {
+    ini_set('display_errors', 0);
+    ini_set('display_startup_errors', 0);
+    error_reporting(E_ALL & ~E_NOTICE & ~E_DEPRECATED);
+    ini_set('log_errors', 1);
+}
 
 // Function to redirect with a message
 function redirect($location, $message = null, $type = 'info') {
@@ -227,4 +205,3 @@ require_once __DIR__ . '/csrf.php';
 if (isset($_SESSION['user_id']) && isset($_SESSION['user_role'])) {
     require_once __DIR__ . '/accommodation-handler.php';
 }
-?>

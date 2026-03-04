@@ -117,7 +117,7 @@ class PermissionHelper {
             return false;
         }
 
-        $stmt = $conn->prepare("SELECT owner_id FROM accommodations WHERE id = ? LIMIT 1");
+        $stmt = safeQueryPrepare($conn, "SELECT owner_id FROM accommodations WHERE id = ? LIMIT 1");
         if (!$stmt) {
             return false;
         }
@@ -145,7 +145,7 @@ class PermissionHelper {
             return false;
         }
 
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             SELECT COUNT(*) as count 
             FROM accommodation_managers 
             WHERE manager_id = ? AND accommodation_id = ?
@@ -235,7 +235,7 @@ class PermissionHelper {
         }
 
         // Get student's accommodation
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             SELECT s.accommodation_id 
             FROM students s 
             WHERE s.user_id = ? LIMIT 1
@@ -279,7 +279,7 @@ class PermissionHelper {
             return null;
         }
 
-        $stmt = $conn->prepare("SELECT role_id FROM users WHERE id = ? LIMIT 1");
+        $stmt = safeQueryPrepare($conn, "SELECT role_id FROM users WHERE id = ? LIMIT 1");
         if (!$stmt) {
             return null;
         }
@@ -375,5 +375,3 @@ class PermissionHelper {
     }
 
 }
-
-?>

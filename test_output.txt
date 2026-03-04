@@ -1,0 +1,10 @@
+<pre>Exception: No such file or directory
+[2026-02-28 18:49:02] Exception: No such file or directory
+File: /var/www/html/tests/ServiceTestSuite.php:59
+
+File: /var/www/html/tests/ServiceTestSuite.php:59
+Trace: 
+#0 /var/www/html/tests/ServiceTestSuite.php(59): mysqli->__construct('localhost', 'root', Object(SensitiveParameterValue), 'gwn_wifi_system...')
+#1 /var/www/html/tests/ServiceTestSuite.php(29): ServiceTestSuite::initTestDatabase()
+#2 /var/www/html/tests/ServiceTestSuite.php(477): ServiceTestSuite::runAllTests()
+#3 {main}</pre>

@@ -12,7 +12,7 @@ $conn = getDbConnection();
 $student_id = $_GET['id'] ?? 0;
 
 // Verify student belongs to this manager and fetch user details including username
-$stmt = $conn->prepare("SELECT s.id, s.status, s.user_id, u.first_name, u.last_name, u.email, u.phone_number, u.whatsapp_number, u.preferred_communication, u.username
+$stmt = safeQueryPrepare($conn, "SELECT s.id, s.status, s.user_id, u.first_name, u.last_name, u.email, u.phone_number, u.whatsapp_number, u.preferred_communication, u.username
                         FROM students s
                         JOIN users u ON s.user_id = u.id
                         WHERE s.id = ? AND s.accommodation_id = ?");
@@ -38,7 +38,7 @@ $temp_password = bin2hex(random_bytes(8));
 $hashed_password = password_hash($temp_password, PASSWORD_DEFAULT);
 
 // Update user password and set password_reset_required flag
-$stmt_update = $conn->prepare("UPDATE users SET password = ?, password_reset_required = 1 WHERE id = ?");
+$stmt_update = safeQueryPrepare($conn, "UPDATE users SET password = ?, password_reset_required = 1 WHERE id = ?");
 $stmt_update->bind_param("si", $hashed_password, $student['user_id']);
 
 if (!$stmt_update->execute()) {
@@ -68,3 +68,4 @@ if ($sent) {
 } else {
     redirect(BASE_URL . '/student-details.php?id=' . $student_id, 'Failed to send login credentials. Please try again.', 'danger');
 }
+

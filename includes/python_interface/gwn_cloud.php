@@ -27,7 +27,7 @@ if (!function_exists('gwnPrepare')) {
         }
 
         try {
-            return $conn->prepare($sql);
+            return safeQueryPrepare($conn, $sql);
         } catch (Exception $e) {
             return false;
         }
@@ -1438,4 +1438,5 @@ if (!function_exists('unblockDevice')) {
         );
     }
 }
+
 

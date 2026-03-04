@@ -39,7 +39,7 @@ class DeviceManagementService {
             return false;
         }
 
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             INSERT INTO user_devices (user_id, device_type, mac_address)
             VALUES (?, ?, ?)
         ");
@@ -81,7 +81,7 @@ class DeviceManagementService {
             return [];
         }
 
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             SELECT 
                 id, user_id, device_type, mac_address, created_at
             FROM user_devices
@@ -115,7 +115,7 @@ class DeviceManagementService {
             return null;
         }
 
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             SELECT 
                 id, user_id, device_type, mac_address, created_at
             FROM user_devices
@@ -150,7 +150,7 @@ class DeviceManagementService {
 
         $normalizedMac = FormValidator::normalizeMacAddress($macAddress);
 
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             SELECT id, user_id, device_type, mac_address, created_at
             FROM user_devices
             WHERE mac_address = ?
@@ -184,7 +184,7 @@ class DeviceManagementService {
 
         $normalizedMac = FormValidator::normalizeMacAddress($macAddress);
 
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             SELECT id FROM user_devices WHERE mac_address = ?
         ");
 
@@ -214,7 +214,7 @@ class DeviceManagementService {
             return false;
         }
 
-        $stmt = $conn->prepare("DELETE FROM user_devices WHERE id = ?");
+        $stmt = safeQueryPrepare($conn, "DELETE FROM user_devices WHERE id = ?");
 
         if (!$stmt) {
             error_log("DeviceManagementService::deleteDevice - Prepare error: " . $conn->error);
@@ -267,7 +267,7 @@ class DeviceManagementService {
         $params[] = $deviceId;
         $types .= "i";
 
-        $stmt = $conn->prepare($query);
+        $stmt = safeQueryPrepare($conn, $query);
         if (!$stmt) {
             error_log("DeviceManagementService::updateDevice - Prepare error: " . $conn->error);
             return false;
@@ -298,7 +298,7 @@ class DeviceManagementService {
             return false;
         }
 
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             SELECT id FROM user_devices
             WHERE id = ? AND user_id = ?
         ");
@@ -329,7 +329,7 @@ class DeviceManagementService {
             return 0;
         }
 
-        $stmt = $conn->prepare("
+        $stmt = safeQueryPrepare($conn, "
             SELECT COUNT(*) as count FROM user_devices WHERE user_id = ?
         ");
 
@@ -349,4 +349,3 @@ class DeviceManagementService {
 
 }
 
-?>

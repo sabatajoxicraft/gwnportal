@@ -39,7 +39,7 @@ $sql = "SELECT vl.*, u.first_name, u.last_name, u.email, u.phone_number, u.whats
         LEFT JOIN users revoker ON vl.revoked_by = revoker.id
         WHERE vl.id = ? AND s.accommodation_id = ?";
 
-$stmt = $conn->prepare($sql);
+$stmt = safeQueryPrepare($conn, $sql);
 $stmt->bind_param("ii", $voucher_id, $accommodation_id);
 $stmt->execute();
 $voucher = $stmt->get_result()->fetch_assoc();
@@ -452,3 +452,4 @@ require_once '../../includes/components/header.php';
 </style>
 
 <?php require_once '../../includes/components/footer.php'; ?>
+

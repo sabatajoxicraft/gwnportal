@@ -141,5 +141,3 @@ function hasErrorMessage($key) {
 function hasSuccessMessage($key) {
     return isset(SUCCESS_MESSAGES[$key]);
 }
-
-?>

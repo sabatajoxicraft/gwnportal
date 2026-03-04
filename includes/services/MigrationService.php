@@ -60,7 +60,7 @@ class MigrationService {
             $batch = self::getCurrentBatch() + 1;
         }
 
-        $stmt = self::$conn->prepare("
+        $stmt = self::safeQueryPrepare($conn, "
             INSERT INTO _migrations (migration_name, batch, status) 
             VALUES (?, ?, 'success')
             ON DUPLICATE KEY UPDATE 
@@ -94,7 +94,7 @@ class MigrationService {
             return false;
         }
 
-        $stmt = self::$conn->prepare("
+        $stmt = self::safeQueryPrepare($conn, "
             SELECT id FROM _migrations 
             WHERE migration_name = ? AND status = 'success'
             LIMIT 1
@@ -126,7 +126,7 @@ class MigrationService {
         }
 
         $status = 'failed';
-        $stmt = self::$conn->prepare("
+        $stmt = self::safeQueryPrepare($conn, "
             INSERT INTO _migrations (migration_name, batch, status) 
             VALUES (?, 0, ?)
             ON DUPLICATE KEY UPDATE 
@@ -290,7 +290,7 @@ class MigrationService {
         }
 
         // Delete migrations from last batch
-        $stmt = self::$conn->prepare("DELETE FROM _migrations WHERE batch = ?");
+        $stmt = self::safeQueryPrepare($conn, "DELETE FROM _migrations WHERE batch = ?");
         if (!$stmt) {
             return false;
         }
@@ -316,7 +316,7 @@ class MigrationService {
             return [];
         }
 
-        $stmt = self::$conn->prepare("
+        $stmt = self::safeQueryPrepare($conn, "
             SELECT migration_name, applied_at, batch, status 
             FROM _migrations 
             WHERE status = ?
@@ -342,4 +342,3 @@ class MigrationService {
 
 }
 
-?>

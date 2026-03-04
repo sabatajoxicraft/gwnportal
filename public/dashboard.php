@@ -287,7 +287,7 @@ function countStudentsByStatus($conn, $accommodationId, $status = null) {
         $types .= "s";
     }
     
-    $stmt = $conn->prepare($query);
+    $stmt = safeQueryPrepare($conn, $query);
     if (!$stmt) return 0;
     
     $stmt->bind_param($types, ...$params);
@@ -310,7 +310,7 @@ function getRecentStudents($conn, $accommodationId, $limit = 5) {
               ORDER BY s.created_at DESC
               LIMIT ?";
     
-    $stmt = $conn->prepare($query);
+    $stmt = safeQueryPrepare($conn, $query);
     if (!$stmt) return [];
     
     $stmt->bind_param("ii", $accommodationId, $limit);
@@ -332,7 +332,7 @@ function countCodes($conn, $accommodationId, $status = null) {
         $types .= "s";
     }
     
-    $stmt = $conn->prepare($query);
+    $stmt = safeQueryPrepare($conn, $query);
     if (!$stmt) return 0;
     
     $stmt->bind_param($types, ...$params);
@@ -345,7 +345,7 @@ function countCodes($conn, $accommodationId, $status = null) {
 
 function countAccommodationManagers($conn, $accommodationId) {
     $query = "SELECT COUNT(*) as count FROM user_accommodation WHERE accommodation_id = ?";
-    $stmt = $conn->prepare($query);
+    $stmt = safeQueryPrepare($conn, $query);
     if (!$stmt) return 0;
     
     $stmt->bind_param("i", $accommodationId);
@@ -361,7 +361,7 @@ function countAccommodationDevices($conn, $accommodationId) {
               JOIN students s ON d.user_id = s.user_id
               WHERE s.accommodation_id = ?";
     
-    $stmt = $conn->prepare($query);
+    $stmt = safeQueryPrepare($conn, $query);
     if (!$stmt) return 0;
     
     $stmt->bind_param("i", $accommodationId);
@@ -761,3 +761,4 @@ require_once '../includes/components/header.php';
 </div>
 
 <?php require_once '../includes/components/footer.php'; ?>
+

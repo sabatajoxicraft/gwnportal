@@ -66,7 +66,7 @@ $sql = "SELECT vl.id, vl.voucher_code, vl.voucher_month, vl.sent_via, vl.status,
         WHERE $where_sql
         ORDER BY vl.sent_at DESC";
 
-$stmt = $conn->prepare($sql);
+$stmt = safeQueryPrepare($conn, $sql);
 $stmt->bind_param($param_types, ...$params);
 $stmt->execute();
 $vouchers = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -121,3 +121,4 @@ foreach ($vouchers as $voucher) {
 
 fclose($output);
 exit;
+

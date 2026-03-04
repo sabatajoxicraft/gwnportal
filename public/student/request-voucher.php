@@ -42,20 +42,10 @@ $currentMonthAlt = date('Y-m');       // "2026-02"
 // Fallback omits is_active filter if the column doesn't exist yet.
 $queryErrorMessage = '';
 $stmtCheck = safeQueryPrepare($conn,
-    "SELECT * FROM voucher_logs WHERE user_id = ? AND (voucher_month = ? OR voucher_month = ?) AND status = 'sent' AND is_active = 1",
-    false);
-if ($stmtCheck === false) {
-    $stmtCheck = safeQueryPrepare($conn,
-        "SELECT * FROM voucher_logs WHERE user_id = ? AND (voucher_month = ? OR voucher_month = ?) AND status = 'sent'");
-}
-if ($stmtCheck !== false) {
-    $stmtCheck->bind_param("iss", $userId, $currentMonth, $currentMonthAlt);
-    $stmtCheck->execute();
-    $existingVoucher = $stmtCheck->get_result()->fetch_assoc();
-} else {
-    $existingVoucher = null;
-    $queryErrorMessage = 'Unable to verify voucher eligibility right now. Please try again later.';
-}
+    "SELECT * FROM voucher_logs WHERE user_id = ? AND (voucher_month = ? OR voucher_month = ?) AND status = 'sent'");
+$stmtCheck->bind_param("iss", $userId, $currentMonth, $currentMonthAlt);
+$stmtCheck->execute();
+$existingVoucher = $stmtCheck->get_result()->fetch_assoc();
 
 $isEligible = !$existingVoucher && $studentActive;
 $justRequested = false;
@@ -67,20 +57,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isEligible) {
     if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
         $errorMessage = "Invalid security token. Please try again.";
     } else {
-        // Use sendStudentVoucher which handles GWN API + SMS/WhatsApp delivery
-        $sent = sendStudentVoucher($studentId, $currentMonth);
+        // Use VoucherService which handles GWN API + SMS/WhatsApp delivery
+        require_once __DIR__ . '/../../includes/services/VoucherService.php';
+        $voucherService = new VoucherService();
+        $sent = $voucherService->sendStudentVoucher($studentId, $currentMonth);
 
         if ($sent) {
             $justRequested = true;
             $isEligible = false;
 
-            // Re-fetch the voucher that was just created
-            if ($stmtCheck !== false) {
+            // Use return value from service if it's an array, otherwise re-fetch
+            if (is_array($sent) && isset($sent['voucher_code'])) {
+                $newVoucherCode = $sent['voucher_code'];
+                $existingVoucher = [
+                    'voucher_code'  => $sent['voucher_code'],
+                    'voucher_month' => $sent['voucher_month'],
+                    'sent_via'      => $sent['sent_via'],
+                    'sent_at'       => $sent['sent_at'],
+                ];
+            } else {
+                // Fallback: re-fetch from DB
                 $stmtCheck->execute();
                 $existingVoucher = $stmtCheck->get_result()->fetch_assoc();
                 $newVoucherCode = $existingVoucher ? $existingVoucher['voucher_code'] : '';
-            } else {
-                $newVoucherCode = '';
             }
 
             // Log activity
@@ -88,20 +87,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isEligible) {
                 "Student self-requested voucher {$newVoucherCode} for {$currentMonth}");
         } else {
             // Reconciliation: sendStudentVoucher may have succeeded despite returning false.
-            // Re-check the DB before surfacing an error to the user.
-            $reconciled = false;
-            if ($stmtCheck !== false) {
-                $stmtCheck->execute();
-                $reconciledVoucher = $stmtCheck->get_result()->fetch_assoc();
-                if ($reconciledVoucher) {
-                    $justRequested    = true;
-                    $isEligible       = false;
-                    $existingVoucher  = $reconciledVoucher;
-                    $newVoucherCode   = $reconciledVoucher['voucher_code'];
-                    $reconciled       = true;
-                }
-            }
-            if (!$reconciled) {
+            $stmtCheck->execute();
+            $reconciledVoucher = $stmtCheck->get_result()->fetch_assoc();
+            if ($reconciledVoucher) {
+                $justRequested    = true;
+                $isEligible       = false;
+                $existingVoucher  = $reconciledVoucher;
+                $newVoucherCode   = $reconciledVoucher['voucher_code'];
+            } else {
                 $errorMessage = "Unable to generate your voucher right now. Please try again or contact your manager.";
             }
         }
@@ -110,30 +103,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isEligible) {
 
 // Get voucher history; fallback selects compatibility aliases if optional columns are missing.
 $stmtHistory = safeQueryPrepare($conn,
-    "SELECT voucher_code, voucher_month, sent_via, status, sent_at, is_active, revoked_at
+    "SELECT voucher_code, voucher_month, sent_via, status, sent_at, 1 AS is_active, NULL AS revoked_at
      FROM voucher_logs
      WHERE user_id = ?
      ORDER BY sent_at DESC
-     LIMIT 12",
-    false);
-if ($stmtHistory === false) {
-    $stmtHistory = safeQueryPrepare($conn,
-        "SELECT voucher_code, voucher_month, sent_via, status, sent_at, 1 AS is_active, NULL AS revoked_at
-         FROM voucher_logs
-         WHERE user_id = ?
-         ORDER BY sent_at DESC
-         LIMIT 12");
-}
-if ($stmtHistory !== false) {
-    $stmtHistory->bind_param("i", $userId);
-    $stmtHistory->execute();
-    $voucherHistory = $stmtHistory->get_result()->fetch_all(MYSQLI_ASSOC);
-} else {
-    $voucherHistory = [];
-    if ($queryErrorMessage === '') {
-        $queryErrorMessage = 'Unable to load voucher history right now. Please try again later.';
-    }
-}
+     LIMIT 12");
+$stmtHistory->bind_param("i", $userId);
+$stmtHistory->execute();
+$voucherHistory = $stmtHistory->get_result()->fetch_all(MYSQLI_ASSOC);
 
 if ($errorMessage === '') {
     $errorMessage = $queryErrorMessage;

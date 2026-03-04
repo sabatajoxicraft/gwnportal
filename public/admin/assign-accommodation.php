@@ -13,7 +13,7 @@ if ($user_id <= 0) {
 }
 
 // Get user details
-$stmt = $conn->prepare("SELECT u.*, r.name as role_name FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = ?");
+$stmt = safeQueryPrepare($conn, "SELECT u.*, r.name as role_name FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = ?");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $user = $stmt->get_result()->fetch_assoc();
@@ -32,19 +32,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Check if already assigned
-    $check = $conn->prepare("SELECT 1 FROM user_accommodation WHERE user_id = ? AND accommodation_id = ?");
+    $check = safeQueryPrepare($conn, "SELECT 1 FROM user_accommodation WHERE user_id = ? AND accommodation_id = ?");
     $check->bind_param("ii", $user_id, $accommodation_id);
     $check->execute();
     if ($check->get_result()->num_rows > 0) {
         redirect(BASE_URL . "/admin/view-user.php?id={$user_id}", 'User is already assigned to that accommodation.', 'warning');
     }
 
-    $ins = $conn->prepare("INSERT INTO user_accommodation (user_id, accommodation_id) VALUES (?, ?)");
+    $ins = safeQueryPrepare($conn, "INSERT INTO user_accommodation (user_id, accommodation_id) VALUES (?, ?)");
     $ins->bind_param("ii", $user_id, $accommodation_id);
     if ($ins->execute()) {
         // If student, also update students.accommodation_id
         if ($user['role_name'] === 'student') {
-            $conn->prepare("UPDATE students SET accommodation_id = ? WHERE user_id = ?")->execute([$accommodation_id, $user_id]);
+            safeQueryPrepare($conn, "UPDATE students SET accommodation_id = ? WHERE user_id = ?")->execute([$accommodation_id, $user_id]);
         }
         logActivity($conn, $_SESSION['user_id'], 'assign_accommodation', "Assigned {$user['first_name']} {$user['last_name']} (ID {$user_id}) to accommodation ID {$accommodation_id}", $_SERVER['REMOTE_ADDR']);
         redirect(BASE_URL . "/admin/view-user.php?id={$user_id}", 'Accommodation assigned successfully.', 'success');
@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $accommodations = $conn->query("SELECT id, name FROM accommodations ORDER BY name")->fetch_all(MYSQLI_ASSOC);
 
 // Get already assigned
-$assigned = $conn->prepare("SELECT accommodation_id FROM user_accommodation WHERE user_id = ?");
+$assigned = safeQueryPrepare($conn, "SELECT accommodation_id FROM user_accommodation WHERE user_id = ?");
 $assigned->bind_param("i", $user_id);
 $assigned->execute();
 $assignedIds = array_column($assigned->get_result()->fetch_all(MYSQLI_ASSOC), 'accommodation_id');
@@ -115,3 +115,4 @@ require_once '../../includes/components/header.php';
 </div>
 
 <?php require_once '../../includes/components/footer.php'; ?>
+
