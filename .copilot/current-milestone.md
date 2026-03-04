@@ -93,6 +93,38 @@
 - **New Features:** 1 (Credential Recovery)
 - **Critical Errors Resolved:** All
 
+## M2 Achievements (Current Session - 2026-03-05)
+
+### ✅ Activity Log Display Improvements (M2-T5)
+- Implemented human-readable action names: `auth_login_success` → **Login Success**
+- Added category prefix stripping: `auth_`, `device_`, `voucher_`, `student_`, `accommodation_`, `permission_`
+- Added snake_case to Title Case conversion
+- Implemented JSON details parsing for readability
+- Details with `reason` field now display friendly text instead of raw JSON
+- Key-value pairs formatted as readable labels, skipping redundant fields (ip_address, success)
+- File: `public/admin/view-user.php` (Activity Log section, +28 lines)
+- Commit: `c8b632d`
+
+### ✅ Activity Log Timestamp Fix (M2-T6)
+- **Problem:** Timestamps showing as "Jan 1, 1970 12:00 AM" (MySQL epoch)
+- **Root Cause:** `activity_log` table had `timestamp DATETIME NOT NULL` with NO DEFAULT
+- **Solution:** Added `DEFAULT CURRENT_TIMESTAMP` to all schema definitions
+- **Database:** Applied direct migration to running container
+- **Files Updated:**
+  - `db/schema.sql` - Added DEFAULT CURRENT_TIMESTAMP
+  - `db/joxicaxs_wifi.sql` - Added DEFAULT CURRENT_TIMESTAMP
+  - `db/migrations/2026_03_05_fix_activity_log_timestamp.sql` - Migration script created
+- Commit: `cb5a94e`
+- **Result:** Activity logs now show correct dates (e.g., "March 04, 2026 01:26 PM")
+- **Future-proof:** New activity logs automatically get correct timestamp on creation
+
+### 📊 Session Stats
+- **Commits:** 2
+- **Files Modified:** 4
+- **Bugs Fixed:** 2 (display formatting, timestamp defaults)
+- **UX Improvements:** Readable activity logs with proper timestamps
+- **Time:** Session
+
 ## Previous Milestones
 - **M1 (Core Infrastructure):** ✅ Complete - Security hardening, RBAC, validation
 - **M0.5 (Scaffold Validation):** ✅ Complete - CI GREEN, configs locked
