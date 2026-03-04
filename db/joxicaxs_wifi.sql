@@ -77,7 +77,7 @@ CREATE TABLE `activity_log` (
   `details` text DEFAULT NULL,
   `ip_address` varchar(45) DEFAULT NULL,
   `user_agent` text DEFAULT NULL,
-  `TIMESTAMP` datetime NOT NULL
+  `TIMESTAMP` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 --

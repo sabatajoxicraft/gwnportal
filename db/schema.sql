@@ -125,7 +125,7 @@ CREATE TABLE IF NOT EXISTS activity_log (
     details TEXT,
     ip_address VARCHAR(45),
     user_agent TEXT,
-    timestamp DATETIME NOT NULL,
+    timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX (user_id),
     INDEX (timestamp)
 );
