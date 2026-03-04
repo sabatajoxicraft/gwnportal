@@ -692,16 +692,42 @@ require_once '../../includes/components/header.php';
                                             $action_color = 'info';
                                         }
                                         
+                                        // Format action name: auth_login_success -> Login Success
+                                        $action_display = $action_val;
+                                        $action_display = preg_replace('/^(auth|device|voucher|student|accommodation|permission)_/i', '', $action_display);
+                                        $action_display = ucwords(str_replace('_', ' ', $action_display));
+                                        
+                                        // Parse JSON details into readable text
+                                        $details_raw = $log['details'] ?? '';
+                                        $details_display = $details_raw;
+                                        if (!empty($details_raw) && $details_raw[0] === '{') {
+                                            $parsed = json_decode($details_raw, true);
+                                            if (is_array($parsed)) {
+                                                if (isset($parsed['reason'])) {
+                                                    $details_display = $parsed['reason'];
+                                                } else {
+                                                    // Build readable summary from key-value pairs, skip redundant ip_address/success
+                                                    $parts = [];
+                                                    foreach ($parsed as $k => $v) {
+                                                        if (in_array($k, ['ip_address', 'success'], true)) continue;
+                                                        $label = ucwords(str_replace('_', ' ', $k));
+                                                        $parts[] = $label . ': ' . (is_bool($v) ? ($v ? 'Yes' : 'No') : $v);
+                                                    }
+                                                    $details_display = implode(' | ', $parts) ?: '—';
+                                                }
+                                            }
+                                        }
+                                        
                                         $ts_val = $log['timestamp'];
                                         $isToday = ($ts_val !== null && $ts_val !== '') && date('Y-m-d', strtotime($ts_val)) === date('Y-m-d');
                                         ?>
                                         <tr class="<?= $isToday ? 'table-light' : '' ?>">
                                             <td>
                                                 <i class="bi bi-<?= $action_icon ?> text-<?= $action_color ?> me-1"></i>
-                                                <strong><?= htmlspecialchars($log['action']) ?></strong>
+                                                <strong><?= htmlspecialchars($action_display) ?></strong>
                                             </td>
                                             <td>
-                                                <small class="text-muted"><?= htmlspecialchars($log['details'] ?: '—') ?></small>
+                                                <small class="text-muted"><?= htmlspecialchars($details_display ?: '—') ?></small>
                                             </td>
                                             <td>
                                                 <code class="small"><?= htmlspecialchars($log['ip_address'] ?: '—') ?></code>
