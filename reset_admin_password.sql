@@ -16,7 +16,7 @@
 -- OPTION 1: Reset password to "password" (change it immediately after login!)
 -- ----------------------------------------------------------------------------
 UPDATE users 
-SET password = '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'
+SET `password` = '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'
 WHERE username = 'admin' 
 LIMIT 1;
 
@@ -40,7 +40,7 @@ SELECT id, username, email, status FROM users WHERE username = 'admin';
 -- ----------------------------------------------------------------------------
 -- Step 1: Reset the password
 UPDATE users 
-SET password = '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'
+SET `password` = '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'
 WHERE username = 'admin' 
 LIMIT 1;
 
@@ -57,7 +57,7 @@ LIMIT 1;
 -- ============================================================================
 -- Run this ONLY if you need to create a new admin account:
 /*
-INSERT INTO users (username, password, email, first_name, last_name, role_id, status, created_at, updated_at)
+INSERT INTO users (username, `password`, email, first_name, last_name, role_id, status, created_at, updated_at)
 VALUES (
     'newadmin',                                                                      -- Change this username
     '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',                -- Password: "password"
