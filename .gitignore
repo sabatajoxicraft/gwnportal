@@ -46,6 +46,6 @@ test.py
 dist/
 build/
 
-# Emergency scripts (contain sensitive tokens/credentials)
-reset_admin_password.php
-reset_admin_password.php.used
+# Database dumps and logs (may contain sensitive data)
+db/localhost.sql
+db/sms-log-*.csv
