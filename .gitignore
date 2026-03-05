@@ -45,3 +45,7 @@ test.py
 # Build artifacts
 dist/
 build/
+
+# Emergency scripts (contain sensitive tokens/credentials)
+reset_admin_password.php
+reset_admin_password.php.used
