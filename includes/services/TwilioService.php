@@ -283,7 +283,13 @@ class TwilioService
             if ($allowedDevices < 1) {
                 $allowedDevices = 1;
             }
-            $message = "Hi $studentName,\n\nBelow is your monthly WiFi Voucher code valid until {$month}'s month end, this code only grants you a max of {$allowedDevices} devices per month to be connected to the wifi.\n\nYour Voucher: $voucherCode\n\n#Note: Please dont reply to this message, if you need any assistance, send us a WhatsApp message to 0846983888";
+            if ($method === 'SMS') {
+                // Short SMS template (stays within 1 segment / 160 chars to avoid double cost)
+                $message = "Hi $studentName, your monthly WiFi voucher code for $month is: $voucherCode. Max $allowedDevices devices. Need help? WhatsApp 0846983888";
+            } else {
+                // WhatsApp can use the longer template (no per-segment cost)
+                $message = "Hi $studentName,\n\nBelow is your monthly WiFi Voucher code valid until {$month}'s month end, this code only grants you a max of {$allowedDevices} devices per month to be connected to the wifi.\n\nYour Voucher: $voucherCode\n\n*#Note: Please dont reply to this message, if you need any assistance, send us a WhatsApp message to 0846983888*";
+            }
             return self::sendMessage($number, $message, $method);
         }
 

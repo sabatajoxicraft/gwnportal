@@ -104,7 +104,25 @@ class VoucherService extends GwnService {
         return $this->callApi('voucher/vouchers/delete', $payload, 'POST');
     }
 
-    public function sendStudentVoucher($student_id, $month) {
+    /**
+     * Check if a voucher has already been sent for this user/month.
+     * Returns the existing voucher_logs row or null.
+     */
+    public function getExistingVoucher($conn, $userId, $month) {
+        $monthAlt = '';
+        $dt = DateTime::createFromFormat('F Y', trim($month));
+        if ($dt) {
+            $monthAlt = $dt->format('Y-m');
+        }
+        $sql = "SELECT voucher_code, voucher_month, sent_via, sent_at FROM voucher_logs WHERE user_id = ? AND (voucher_month = ? OR voucher_month = ?) AND status = 'sent' LIMIT 1";
+        $stmt = safeQueryPrepare($conn, $sql, false);
+        if (!$stmt || $stmt instanceof DummyStatement) return null;
+        $stmt->bind_param("iss", $userId, $month, $monthAlt);
+        $stmt->execute();
+        return $stmt->get_result()->fetch_assoc() ?: null;
+    }
+
+    public function sendStudentVoucher($student_id, $month, $forceResend = false) {
         $conn = getDbConnection();
         
         // Get student details
@@ -122,6 +140,21 @@ class VoucherService extends GwnService {
         if (!$student) {
             error_log("VoucherService::sendStudentVoucher: Student ID $student_id not found");
             return false;
+        }
+
+        // Duplicate send prevention: block if voucher already sent this month
+        if (!$forceResend) {
+            $existing = $this->getExistingVoucher($conn, $student['user_id'], $month);
+            if ($existing) {
+                error_log("VoucherService::sendStudentVoucher: Duplicate blocked - student $student_id already has voucher for $month");
+                return [
+                    'voucher_month' => $existing['voucher_month'],
+                    'voucher_code' => $existing['voucher_code'],
+                    'sent_via' => $existing['sent_via'],
+                    'sent_at' => $existing['sent_at'],
+                    'duplicate' => true,
+                ];
+            }
         }
         
         $studentName = $student['first_name'] . ' ' . $student['last_name'];
@@ -143,20 +176,24 @@ class VoucherService extends GwnService {
         $groupId = $result['groupId'];
         $deviceNum = $result['deviceNum'];
         
-        // Step 2: Send voucher code to student via SMS/WhatsApp
+        // Step 2: Send voucher code to student via preferred method (SMS OR WhatsApp, not both)
         $messageSent = false;
         $loggedSendMethod = $sendMethod;
         if (!empty($phoneNumber)) {
             $messageSent = sendVoucherMessage($phoneNumber, $studentName, $month, $voucher_code, $sendMethod);
         }
 
-        // SMS backup: always send SMS after WhatsApp attempt
-        if ($sendMethod === 'WhatsApp' && !empty($student['phone_number'])) {
-            $smsBody = "Hi $studentName, your monthly WiFi voucher code for $month is: $voucher_code. Max {$deviceNum} devices. Need help? WhatsApp 0846983888";
-            $smsSent = sendSMS($student['phone_number'], $smsBody);
-            $messageSent = ($messageSent || $smsSent);
-            if ($smsSent) {
-                $loggedSendMethod = 'SMS';
+        // Fallback: if preferred method failed, try the other method
+        if (!$messageSent) {
+            $fallbackMethod = ($sendMethod === 'WhatsApp') ? 'SMS' : 'WhatsApp';
+            $fallbackNumber = ($fallbackMethod === 'SMS') 
+                ? $student['phone_number'] 
+                : ($student['whatsapp_number'] ?: $student['phone_number']);
+            if (!empty($fallbackNumber)) {
+                $messageSent = sendVoucherMessage($fallbackNumber, $studentName, $month, $voucher_code, $fallbackMethod);
+                if ($messageSent) {
+                    $loggedSendMethod = $fallbackMethod;
+                }
             }
         }
 

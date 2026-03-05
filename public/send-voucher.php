@@ -31,11 +31,13 @@ $student = $result->fetch_assoc();
 $success = false;
 $error = null;
 $voucher_result = null;
+$duplicateWarning = false;
 
 // Process form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     requireCsrfToken();
     $month = $_POST['month'] ?? '';
+    $forceResend = isset($_POST['force_resend']) && $_POST['force_resend'] === '1';
     
     if (empty($month)) {
         $error = 'Please select a month';
@@ -45,11 +47,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Send voucher to student
         require_once '../includes/services/VoucherService.php';
         $voucherService = new VoucherService();
-        $voucher_result = $voucherService->sendStudentVoucher($student_id, $month);
+        $voucher_result = $voucherService->sendStudentVoucher($student_id, $month, $forceResend);
         
         if ($voucher_result) {
-            $success = true;
-            logActivity($conn, $_SESSION['user_id'], 'send_voucher', "Sent voucher to {$student['first_name']} {$student['last_name']} (student ID {$student_id}) for {$month}", $_SERVER['REMOTE_ADDR']);
+            // Check if this was blocked as a duplicate
+            if (!empty($voucher_result['duplicate'])) {
+                $duplicateWarning = true;
+                logActivity($conn, $_SESSION['user_id'], 'send_voucher_duplicate_blocked', "Duplicate voucher send blocked for {$student['first_name']} {$student['last_name']} (student ID {$student_id}) for {$month} - already sent code {$voucher_result['voucher_code']}", $_SERVER['REMOTE_ADDR']);
+            } else {
+                $success = true;
+                logActivity($conn, $_SESSION['user_id'], 'send_voucher', "Sent voucher to {$student['first_name']} {$student['last_name']} (student ID {$student_id}) for {$month}", $_SERVER['REMOTE_ADDR']);
+            }
         } else {
             $error = 'Failed to send voucher. Please try again later.';
             logActivity($conn, $_SESSION['user_id'], 'send_voucher_failed', "Failed to send voucher to student ID {$student_id} for {$month}", $_SERVER['REMOTE_ADDR']);
@@ -101,6 +109,33 @@ require_once '../includes/components/header.php';
                                 <a href="student-details.php?id=<?= $student_id ?>" class="btn btn-primary">Back to Student Details</a>
                                 <a href="students.php" class="btn btn-outline-secondary">View All Students</a>
                             </div>
+                        </div>
+                    </div>
+                <?php elseif ($duplicateWarning && $voucher_result): ?>
+                    <div class="card border-warning">
+                        <div class="card-body text-center">
+                            <div class="mb-4">
+                                <i class="bi bi-exclamation-triangle-fill text-warning" style="font-size: 4rem;"></i>
+                            </div>
+                            <h3 class="mb-3">Voucher Already Sent</h3>
+                            
+                            <div class="alert alert-warning">
+                                <p class="mb-1">A voucher has already been sent to <strong><?= htmlspecialchars($student['first_name']) ?> <?= htmlspecialchars($student['last_name']) ?></strong> for <strong><?= htmlspecialchars($voucher_result['voucher_month']) ?></strong>.</p>
+                                <p class="mb-1"><strong>Existing Code:</strong> <span class="font-monospace"><?= htmlspecialchars($voucher_result['voucher_code']) ?></span></p>
+                                <p class="mb-0"><strong>Sent at:</strong> <?= date('M j, Y H:i:s', strtotime($voucher_result['sent_at'])) ?></p>
+                            </div>
+                            
+                            <p class="text-muted mb-3">Sending a new voucher will create an additional GWN voucher code and incur SMS costs. Only do this if the original code is lost or compromised.</p>
+                            
+                            <form method="post" action="" class="d-inline">
+                                <?php echo csrfField(); ?>
+                                <input type="hidden" name="month" value="<?= htmlspecialchars($voucher_result['voucher_month']) ?>">
+                                <input type="hidden" name="force_resend" value="1">
+                                <button type="submit" class="btn btn-warning" onclick="return confirm('Are you sure? This will create a NEW voucher code and send another SMS/WhatsApp message (additional cost).');">
+                                    <i class="bi bi-arrow-repeat"></i> Resend New Voucher Anyway
+                                </button>
+                            </form>
+                            <a href="student-details.php?id=<?= $student_id ?>" class="btn btn-outline-secondary ms-2">Cancel</a>
                         </div>
                     </div>
                 <?php else: ?>

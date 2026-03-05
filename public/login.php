@@ -307,11 +307,6 @@ require_once '../includes/components/header.php';
                     </div>
                 </div>
             <?php endif; ?>
-            <div class="alert alert-info mb-0 small">
-                <strong>Development Setup:</strong><br>
-                Load test data with: <br>
-                <code class="d-block mt-2 p-2 bg-white rounded border">mysql gwn_wifi_system &lt; db/fixtures/test-data.sql</code>
-            </div>
         </div>
     </div>
 </div>
