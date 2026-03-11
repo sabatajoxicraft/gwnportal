@@ -115,10 +115,10 @@ body {
 	margin-bottom: 1.5rem;
 }
 
-/* Preserve horizontal table scrolling while letting dropdown menus expand vertically. */
+/* Do not clip dropdown/action menus inside table wrappers. */
+.table-responsive,
 .card .table-responsive {
-	overflow-x: auto;
-	overflow-y: visible;
+	overflow: visible !important;
 }
 
 .card:hover {
