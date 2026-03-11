@@ -76,6 +76,12 @@ require_once '../../includes/components/header.php';
         <div class="alert alert-danger"><?= $error ?></div>
     <?php endif; ?>
 
+    <?php 
+    // Show profile completion checklist widget
+    require_once '../../includes/services/ProfileChecklistService.php';
+    include '../../includes/components/profile-checklist-widget.php'; 
+    ?>
+
     <div class="row mb-4">
         <div class="col-md-12">
             <div class="card">

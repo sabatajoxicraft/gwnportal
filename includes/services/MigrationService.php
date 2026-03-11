@@ -17,6 +17,18 @@ class MigrationService {
     private static $initialized = false;
 
     /**
+     * Safe prepare wrapper for this service.
+     */
+    private static function safeQueryPrepare($sql) {
+        if (!self::$conn) {
+            return false;
+        }
+
+        $stmt = self::$conn->prepare($sql);
+        return $stmt ?: false;
+    }
+
+    /**
      * Initialize migration tracking - creates migrations table if not exists
      * 
      * @param mysqli $connection Database connection
@@ -60,7 +72,7 @@ class MigrationService {
             $batch = self::getCurrentBatch() + 1;
         }
 
-        $stmt = self::safeQueryPrepare($conn, "
+        $stmt = self::safeQueryPrepare("
             INSERT INTO _migrations (migration_name, batch, status) 
             VALUES (?, ?, 'success')
             ON DUPLICATE KEY UPDATE 
@@ -94,7 +106,7 @@ class MigrationService {
             return false;
         }
 
-        $stmt = self::safeQueryPrepare($conn, "
+        $stmt = self::safeQueryPrepare("
             SELECT id FROM _migrations 
             WHERE migration_name = ? AND status = 'success'
             LIMIT 1
@@ -126,7 +138,7 @@ class MigrationService {
         }
 
         $status = 'failed';
-        $stmt = self::safeQueryPrepare($conn, "
+        $stmt = self::safeQueryPrepare("
             INSERT INTO _migrations (migration_name, batch, status) 
             VALUES (?, 0, ?)
             ON DUPLICATE KEY UPDATE 
@@ -290,7 +302,7 @@ class MigrationService {
         }
 
         // Delete migrations from last batch
-        $stmt = self::safeQueryPrepare($conn, "DELETE FROM _migrations WHERE batch = ?");
+        $stmt = self::safeQueryPrepare("DELETE FROM _migrations WHERE batch = ?");
         if (!$stmt) {
             return false;
         }
@@ -316,7 +328,7 @@ class MigrationService {
             return [];
         }
 
-        $stmt = self::safeQueryPrepare($conn, "
+        $stmt = self::safeQueryPrepare("
             SELECT migration_name, applied_at, batch, status 
             FROM _migrations 
             WHERE status = ?

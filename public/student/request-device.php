@@ -2,6 +2,7 @@
 require_once '../../includes/config.php';
 require_once '../../includes/db.php';
 require_once '../../includes/functions.php';
+require_once '../../includes/services/ProfileChecklistService.php';
 
 $pageTitle = "Request Device Authorization";
 $activePage = "student-devices";
@@ -88,6 +89,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         if ($stmt->execute()) {
             $deviceId = $stmt->insert_id;
+            
+            // Auto-complete student checklist: connect_device
+            ProfileChecklistService::markComplete($conn, $userId, 'student.connect_device');
             
             // Log activity
             logActivity($conn, $userId, 'Device Request', "Student requested device authorization: $deviceName ($macAddress)");

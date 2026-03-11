@@ -17,6 +17,7 @@ require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/db.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/python_interface.php';
+require_once __DIR__ . '/includes/services/ProfileChecklistService.php';
 
 function autoLinkLog($message) {
     echo '[' . date('Y-m-d H:i:s') . '] ' . $message . PHP_EOL;
@@ -428,6 +429,9 @@ foreach ($mappings as $map) {
         continue;
     }
     $insertStmt->close();
+
+    // Auto-complete student checklist: connect_device
+    ProfileChecklistService::markComplete($conn, $studentUserId, 'student.connect_device');
 
     if (!markVoucherFirstUseState($conn, $voucherLogId, $mac, false, $hasFirstUsedAt, $hasFirstUsedMac)) {
         $errors++;

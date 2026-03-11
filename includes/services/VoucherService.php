@@ -339,5 +339,68 @@ class VoucherService extends GwnService {
             'groupName' => $groupName
         ];
     }
-}
 
+    /**
+     * Replace a voucher with a new one using the correct device limit.
+     * Used to fix vouchers created with incorrect deviceNum (e.g. 3 instead of 2).
+     * 
+     * Steps: Revoke old voucher → Create new with correct deviceNum → Send to student.
+     * 
+     * @param int $voucherLogId The voucher_logs.id to replace
+     * @param int $revokedByUserId The manager user_id performing the replacement
+     * @return array|false Result array with new voucher details, or false on failure
+     */
+    public function replaceVoucher($voucherLogId, $revokedByUserId) {
+        $conn = getDbConnection();
+        
+        // Get the old voucher details
+        $sql = "SELECT vl.*, s.id as student_id, s.accommodation_id, 
+                       u.first_name, u.last_name, u.phone_number, u.whatsapp_number, u.preferred_communication,
+                       a.name as accommodation_name
+                FROM voucher_logs vl
+                JOIN users u ON vl.user_id = u.id
+                JOIN students s ON u.id = s.user_id
+                JOIN accommodations a ON s.accommodation_id = a.id
+                WHERE vl.id = ?";
+        $stmt = safeQueryPrepare($conn, $sql);
+        $stmt->bind_param("i", $voucherLogId);
+        $stmt->execute();
+        $oldVoucher = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        
+        if (!$oldVoucher) {
+            error_log("VoucherService::replaceVoucher: Voucher log ID $voucherLogId not found");
+            return false;
+        }
+        
+        // Step 1: Revoke the old voucher in our DB
+        $revoked = revokeVoucher($voucherLogId, 'Replaced: incorrect device limit', $revokedByUserId);
+        if (!$revoked) {
+            error_log("VoucherService::replaceVoucher: Failed to revoke old voucher $voucherLogId");
+            return false;
+        }
+        
+        // Step 2: Delete from GWN Cloud if it has a gwn_voucher_id
+        if (!empty($oldVoucher['gwn_voucher_id'])) {
+            $networkId = defined('GWN_NETWORK_ID') ? GWN_NETWORK_ID : '';
+            if (!empty($networkId)) {
+                gwnDeleteVoucher((int)$oldVoucher['gwn_voucher_id'], $networkId);
+            }
+        }
+        
+        // Also delete the GWN group if it exists
+        if (!empty($oldVoucher['gwn_group_id'])) {
+            $this->deleteVoucherGroup([(int)$oldVoucher['gwn_group_id']]);
+        }
+        
+        // Step 3: Create new voucher and send via the existing flow
+        $result = $this->sendStudentVoucher($oldVoucher['student_id'], $oldVoucher['voucher_month'], true);
+        
+        if (!$result || (isset($result['duplicate']) && $result['duplicate'])) {
+            error_log("VoucherService::replaceVoucher: Failed to create replacement voucher for student " . $oldVoucher['student_id']);
+            return false;
+        }
+        
+        return $result;
+    }
+}

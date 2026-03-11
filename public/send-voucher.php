@@ -2,6 +2,7 @@
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 require_once '../includes/python_interface.php';
+require_once '../includes/services/ProfileChecklistService.php';
 
 // Require manager login
 requireRole('manager');
@@ -57,6 +58,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $success = true;
                 logActivity($conn, $_SESSION['user_id'], 'send_voucher', "Sent voucher to {$student['first_name']} {$student['last_name']} (student ID {$student_id}) for {$month}", $_SERVER['REMOTE_ADDR']);
+                
+                // Auto-complete manager checklist: send_first_voucher
+                ProfileChecklistService::markComplete($conn, $_SESSION['user_id'], 'manager.send_first_voucher');
             }
         } else {
             $error = 'Failed to send voucher. Please try again later.';

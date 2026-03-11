@@ -82,6 +82,125 @@ if ($actionsStmt !== false) {
 $pageTitle = "Activity Log";
 $activePage = "activity-log";
 
+function formatActivityTimestamp($rawTimestamp) {
+    if (empty($rawTimestamp) || strpos((string)$rawTimestamp, '0000-00-00') === 0) {
+        return '<span class="text-muted">—</span>';
+    }
+
+    $ts = strtotime((string)$rawTimestamp);
+    if ($ts === false || $ts <= 0) {
+        return '<span class="text-muted">—</span>';
+    }
+
+    return date('M j, Y g:i A', $ts);
+}
+
+function decodeActivityDetails($details) {
+    if (empty($details)) {
+        return null;
+    }
+
+    $decoded = json_decode((string)$details, true);
+    return is_array($decoded) ? $decoded : null;
+}
+
+function inferActionFromDetails($details) {
+    $decoded = decodeActivityDetails($details);
+    $reason = '';
+
+    if (is_array($decoded) && !empty($decoded['reason'])) {
+        $reason = strtolower(trim((string)$decoded['reason']));
+    } else {
+        $reason = strtolower(trim((string)$details));
+    }
+
+    if ($reason === '') {
+        return 'Uncategorized';
+    }
+
+    if (strpos($reason, 'logged in successfully') !== false) {
+        return 'Login Success';
+    }
+    if (strpos($reason, 'failed login attempt') !== false) {
+        return 'Login Failed';
+    }
+    if (strpos($reason, 'logged out') !== false) {
+        return 'Logout';
+    }
+    if (strpos($reason, 'self-requested voucher') !== false) {
+        return 'Voucher Self Request';
+    }
+    if (strpos($reason, 'account created') !== false) {
+        return 'Account Created';
+    }
+
+    return 'System Event';
+}
+
+function normalizeActionLabel($action, $details) {
+    $action = trim((string)$action);
+    $decoded = decodeActivityDetails($details);
+
+    if ($action === '') {
+        return htmlspecialchars(inferActionFromDetails($details));
+    }
+
+    $map = [
+        'auth_login_success' => 'Login Success',
+        'auth_login_failure' => 'Login Failed',
+        'voucher_self_request' => 'Voucher Self Request',
+        'logout' => 'Logout',
+    ];
+
+    $key = strtolower($action);
+    if (isset($map[$key])) {
+        return htmlspecialchars($map[$key]);
+    }
+
+    return htmlspecialchars(ucwords(str_replace('_', ' ', $action)));
+}
+
+function formatActivityIp($ipAddress, $details) {
+    $ipAddress = trim((string)($ipAddress ?? ''));
+    if ($ipAddress !== '') {
+        return htmlspecialchars($ipAddress);
+    }
+
+    $decoded = decodeActivityDetails($details);
+    if (is_array($decoded) && !empty($decoded['ip_address'])) {
+        return htmlspecialchars((string)$decoded['ip_address']);
+    }
+
+    return '<span class="text-muted">—</span>';
+}
+
+function formatActivityDetails($details) {
+    if (empty($details)) {
+        return '<span class="text-muted">—</span>';
+    }
+
+    $decoded = decodeActivityDetails($details);
+    if (is_array($decoded)) {
+        if (!empty($decoded['reason'])) {
+            return htmlspecialchars((string)$decoded['reason']);
+        }
+
+        $summary = [];
+        if (isset($decoded['success'])) {
+            $summary[] = ((bool)$decoded['success']) ? 'Success' : 'Failed';
+        }
+        if (!empty($decoded['ip_address'])) {
+            $summary[] = 'IP: ' . (string)$decoded['ip_address'];
+        }
+
+        if (!empty($summary)) {
+            return htmlspecialchars(implode(' • ', $summary));
+        }
+    }
+
+    return htmlspecialchars((string)$details);
+}
+
 // Include header
 require_once '../../includes/components/header.php';
 ?>
@@ -166,7 +285,7 @@ require_once '../../includes/components/header.php';
                         <?php if (!empty($logs)): ?>
                             <?php foreach ($logs as $log): ?>
                                 <tr>
-                                    <td><?= date('M j, Y g:i A', strtotime($log['timestamp'])) ?></td>
+                                    <td><?= formatActivityTimestamp($log['timestamp'] ?? '') ?></td>
                                     <td>
                                         <?php if (!empty($log['user_name'])): ?>
                                             <?= htmlspecialchars($log['user_name']) ?>
@@ -175,9 +294,9 @@ require_once '../../includes/components/header.php';
                                             <span class="text-muted">System</span>
                                         <?php endif; ?>
                                     </td>
-                                    <td><?= htmlspecialchars($log['action']) ?></td>
-                                    <td><?= htmlspecialchars($log['ip_address'] ?? '') ?></td>
-                                    <td><?= htmlspecialchars($log['details'] ?? '') ?></td>
+                                    <td><?= normalizeActionLabel($log['action'] ?? '', $log['details'] ?? '') ?></td>
+                                    <td><?= formatActivityIp($log['ip_address'] ?? '', $log['details'] ?? '') ?></td>
+                                    <td><?= formatActivityDetails($log['details'] ?? '') ?></td>
                                 </tr>
                             <?php endforeach; ?>
                         <?php else: ?>

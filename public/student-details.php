@@ -218,6 +218,89 @@ require_once '../includes/components/header.php';
                 </div>
             </div>
             
+            <!-- Profile Completion Checklist -->
+            <div class="col-md-6">
+                <div class="card mb-4 border-info">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-tasks me-2"></i>Profile Completion Status
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <?php
+                        require_once '../includes/services/ProfileChecklistService.php';
+                        $studentChecklist = ProfileChecklistService::getChecklistForUser($conn, $student['user_id']);
+                        $studentPercentage = ProfileChecklistService::getCompletionPercentage($conn, $student['user_id']);
+                        $studentIncompleteCount = ProfileChecklistService::getIncompleteCount($conn, $student['user_id']);
+                        ?>
+                        
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="fw-bold">Overall Progress</span>
+                                <span class="text-muted"><?= number_format($studentPercentage, 0) ?>%</span>
+                            </div>
+                            <div class="progress" style="height: 25px;">
+                                <div class="progress-bar <?= $studentPercentage >= 100 ? 'bg-success' : 'bg-info' ?>" 
+                                     role="progressbar" 
+                                     style="width: <?= $studentPercentage ?>%;" 
+                                     aria-valuenow="<?= $studentPercentage ?>" 
+                                     aria-valuemin="0" 
+                                     aria-valuemax="100">
+                                    <?= number_format($studentPercentage, 0) ?>%
+                                </div>
+                            </div>
+                        </div>
+
+                        <?php if ($studentPercentage >= 100): ?>
+                            <div class="alert alert-success">
+                                <i class="fas fa-check-circle me-2"></i>
+                                <strong>Profile Complete!</strong>
+                            </div>
+                        <?php else: ?>
+                            <p class="mb-3">
+                                <i class="fas fa-info-circle me-2 text-warning"></i>
+                                <strong><?= $studentIncompleteCount ?></strong> required task<?= $studentIncompleteCount != 1 ? 's' : '' ?> remaining
+                            </p>
+                        <?php endif; ?>
+
+                        <div class="checklist-compact">
+                            <h6 class="fw-bold mb-2">Task Status:</h6>
+                            <ul class="list-group list-group-flush">
+                                <?php foreach ($studentChecklist as $item): ?>
+                                    <li class="list-group-item px-0 py-2 d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <?php if ($item['completed']): ?>
+                                                <i class="fas fa-check-circle text-success me-2"></i>
+                                            <?php else: ?>
+                                                <i class="fas fa-circle-notch text-warning me-2"></i>
+                                            <?php endif; ?>
+                                            <span class="<?= $item['completed'] ? 'text-decoration-line-through text-muted' : '' ?>">
+                                                <?= htmlspecialchars($item['label']) ?>
+                                            </span>
+                                            <?php if ($item['optional']): ?>
+                                                <span class="badge bg-secondary ms-2">Optional</span>
+                                            <?php endif; ?>
+                                        </div>
+                                        <?php if ($item['completed'] && $item['completed_at']): ?>
+                                            <small class="text-muted">
+                                                <?= date('M j', strtotime($item['completed_at'])) ?>
+                                            </small>
+                                        <?php endif; ?>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
+                        </div>
+
+                        <div class="mt-3 pt-3 border-top text-center">
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Read-only view for managers. Student completes tasks in their own profile.
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
             <div class="col-md-12">
                 <div class="card mb-4">
                     <div class="card-header d-flex justify-content-between align-items-center">
@@ -493,6 +576,28 @@ require_once '../includes/components/header.php';
                     </div>
                     <div class="card-body">
                         <?php if (count($vouchers) > 0): ?>
+                            <?php
+                            // Detect duplicate active vouchers for the same month
+                            $activeByMonth = [];
+                            foreach ($vouchers as $v) {
+                                if (!isset($v['is_active']) || $v['is_active']) {
+                                    $month = $v['voucher_month'];
+                                    $activeByMonth[$month] = ($activeByMonth[$month] ?? 0) + 1;
+                                }
+                            }
+                            $duplicateMonths = array_filter($activeByMonth, fn($count) => $count > 1);
+                            if (!empty($duplicateMonths)): ?>
+                                <div class="alert alert-warning d-flex align-items-start">
+                                    <i class="bi bi-exclamation-triangle-fill me-2 mt-1"></i>
+                                    <div>
+                                        <strong>Duplicate vouchers detected!</strong> This student has multiple active vouchers for:
+                                        <?php foreach ($duplicateMonths as $month => $count): ?>
+                                            <span class="badge bg-warning text-dark ms-1"><?= htmlspecialchars($month) ?> (<?= $count ?>)</span>
+                                        <?php endforeach; ?>
+                                        <br><small>Revoke the extra vouchers to clean up. Each student should have only 1 active voucher per month.</small>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
                             <div class="table-responsive">
                                 <table class="table table-sm table-hover">
                                     <thead>
@@ -500,16 +605,29 @@ require_once '../includes/components/header.php';
                                             <th>Month</th>
                                             <th>Voucher Code</th>
                                             <th>Sent Via</th>
+                                            <th>Status</th>
                                             <th>First Used</th>
                                             <th>Date</th>
+                                            <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <?php foreach ($vouchers as $voucher): ?>
-                                            <tr>
+                                            <tr class="<?= (isset($voucher['is_active']) && !$voucher['is_active']) ? 'table-secondary' : '' ?>">
                                                 <td><?= htmlspecialchars(formatVoucherMonth($voucher['voucher_month'])) ?></td>
                                                 <td class="font-monospace"><?= htmlspecialchars($voucher['voucher_code']) ?></td>
-                                                <td><?= $voucher['sent_via'] ?></td>
+                                                <td><?= htmlspecialchars($voucher['sent_via']) ?></td>
+                                                <td>
+                                                    <?php if (isset($voucher['is_active']) && !$voucher['is_active']): ?>
+                                                        <span class="badge bg-secondary">Revoked</span>
+                                                    <?php elseif ($voucher['status'] === 'sent'): ?>
+                                                        <span class="badge bg-success">Active</span>
+                                                    <?php elseif ($voucher['status'] === 'failed'): ?>
+                                                        <span class="badge bg-danger">Failed</span>
+                                                    <?php else: ?>
+                                                        <span class="badge bg-warning">Pending</span>
+                                                    <?php endif; ?>
+                                                </td>
                                                 <td>
                                                     <?php if (!empty($voucher['first_used_at'])): ?>
                                                         <span class="badge bg-success">Used</span>
@@ -522,6 +640,28 @@ require_once '../includes/components/header.php';
                                                     <?php endif; ?>
                                                 </td>
                                                 <td><?= $voucher['sent_at'] ? date('M j, Y', strtotime($voucher['sent_at'])) : 'Pending' ?></td>
+                                                <td>
+                                                    <?php if ((!isset($voucher['is_active']) || $voucher['is_active']) && $voucher['status'] === 'sent'): ?>
+                                                        <div class="btn-group btn-group-sm" role="group">
+                                                            <button type="button" class="btn btn-outline-danger" 
+                                                                    onclick="revokeVoucher(<?= $voucher['id'] ?>, '<?= htmlspecialchars(addslashes($voucher['voucher_code']), ENT_QUOTES) ?>')"
+                                                                    title="Revoke this voucher">
+                                                                <i class="bi bi-x-circle"></i> Revoke
+                                                            </button>
+                                                            <button type="button" class="btn btn-outline-warning" 
+                                                                    onclick="replaceVoucher(<?= $voucher['id'] ?>, '<?= htmlspecialchars(addslashes($voucher['voucher_code']), ENT_QUOTES) ?>')"
+                                                                    title="Replace with correct device limit (<?= GWN_ALLOWED_DEVICES ?>)">
+                                                                <i class="bi bi-arrow-repeat"></i> Replace
+                                                            </button>
+                                                        </div>
+                                                    <?php elseif (isset($voucher['is_active']) && !$voucher['is_active'] && !empty($voucher['revoke_reason'])): ?>
+                                                        <small class="text-muted" title="<?= htmlspecialchars($voucher['revoke_reason']) ?>">
+                                                            <i class="bi bi-info-circle"></i> <?= htmlspecialchars(mb_strimwidth($voucher['revoke_reason'], 0, 30, '...')) ?>
+                                                        </small>
+                                                    <?php else: ?>
+                                                        <span class="text-muted">—</span>
+                                                    <?php endif; ?>
+                                                </td>
                                             </tr>
                                         <?php endforeach; ?>
                                     </tbody>
@@ -592,6 +732,61 @@ function getDeviceTypeEmoji(deviceType, os, manufacturer) {
     if (type.includes('tv') || type.includes('chromecast')) return '📺';
     if (manufacturer && manufacturer.toLowerCase().includes('apple')) return '🍎';
     return '📡';
+}
+
+// Voucher replace function (revoke old + create new with correct device limit)
+function replaceVoucher(voucherLogId, voucherCode) {
+    if (!confirm('Replace voucher ' + voucherCode + '?\n\nThis will:\n1. Revoke the current voucher\n2. Create a new one with the correct device limit (<?= GWN_ALLOWED_DEVICES ?>)\n3. Send the new code to the student\n\nContinue?')) return;
+    
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '<?= BASE_URL ?>/manager/replace-voucher.php';
+    
+    const fields = {
+        'voucher_log_id': voucherLogId,
+        'return_to_student': '1',
+        'csrf_token': '<?= getCsrfToken() ?>'
+    };
+    
+    for (const [key, value] of Object.entries(fields)) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = value;
+        form.appendChild(input);
+    }
+    
+    document.body.appendChild(form);
+    form.submit();
+}
+
+// Voucher revoke function
+function revokeVoucher(voucherLogId, voucherCode) {
+    const reason = prompt('Enter reason for revoking voucher ' + voucherCode + ':');
+    if (reason === null || reason.trim() === '') return;
+    
+    if (confirm('Are you sure you want to revoke voucher ' + voucherCode + '? This will delete it from the GWN Cloud.')) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '<?= BASE_URL ?>/manager/revoke-voucher.php';
+        
+        const fields = {
+            'voucher_log_id': voucherLogId,
+            'revoke_reason': reason.trim(),
+            'csrf_token': '<?= getCsrfToken() ?>'
+        };
+        
+        for (const [key, value] of Object.entries(fields)) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = key;
+            input.value = value;
+            form.appendChild(input);
+        }
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
 }
 
 // Device management functions

@@ -133,14 +133,23 @@ if ($filter == 'active') {
     $sql_where .= " AND s.status != 'archived'";
 }
 
-// Get students for this manager with device counts
-$sql = "SELECT s.id, s.status, s.created_at, u.first_name, u.last_name, u.email, u.phone_number, u.whatsapp_number, u.preferred_communication,
-        COUNT(DISTINCT ud.id) as device_count
+// Determine the allowed device limit
+$allowedDevices = defined('GWN_ALLOWED_DEVICES') ? (int)GWN_ALLOWED_DEVICES : 2;
+
+// Get current month in the format stored in voucher_logs (e.g. "March 2026")
+$currentMonth = date('F Y');
+
+// Get students for this manager with device counts and flag data
+$sql = "SELECT s.id, s.status, s.created_at, u.id as user_id,
+        u.first_name, u.last_name, u.email, u.phone_number, u.whatsapp_number, u.preferred_communication,
+        COUNT(DISTINCT ud.id) as device_count,
+        (SELECT COUNT(*) FROM voucher_logs vl WHERE vl.user_id = u.id AND vl.is_active = 1 AND vl.voucher_month = ?) as active_vouchers_this_month,
+        (SELECT COUNT(*) FROM voucher_logs vl2 WHERE vl2.user_id = u.id) as total_voucher_count
     FROM students s
     JOIN users u ON s.user_id = u.id
     LEFT JOIN user_devices ud ON ud.user_id = u.id
     $sql_where
-    GROUP BY s.id, s.status, s.created_at, u.first_name, u.last_name, u.email, u.phone_number, u.whatsapp_number, u.preferred_communication
+    GROUP BY s.id, s.status, s.created_at, u.id, u.first_name, u.last_name, u.email, u.phone_number, u.whatsapp_number, u.preferred_communication
     ORDER BY s.created_at DESC";
 $stmt = safeQueryPrepare($conn, $sql);
 
@@ -149,7 +158,7 @@ $students = [];
 
 // Only proceed if the statement was prepared successfully
 if ($stmt !== false) {
-    $stmt->bind_param("i", $accommodation_id);
+    $stmt->bind_param("si", $currentMonth, $accommodation_id);
     $stmt->execute();
     $result = $stmt->get_result();
     $students = $result->fetch_all(MYSQLI_ASSOC);
@@ -238,6 +247,7 @@ require_once '../includes/components/header.php';
                                     <th>Phone</th>
                                     <th>Preferred</th>
                                     <th>Devices</th>
+                                    <th>Flags</th>
                                     <th>Status</th>
                                     <th>Actions</th>
                                 </tr>
@@ -257,6 +267,25 @@ require_once '../includes/components/header.php';
                                             <?php else: ?>
                                                 <span class="text-muted" title="No devices registered">—</span>
                                             <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <?php
+                                            $flags = [];
+                                            if ($student['active_vouchers_this_month'] > 1) {
+                                                $flags[] = '<span class="badge bg-warning text-dark" title="' . $student['active_vouchers_this_month'] . ' active vouchers for ' . htmlspecialchars($currentMonth) . '"><i class="bi bi-exclamation-triangle"></i> ' . $student['active_vouchers_this_month'] . ' vouchers</span>';
+                                            }
+                                            if ($student['device_count'] > $allowedDevices) {
+                                                $flags[] = '<span class="badge bg-danger" title="' . $student['device_count'] . ' devices registered (max ' . $allowedDevices . ')"><i class="bi bi-phone-fill"></i> ' . $student['device_count'] . '/' . $allowedDevices . ' devices</span>';
+                                            }
+                                            if ($student['total_voucher_count'] > 3) {
+                                                $flags[] = '<span class="badge bg-secondary" title="' . $student['total_voucher_count'] . ' total vouchers sent (all time)"><i class="bi bi-clipboard-data"></i> ' . $student['total_voucher_count'] . ' total</span>';
+                                            }
+                                            if (empty($flags)) {
+                                                echo '<span class="text-muted">—</span>';
+                                            } else {
+                                                echo implode(' ', $flags);
+                                            }
+                                            ?>
                                         </td>
                                         <td>
                                             <?php if ($student['status'] == 'active'): ?>

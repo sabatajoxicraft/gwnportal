@@ -1,6 +1,7 @@
 <?php
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
+require_once '../includes/services/ProfileChecklistService.php';
 
 // Require manager or owner login
 requireRole(['manager', 'owner']);
@@ -170,6 +171,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (empty($error) && $stmt->execute()) {
                 $generated_codes[] = $code;
                 $success = "Invitation code generated successfully.";
+                
+                // Auto-complete manager checklist: generate_student_code (only for managers creating student codes)
+                if ($user_role === 'manager' && $code_role_id === 4) {
+                    ProfileChecklistService::markComplete($conn, $user_id, 'manager.generate_student_code');
+                }
                 
                 if ($profile_photo_path) {
                     $success .= " Student photo saved for verification.";

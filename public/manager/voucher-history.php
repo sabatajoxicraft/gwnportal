@@ -213,11 +213,16 @@ require_once '../../includes/components/header.php';
     </div>
     
     <!-- Results Summary -->
-    <div class="alert alert-info">
-        <strong><?= number_format($total_records) ?></strong> voucher(s) found
-        <?php if ($total_records > 0): ?>
-            (Page <?= $page ?> of <?= $total_pages ?>)
-        <?php endif; ?>
+    <div class="alert alert-info d-flex justify-content-between align-items-center">
+        <span>
+            <strong><?= number_format($total_records) ?></strong> voucher(s) found
+            <?php if ($total_records > 0): ?>
+                (Page <?= $page ?> of <?= $total_pages ?>)
+            <?php endif; ?>
+        </span>
+        <button type="button" class="btn btn-sm btn-outline-danger d-none" id="bulk-revoke-btn" onclick="bulkRevoke()">
+            <i class="bi bi-x-circle"></i> Revoke Selected (<span id="selected-count">0</span>)
+        </button>
     </div>
     
     <!-- Vouchers Table -->
@@ -233,6 +238,7 @@ require_once '../../includes/components/header.php';
                     <table class="table table-hover">
                         <thead>
                             <tr>
+                                <th><input type="checkbox" id="select-all" title="Select all active vouchers on this page"></th>
                                 <th>
                                     <a href="?<?= http_build_query(array_merge($_GET, ['sort_by' => 'student_name', 'sort_order' => ($sort_by === 'student_name' && $sort_order === 'ASC') ? 'DESC' : 'ASC'])) ?>">
                                         Student 
@@ -279,7 +285,13 @@ require_once '../../includes/components/header.php';
                         </thead>
                         <tbody>
                             <?php foreach ($vouchers as $voucher): ?>
+                                <?php $canRevoke = $voucher['status'] === 'sent' && (!isset($voucher['is_active']) || $voucher['is_active'] == 1); ?>
                                 <tr>
+                                    <td>
+                                        <?php if ($canRevoke): ?>
+                                            <input type="checkbox" class="voucher-checkbox" value="<?= $voucher['id'] ?>" data-code="<?= htmlspecialchars($voucher['voucher_code']) ?>">
+                                        <?php endif; ?>
+                                    </td>
                                     <td>
                                         <strong><?= htmlspecialchars($voucher['student_name']) ?></strong><br>
                                         <small class="text-muted"><?= htmlspecialchars($voucher['email']) ?></small>
@@ -328,7 +340,7 @@ require_once '../../includes/components/header.php';
                                            class="btn btn-sm btn-outline-primary" title="View Details">
                                             <i class="bi bi-eye"></i>
                                         </a>
-                                        <?php if ($voucher['status'] === 'sent' && (!isset($voucher['is_active']) || $voucher['is_active'] == 1)): ?>
+                                        <?php if ($canRevoke): ?>
                                             <button class="btn btn-sm btn-outline-danger revoke-btn" 
                                                     data-voucher-id="<?= $voucher['id'] ?>"
                                                     data-voucher-code="<?= htmlspecialchars($voucher['voucher_code']) ?>"
@@ -433,7 +445,68 @@ document.addEventListener('DOMContentLoaded', function() {
             revokeModal.show();
         });
     });
+
+    // Select all checkbox
+    const selectAll = document.getElementById('select-all');
+    if (selectAll) {
+        selectAll.addEventListener('change', function() {
+            document.querySelectorAll('.voucher-checkbox').forEach(cb => {
+                cb.checked = this.checked;
+            });
+            updateBulkButton();
+        });
+    }
+
+    // Individual checkboxes
+    document.querySelectorAll('.voucher-checkbox').forEach(cb => {
+        cb.addEventListener('change', updateBulkButton);
+    });
 });
+
+function updateBulkButton() {
+    const checked = document.querySelectorAll('.voucher-checkbox:checked');
+    const btn = document.getElementById('bulk-revoke-btn');
+    const count = document.getElementById('selected-count');
+    if (checked.length > 0) {
+        btn.classList.remove('d-none');
+        count.textContent = checked.length;
+    } else {
+        btn.classList.add('d-none');
+    }
+}
+
+function bulkRevoke() {
+    const checked = document.querySelectorAll('.voucher-checkbox:checked');
+    if (checked.length === 0) return;
+    
+    const reason = prompt('Enter reason for revoking ' + checked.length + ' voucher(s):');
+    if (reason === null || reason.trim() === '') return;
+    
+    if (!confirm('Are you sure you want to revoke ' + checked.length + ' voucher(s)? This cannot be undone.')) return;
+    
+    const ids = Array.from(checked).map(cb => cb.value).join(',');
+    
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = 'bulk-revoke-vouchers.php';
+    
+    const fields = {
+        'voucher_ids': ids,
+        'revoke_reason': reason.trim(),
+        'csrf_token': '<?= getCsrfToken() ?>'
+    };
+    
+    for (const [key, value] of Object.entries(fields)) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = value;
+        form.appendChild(input);
+    }
+    
+    document.body.appendChild(form);
+    form.submit();
+}
 </script>
 
 <?php require_once '../../includes/components/footer.php'; ?>

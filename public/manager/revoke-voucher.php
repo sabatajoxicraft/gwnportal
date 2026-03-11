@@ -50,10 +50,18 @@ if ($voucher['status'] !== 'sent') {
     redirect(BASE_URL . '/manager/voucher-history.php', 'Only sent vouchers can be revoked.', 'warning');
 }
 
-// Revoke the voucher (deletes on GWN Cloud and marks inactive)
-$success = revokeStudentVoucher($voucher_log_id, $user_id, $revoke_reason);
+// Revoke the voucher (marks inactive in DB)
+$success = revokeVoucher($voucher_log_id, $revoke_reason, $user_id);
 
 if ($success) {
+    // Also delete from GWN Cloud if gwn_voucher_id exists
+    if (!empty($voucher['gwn_voucher_id'])) {
+        $networkId = defined('GWN_NETWORK_ID') ? GWN_NETWORK_ID : '';
+        if (!empty($networkId)) {
+            gwnDeleteVoucher((int)$voucher['gwn_voucher_id'], $networkId);
+        }
+    }
+
     // Log activity
     logActivity($conn, $user_id, 'voucher_revoked', 'Revoked voucher: ' . $voucher['voucher_code'] . ' - Reason: ' . $revoke_reason);
     
