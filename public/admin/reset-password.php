@@ -18,7 +18,7 @@ $user_id = isset($_POST['user_id']) ? (int)$_POST['user_id'] : 0;
 $reset_type = $_POST['reset_type'] ?? 'generate';
 $new_password = $_POST['new_password'] ?? '';
 $confirm_password = $_POST['confirm_password'] ?? '';
-$send_email = isset($_POST['send_email']) && $_POST['send_email'] == 'on';
+$send_email = isset($_POST['send_email']) && $_POST['send_email'] == '1';
 
 // Validate CSRF token
 try {

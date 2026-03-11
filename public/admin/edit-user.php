@@ -200,7 +200,10 @@ require_once '../../includes/components/header.php';
                             </div>
                         </div>
                         <div class="d-grid">
-                            <button type="submit" class="btn btn-primary">Update User</button>
+                            <div class="d-flex gap-2">
+                                <button type="submit" class="btn btn-primary flex-grow-1">Update User</button>
+                                <a href="view-user.php?id=<?= $userId ?>" class="btn btn-outline-secondary">Cancel</a>
+                            </div>
                         </div>
                     </form>
                 </div>

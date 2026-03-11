@@ -796,7 +796,7 @@ require_once '../../includes/components/header.php';
                     </div>
                     
                     <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="send_email" name="send_email" checked>
+                        <input class="form-check-input" type="checkbox" id="send_email" name="send_email" value="1" checked>
                         <label class="form-check-label" for="send_email">
                             Send new password to user by email
                         </label>
