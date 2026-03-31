@@ -46,8 +46,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $owner_id = (int)($_POST['owner_id'] ?? 0);
         // Validate owner exists
         $check = safeQueryPrepare($conn, 
-            "SELECT id FROM users u JOIN roles r ON u.role_id = r.id 
-             WHERE u.id = ? AND r.name = 'owner'");
+            "SELECT u.id FROM users u JOIN roles r ON u.role_id = r.id 
+             WHERE u.id = ? AND r.name = 'owner' AND u.status = 'active'");
         if ($check) {
             $check->bind_param("i", $owner_id);
             $check->execute();
