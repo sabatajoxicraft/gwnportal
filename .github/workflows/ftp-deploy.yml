@@ -14,10 +14,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Write env.production from secret
+      - name: Write .env from secret
         env:
           PRODUCTION_ENV_FILE: ${{ secrets.PRODUCTION_ENV_FILE }}
-        run: if [ -n "$PRODUCTION_ENV_FILE" ]; then printf '%s' "$PRODUCTION_ENV_FILE" > env.production; fi
+        run: |
+          if [ -z "$PRODUCTION_ENV_FILE" ]; then
+            echo "ERROR: PRODUCTION_ENV_FILE secret is missing or empty. Aborting deploy." >&2
+            exit 1
+          fi
+          printf '%s' "$PRODUCTION_ENV_FILE" > .env
+
+      - name: Remove legacy env.production to avoid ambiguity
+        run: rm -f env.production
 
       - name: Sync files via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
@@ -34,5 +42,4 @@ jobs:
             **/.git/**
             **/.vscode/**
             **/.copilot/**
-            **/.env
             **/.github/**
