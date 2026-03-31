@@ -959,10 +959,10 @@ function resolveSenderEmail($preferGraphSender = false) {
         return $m365Sender;
     }
 
-    // Priority 3: noreply@host from BASE_URL, SERVER_NAME, or localhost
+    // Priority 3: noreply@host from ABSOLUTE_APP_URL, SERVER_NAME, or localhost
     $host = 'localhost';
-    if (defined('BASE_URL') && !empty(BASE_URL)) {
-        $parsedHost = parse_url(BASE_URL, PHP_URL_HOST);
+    if (defined('ABSOLUTE_APP_URL') && !empty(ABSOLUTE_APP_URL)) {
+        $parsedHost = parse_url(ABSOLUTE_APP_URL, PHP_URL_HOST);
         if ($parsedHost) {
             $host = $parsedHost;
         } elseif (!empty($_SERVER['SERVER_NAME'])) {
@@ -1070,8 +1070,8 @@ function resolveAppEmailUrl($url) {
     }
 
     if ($url[0] === '/') {
-        if (defined('BASE_URL') && !empty(BASE_URL)) {
-            return rtrim((string) BASE_URL, '/') . $url;
+        if (defined('ABSOLUTE_APP_URL') && !empty(ABSOLUTE_APP_URL)) {
+            return rtrim((string) ABSOLUTE_APP_URL, '/') . $url;
         }
         $host = $_SERVER['HTTP_HOST'] ?? ($_SERVER['SERVER_NAME'] ?? '');
         if (!empty($host)) {

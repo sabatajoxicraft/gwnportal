@@ -285,11 +285,7 @@ require_once '../includes/components/header.php';
                     <a href="<?= BASE_URL ?>/onboard.php" class="btn btn-lg btn-primary">
                         <i class="bi bi-arrow-right-circle me-2"></i> Start Onboarding Process
                     </a>
-                    <div class="mt-3">
-                        <a href="<?= BASE_URL ?>/onboard.php?self_register=1&step=2" class="btn btn-link text-muted">
-                            No onboarding code received?
-                        </a>
-                    </div>
+
                 </div>
             </div>
         </div>

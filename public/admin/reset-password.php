@@ -93,7 +93,7 @@ if ($send_email && !empty($user['email'])) {
     $email_body .= "Your new login credentials:\n";
     $email_body .= "Username: " . htmlspecialchars($user['username']) . "\n";
     $email_body .= "Password: " . $password_to_set . "\n\n";
-    $email_body .= "Please log in at: " . BASE_URL . "/login.php\n\n";
+    $email_body .= "Please log in at: " . ABSOLUTE_APP_URL . "/login.php\n\n";
     $email_body .= "For security reasons, please change your password after logging in.\n\n";
     $email_body .= "Best regards,\n";
     $email_body .= "GWN WiFi Portal Administration Team";

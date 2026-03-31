@@ -101,7 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $message .= "Username: $username\n";
                         $message .= "Password: $password\n";
                         $message .= "Role: $role_name\n\n";
-                        $message .= "You can login at " . BASE_URL . "/login.php\n\n";
+                        $message .= "You can login at " . ABSOLUTE_APP_URL . "/login.php\n\n";
                         $message .= "We recommend changing your password after your first login.\n\n";
                         $message .= "Regards,\n" . APP_NAME . " Admin";
                         

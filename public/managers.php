@@ -219,7 +219,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_manager'])) {
                             . "Username: " . $username . "\n"
                             . "Password: " . $password . "\n"
                             . "Role: Manager\n\n"
-                            . "Login at: " . BASE_URL . "/login.php\n\n"
+                            . "Login at: " . ABSOLUTE_APP_URL . "/login.php\n\n"
                             . "Please change your password after your first login.";
                         $email_sent = sendAppEmail($email, $email_subject, $email_body);
 

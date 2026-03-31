@@ -25,30 +25,9 @@ if (!isset($_SESSION['onboarding'])) {
 // Get connection
 $conn = getDbConnection();
 
-// Handle self-register mode: initialize session when arriving via self_register=1
-if (isset($_GET['self_register']) && $_GET['self_register'] == '1' && empty($_SESSION['onboarding']['self_register'])) {
-    $stmtRole = safeQueryPrepare($conn, "SELECT id FROM roles WHERE name = 'student'", false);
-    if (!$stmtRole) {
-        $error = "Registration is temporarily unavailable. Please contact support.";
-    } else {
-        $stmtRole->execute();
-        $roleRow = $stmtRole->get_result()->fetch_assoc();
-        if (!$roleRow) {
-            $error = "Student role not found. Please contact support.";
-        } else {
-            $_SESSION['onboarding'] = [
-                'code'               => '',
-                'user_role'          => 'student',
-                'role_id'            => $roleRow['id'],
-                'entity_id'          => '',
-                'accommodation_id'   => '',
-                'accommodation_name' => '',
-                'step'               => 2,
-                'self_register'      => true,
-                'send_method'        => 'none',
-            ];
-        }
-    }
+// self_register flow is disabled; redirect old bookmarked URLs to normal onboarding
+if (isset($_GET['self_register'])) {
+    redirect(BASE_URL . '/onboard.php');
 }
 
 // Handle form submissions
@@ -119,33 +98,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             error_log("Missing onboarding session data at step 2: " . print_r($_SESSION['onboarding'] ?? [], true));
             redirect(BASE_URL . '/onboard.php');
         }
-        // In normal (code-based) mode, accommodation_id must already be set in session
-        if (empty($_SESSION['onboarding']['self_register']) && empty($_SESSION['onboarding']['accommodation_id'])) {
+        // accommodation_id must already be set in session by code validation
+        if (empty($_SESSION['onboarding']['accommodation_id'])) {
             $error = "Session expired or invalid. Please start over.";
             error_log("Missing accommodation in onboarding session: " . print_r($_SESSION['onboarding'] ?? [], true));
             redirect(BASE_URL . '/onboard.php');
         }
 
-        // In self-register mode, validate and apply the chosen accommodation
-        if (!empty($_SESSION['onboarding']['self_register'])) {
-            $selfRegAccomId = intval($_POST['accommodation_id'] ?? 0);
-            if ($selfRegAccomId <= 0) {
-                $error = "Please select an accommodation.";
-            } else {
-                $stmtAccom = safeQueryPrepare($conn, "SELECT id, name FROM accommodations WHERE id = ?");
-                $stmtAccom->bind_param("i", $selfRegAccomId);
-                $stmtAccom->execute();
-                $accomRow = $stmtAccom->get_result()->fetch_assoc();
-                if (!$accomRow) {
-                    $error = "Invalid accommodation selected.";
-                } else {
-                    $_SESSION['onboarding']['accommodation_id']   = $accomRow['id'];
-                    $_SESSION['onboarding']['accommodation_name'] = $accomRow['name'];
-                }
-            }
-        }
         
-        // Get form data (only proceed if no accommodation error)
+        // Get form data (only proceed if no error)
         if (empty($error)) {
         $firstName = trim($_POST['first_name']);
         $lastName = trim($_POST['last_name']);
@@ -400,30 +361,6 @@ require_once '../includes/components/header.php';
                         </div>
                         <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF']) . '?step=2' ?>">
                             <?php echo csrfField(); ?>
-                            <?php if (!empty($_SESSION['onboarding']['self_register'])): ?>
-                                <?php
-                                $accomStmt = safeQueryPrepare($conn, "SELECT id, name FROM accommodations ORDER BY name ASC", false);
-                                if ($accomStmt) {
-                                    $accomStmt->execute();
-                                    $accomResult = $accomStmt->get_result();
-                                }
-                                ?>
-                                <div class="mb-3">
-                                    <label for="accommodation_id" class="form-label">Accommodation <span class="text-danger">*</span></label>
-                                    <?php if (!isset($accomResult)): ?>
-                                        <p class="text-muted small">Accommodations could not be loaded. Please refresh or contact support.</p>
-                                    <?php else: ?>
-                                    <select class="form-select" id="accommodation_id" name="accommodation_id" required>
-                                        <option value="">-- Select your accommodation --</option>
-                                        <?php while ($accomOpt = $accomResult->fetch_assoc()): ?>
-                                            <option value="<?= $accomOpt['id'] ?>" <?= (isset($_POST['accommodation_id']) && $_POST['accommodation_id'] == $accomOpt['id']) ? 'selected' : '' ?>>
-                                                <?= htmlspecialchars($accomOpt['name']) ?>
-                                            </option>
-                                        <?php endwhile; ?>
-                                    </select>
-                                    <?php endif; ?>
-                                </div>
-                            <?php endif; ?>
                             <div class="row mb-3">
                                 <div class="col">
                                     <label for="first_name" class="form-label">First Name</label>

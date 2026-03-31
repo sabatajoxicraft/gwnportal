@@ -186,11 +186,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 
                 // Compute absolute registration URL for invitation links
-                $_base = (defined('BASE_URL') && BASE_URL !== '')
-                    ? BASE_URL
-                    : ((!empty($_ENV['APP_URL'])) ? $_ENV['APP_URL']
-                        : ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http')
-                            . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost')));
+                $_base = defined('ABSOLUTE_APP_URL') && ABSOLUTE_APP_URL !== ''
+                    ? ABSOLUTE_APP_URL
+                    : ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http')
+                        . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost'));
                 $registration_url = rtrim($_base, '/') . '/#student-onboarding';
 
                 // Handle sending of code

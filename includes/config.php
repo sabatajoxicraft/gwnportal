@@ -118,10 +118,18 @@ require_once __DIR__ . '/db.php';
 
 // Application settings from env file
 define('APP_NAME', $_ENV['APP_NAME'] ?? 'JoxiSphere');
-// Normalize BASE_URL so asset links resolve correctly when served from container root
-$appUrl = $_ENV['APP_URL'] ?? '';
-$appUrl = rtrim($appUrl, '/');
-define('BASE_URL', $appUrl === '' ? '' : $appUrl);
+
+// ABSOLUTE_APP_URL: the full configured origin (scheme + host + port) from APP_URL.
+// Use this wherever an absolute URL is required, e.g. outbound email/SMS login links.
+$appUrl = rtrim($_ENV['APP_URL'] ?? '', '/');
+define('ABSOLUTE_APP_URL', $appUrl);
+
+// BASE_URL: path-only prefix so browser-facing assets and redirects are host-agnostic.
+// Serving at the root (the common case) gives an empty string, making all links
+// root-relative (/login.php etc.) and reachable via any loopback alias or hostname.
+$_appUrlPath = parse_url($appUrl, PHP_URL_PATH) ?? '';
+define('BASE_URL', $_appUrlPath !== '' ? '/' . trim($_appUrlPath, '/') : '');
+unset($appUrl, $_appUrlPath);
 
 // Onboarding settings
 define('CODE_EXPIRY_DAYS', $_ENV['CODE_EXPIRY_DAYS'] ?? 7);
