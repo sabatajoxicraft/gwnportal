@@ -55,18 +55,20 @@ class CommunicationLogger {
     /**
      * Log an outbound email send attempt.
      *
-     * @param string   $to          Recipient email (will be masked)
-     * @param string   $subject     Email subject
-     * @param string   $category    Context: password_reset, invitation_code, credentials, voucher, general, …
-     * @param bool     $success     Whether the send succeeded
-     * @param int|null $userId      Acting user (null = system / unauthenticated)
+     * @param string   $to            Recipient email (will be masked)
+     * @param string   $subject       Email subject
+     * @param string   $category      Context: password_reset, invitation_code, credentials, voucher, general, …
+     * @param bool     $success       Whether the send succeeded
+     * @param int|null $userId        Acting user (null = system / unauthenticated)
+     * @param array    $transportMeta Optional transport diagnostics (transport, http_code, sender, error, fallback_used)
      */
     public static function logEmail(
         string $to,
         string $subject,
         string $category,
         bool   $success,
-        ?int   $userId = null
+        ?int   $userId = null,
+        array  $transportMeta = []
     ): void {
         $action  = $success ? 'communication_email_sent' : 'communication_email_failed';
         $details = [
@@ -76,6 +78,29 @@ class CommunicationLogger {
             'subject'          => $subject,
             'success'          => $success,
         ];
+
+        if (!empty($transportMeta)) {
+            if (isset($transportMeta['transport'])) {
+                $details['transport'] = $transportMeta['transport'];
+            }
+            if (isset($transportMeta['http_code']) && $transportMeta['http_code'] > 0) {
+                $details['http_code'] = (int) $transportMeta['http_code'];
+            }
+            if (!empty($transportMeta['error'])) {
+                $details['transport_error'] = substr((string) $transportMeta['error'], 0, 200);
+            }
+            if (isset($transportMeta['fallback_used'])) {
+                $details['fallback_used'] = (bool) $transportMeta['fallback_used'];
+            }
+            // Store only the sender domain (not the full address) for diagnostics
+            if (!empty($transportMeta['sender'])) {
+                $atPos = strpos((string) $transportMeta['sender'], '@');
+                if ($atPos !== false) {
+                    $details['sender_domain'] = substr((string) $transportMeta['sender'], $atPos + 1);
+                }
+            }
+        }
+
         ActivityLogger::logAction(self::actingUserId($userId), $action, $details);
     }
 

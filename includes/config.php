@@ -161,6 +161,20 @@ define('PYTHON_SCRIPT_PATH', getenv('PYTHON_SCRIPT_PATH') ?: (getenv('PYTHON_SCR
 // Google Maps API
 define('GOOGLE_MAPS_API_KEY', getenv('GOOGLE_MAPS_API_KEY') ?: '');
 
+// ============================================================================
+// SMTP Configuration (PHPMailer – primary email transport)
+// Defaults match docker-entrypoint.sh; override via .env or server environment.
+// ============================================================================
+define('SMTP_HOST',       getenv('SMTP_HOST')       ?: 'student.joxicraft.co.za');
+define('SMTP_PORT',       (int)(getenv('SMTP_PORT') ?: 465));
+define('SMTP_USER',       getenv('SMTP_USER')       ?: 'donotreply@student.joxicraft.co.za');
+define('SMTP_PASSWORD',   getenv('SMTP_PASSWORD')   ?: '');
+define('SMTP_FROM',       getenv('SMTP_FROM')       ?: 'donotreply@student.joxicraft.co.za');
+// 'ssl' for implicit TLS on port 465 (SMTPS); 'tls' for STARTTLS on port 587; '' = none
+define('SMTP_ENCRYPTION', getenv('SMTP_ENCRYPTION') ?: (((int)(getenv('SMTP_PORT') ?: 465)) === 587 ? 'tls' : 'ssl'));
+// Set to '0' to disable SMTP AUTH (not recommended)
+define('SMTP_AUTH',       (getenv('SMTP_AUTH') !== false ? (bool)(int)getenv('SMTP_AUTH') : true));
+
 // Microsoft 365 Graph Configuration
 define('M365_GRAPH_ENABLED', getenv('M365_GRAPH_ENABLED') ?: '1');
 define('M365_TENANT_ID', getenv('M365_TENANT_ID') ?: (getenv('TENANT_ID') ?: ''));
@@ -183,6 +197,14 @@ if (APP_DEBUG) {
     error_reporting(E_ALL & ~E_NOTICE & ~E_DEPRECATED);
     ini_set('log_errors', 1);
 }
+
+// Load vendored third-party libraries (PHPMailer, etc.)
+// Committed to repo so production/shared-hosting works without running Composer.
+$_vendorAutoload = __DIR__ . '/../vendor/autoload.php';
+if (is_file($_vendorAutoload)) {
+    require_once $_vendorAutoload;
+}
+unset($_vendorAutoload);
 
 // Function to redirect with a message
 function redirect($location, $message = null, $type = 'info') {

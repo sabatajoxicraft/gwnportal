@@ -1041,30 +1041,38 @@ function getGraphToken() {
     return json_decode($response, true);
 }
 
-function sendGraphEmail($to, $subject, $body, $contentType = 'Text', $sender = null) {
+/**
+ * Send an email via Microsoft Graph API.
+ * Returns structured transport details for audit logging.
+ *
+ * @return array{success: bool, transport: string, http_code: int, sender: string, error: string}
+ */
+function _sendGraphEmailDetails($to, $subject, $body, $contentType = 'HTML', $sender = null) {
     if (!$sender) {
         $sender = resolveSenderEmail(true);
     }
+    $result = [
+        'success'   => false,
+        'transport' => 'graph',
+        'http_code' => 0,
+        'sender'    => $sender,
+        'error'     => '',
+    ];
 
     $tokenData = getGraphToken();
     if (!$tokenData || empty($tokenData['access_token'])) {
+        $result['error'] = 'No access token';
         error_log("Graph email failed: No token");
-        return false;
+        return $result;
     }
 
     $sendMailUrl = 'https://graph.microsoft.com/v1.0/users/' . urlencode($sender) . '/sendMail';
-
     $email = [
         'message' => [
             'subject' => $subject,
-            'body' => [
-                'contentType' => $contentType,
-                'content' => $body
-            ],
-            'toRecipients' => [
-                ['emailAddress' => ['address' => $to]]
-            ]
-        ]
+            'body'    => ['contentType' => $contentType, 'content' => $body],
+            'toRecipients' => [['emailAddress' => ['address' => $to]]],
+        ],
     ];
 
     $ch = curl_init();
@@ -1074,19 +1082,37 @@ function sendGraphEmail($to, $subject, $body, $contentType = 'Text', $sender = n
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
         'Authorization: Bearer ' . $tokenData['access_token'],
-        'Content-Type: application/json'
+        'Content-Type: application/json',
     ]);
 
     $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
 
+    $result['http_code'] = $httpCode;
+
     if ($httpCode === 202) {
-        return true;
+        $result['success'] = true;
+        return $result;
     }
 
-    error_log("Graph email failed: HTTP $httpCode");
-    return false;
+    // Extract a short error snippet for the audit log
+    $errSnippet = '';
+    if ($response) {
+        $decoded = json_decode($response, true);
+        if (is_array($decoded) && isset($decoded['error']['message'])) {
+            $errSnippet = substr($decoded['error']['message'], 0, 120);
+        } elseif (is_string($response)) {
+            $errSnippet = substr($response, 0, 80);
+        }
+    }
+    $result['error'] = $errSnippet ?: "HTTP {$httpCode}";
+    error_log("Graph email failed: HTTP $httpCode" . ($errSnippet ? " – $errSnippet" : ''));
+    return $result;
+}
+
+function sendGraphEmail($to, $subject, $body, $contentType = 'Text', $sender = null) {
+    return _sendGraphEmailDetails($to, $subject, $body, $contentType ?: 'Text', $sender)['success'];
 }
 
 function resolveAppEmailUrl($url) {
@@ -1225,42 +1251,121 @@ function wrapAppEmailContent($subject, $bodyHtml) {
         . '</body></html>';
 }
 
+/**
+ * Send an email via PHPMailer over authenticated SMTP.
+ * Returns structured transport details for audit logging.
+ *
+ * @param  string $to        Recipient address
+ * @param  string $subject   Email subject
+ * @param  string $htmlBody  Full HTML body
+ * @param  string $sender    From/Reply-To address
+ * @return array{success: bool, transport: string, sender: string, error: string}
+ */
+function _sendSmtpEmailDetails(string $to, string $subject, string $htmlBody, string $sender): array {
+    $result = [
+        'success'   => false,
+        'transport' => 'smtp',
+        'sender'    => $sender,
+        'error'     => '',
+    ];
+
+    try {
+        $mail = new \PHPMailer\PHPMailer\PHPMailer(true); // true = throw exceptions
+        $mail->isSMTP();
+        $mail->Host     = SMTP_HOST;
+        $mail->Port     = SMTP_PORT;
+        $mail->SMTPAuth = SMTP_AUTH;
+        $mail->Username = SMTP_USER;
+        $mail->Password = SMTP_PASSWORD;
+
+        if (SMTP_ENCRYPTION === 'ssl') {
+            $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
+        } elseif (SMTP_ENCRYPTION === 'tls') {
+            $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+        } else {
+            $mail->SMTPSecure = '';
+            $mail->SMTPAutoTLS = false;
+        }
+
+        $fromName = defined('APP_NAME') ? APP_NAME : 'System';
+        $mail->setFrom($sender, $fromName);
+        $mail->addReplyTo($sender, $fromName);
+        $mail->addAddress($to);
+        $mail->Subject = $subject;
+        $mail->isHTML(true);
+        $mail->Body    = $htmlBody;
+        $mail->AltBody = strip_tags((string) $htmlBody);
+        $mail->CharSet = 'UTF-8';
+        $mail->XMailer = ' '; // omit X-Mailer header
+
+        $mail->send();
+        $result['success'] = true;
+
+    } catch (\PHPMailer\PHPMailer\Exception $e) {
+        $errMsg = substr($e->getMessage(), 0, 200);
+        $result['error'] = $errMsg;
+        error_log("SMTP email failed [to={$to}]: {$errMsg}");
+    } catch (\Exception $e) {
+        $errMsg = substr($e->getMessage(), 0, 200);
+        $result['error'] = $errMsg;
+        error_log("SMTP email exception [to={$to}]: {$errMsg}");
+    }
+
+    return $result;
+}
+
 function sendAppEmail($to, $subject, $message, $isHtml = false, $auditCategory = 'general') {
     $category = ($auditCategory !== null && $auditCategory !== '') ? (string)$auditCategory : 'general';
 
     if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
-        CommunicationLogger::logEmail((string)$to, (string)$subject, $category, false);
+        CommunicationLogger::logEmail((string)$to, (string)$subject, $category, false, null, [
+            'transport' => 'none',
+            'error'     => 'Invalid email address',
+        ]);
         return false;
     }
 
-    $graphSender = resolveSenderEmail(true);
-    $mailSender = resolveSenderEmail(false);
-    $bodyContent = $isHtml
-        ? (string) $message
-        : formatPlainAppEmailBody($message);
+    $bodyContent = $isHtml ? (string) $message : formatPlainAppEmailBody($message);
     $htmlMessage = wrapAppEmailContent($subject, $bodyContent);
 
-    $result = false;
+    $result        = false;
+    $transportMeta = [];
 
-    // Try Graph API first if enabled and configured
-    if (M365_GRAPH_ENABLED === '1' && !empty(M365_TENANT_ID) && !empty(M365_CLIENT_ID) && !empty(M365_CLIENT_SECRET)) {
-        if (sendGraphEmail($to, $subject, $htmlMessage, 'HTML', $graphSender)) {
-            $result = true;
-        }
+    // ── Primary: PHPMailer SMTP ────────────────────────────────────────────
+    $smtpReady = class_exists('\\PHPMailer\\PHPMailer\\PHPMailer')
+        && defined('SMTP_HOST') && SMTP_HOST !== ''
+        && defined('SMTP_USER') && SMTP_USER !== ''
+        && defined('SMTP_PASSWORD') && SMTP_PASSWORD !== '';
+
+    if ($smtpReady) {
+        $smtpSender    = (defined('SMTP_FROM') && filter_var(SMTP_FROM, FILTER_VALIDATE_EMAIL))
+            ? SMTP_FROM
+            : resolveSenderEmail(false);
+        $smtpResult    = _sendSmtpEmailDetails((string)$to, (string)$subject, $htmlMessage, $smtpSender);
+        $transportMeta = $smtpResult;
+        $result        = $smtpResult['success'];
     }
 
-    // Fallback to PHP mail() if Graph API did not succeed
-    if (!$result) {
-        $headers = "MIME-Version: 1.0\r\n";
-        $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
-        $headers .= "From: " . (defined('APP_NAME') ? APP_NAME : 'System') . " <{$mailSender}>\r\n";
-        $headers .= "Reply-To: {$mailSender}\r\n";
-        $headers .= "X-Mailer: PHP/" . phpversion() . "\r\n";
-
-        $result = (bool)@mail($to, $subject, $htmlMessage, $headers, "-f {$mailSender}");
+    // ── Optional fallback: Microsoft Graph (only if SMTP failed/unconfigured) ─
+    if (!$result && M365_GRAPH_ENABLED === '1'
+        && !empty(M365_TENANT_ID) && !empty(M365_CLIENT_ID) && !empty(M365_CLIENT_SECRET)
+    ) {
+        $graphSender   = resolveSenderEmail(true);
+        $graphResult   = _sendGraphEmailDetails((string)$to, (string)$subject, $htmlMessage, 'HTML', $graphSender);
+        $graphResult['fallback_used'] = true;
+        $transportMeta = $graphResult;
+        $result        = $graphResult['success'];
     }
 
-    CommunicationLogger::logEmail((string)$to, (string)$subject, $category, $result);
+    if (empty($transportMeta)) {
+        $transportMeta = [
+            'transport' => 'none',
+            'success'   => false,
+            'error'     => 'No configured transport available (check SMTP_HOST, SMTP_USER, SMTP_PASSWORD)',
+        ];
+    }
+
+    CommunicationLogger::logEmail((string)$to, (string)$subject, $category, $result, null, $transportMeta);
 
     return $result;
 }

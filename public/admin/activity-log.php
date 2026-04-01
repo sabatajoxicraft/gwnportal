@@ -45,7 +45,16 @@ if ($page > $totalPages) {
     $offset = ($page - 1) * $limit;
 }
 
-$logsSql = "SELECT al.*, CONCAT(u.first_name, ' ', u.last_name) as user_name, u.username
+$logsSql = "SELECT
+                al.id          AS id,
+                al.user_id     AS user_id,
+                al.action      AS action,
+                al.details     AS details,
+                al.ip_address  AS ip_address,
+                al.user_agent  AS user_agent,
+                al.timestamp   AS timestamp,
+                CONCAT(u.first_name, ' ', u.last_name) AS user_name,
+                u.username
             FROM activity_log al
             LEFT JOIN users u ON al.user_id = u.id
             WHERE (? = 0 OR al.user_id = ?)
@@ -71,7 +80,7 @@ if ($usersStmt !== false) {
 }
 
 $actions = [];
-$actionsStmt = safeQueryPrepare($conn, "SELECT DISTINCT action FROM activity_log ORDER BY action");
+$actionsStmt = safeQueryPrepare($conn, "SELECT DISTINCT action AS action FROM activity_log ORDER BY action");
 if ($actionsStmt !== false) {
     $actionsStmt->execute();
     $actions = $actionsStmt->get_result()->fetch_all(MYSQLI_ASSOC);

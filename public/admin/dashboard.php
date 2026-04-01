@@ -32,9 +32,14 @@ if ($stmt === false) {
 }
 
 // Get recent activity with normalized timestamp (handles legacy null/zero values)
-$stmt_activity = safeQueryPrepare($conn, "SELECT 
-                                    al.*,
-                                    al.timestamp AS activity_time,
+$stmt_activity = safeQueryPrepare($conn, "SELECT
+                                    al.id          AS id,
+                                    al.user_id     AS user_id,
+                                    al.action      AS action,
+                                    al.details     AS details,
+                                    al.ip_address  AS ip_address,
+                                    al.timestamp   AS timestamp,
+                                    al.timestamp   AS activity_time,
                                     CONCAT(u.first_name, ' ', u.last_name) AS user_name,
                                     u.username
                                  FROM activity_log al

@@ -227,7 +227,40 @@ class ActivityLogHelper {
                 $parts[] = '"' . $decoded['message_preview'] . '"';
             }
             if (isset($decoded['success'])) {
-                $parts[] = $decoded['success'] ? '✓ Delivered' : '✗ Failed';
+                if ($decoded['success']) {
+                    $transport = $decoded['transport'] ?? '';
+                    if ($transport === 'smtp') {
+                        $parts[] = '✓ Accepted by SMTP server';
+                    } elseif ($transport === 'graph') {
+                        $httpCode = isset($decoded['http_code']) ? (int)$decoded['http_code'] : 202;
+                        $parts[] = '✓ Accepted by Graph (HTTP ' . $httpCode . ')';
+                    } elseif ($transport === 'php_mail') {
+                        $fallback = !empty($decoded['fallback_used']) ? ' (fallback from Graph)' : '';
+                        $parts[] = '✓ Accepted by mail server' . $fallback;
+                    } else {
+                        // Legacy row without transport metadata
+                        $parts[] = '✓ Queued';
+                    }
+                } else {
+                    $transport = $decoded['transport'] ?? '';
+                    $errSuffix = !empty($decoded['transport_error'])
+                        ? ': ' . substr((string)$decoded['transport_error'], 0, 80)
+                        : '';
+                    if ($transport === 'smtp') {
+                        $parts[] = '✗ SMTP error' . $errSuffix;
+                    } elseif ($transport === 'graph') {
+                        $httpCode = isset($decoded['http_code']) && $decoded['http_code'] > 0
+                            ? (int)$decoded['http_code']
+                            : 0;
+                        $parts[] = $httpCode > 0
+                            ? '✗ Graph HTTP ' . $httpCode . $errSuffix
+                            : '✗ Graph error' . $errSuffix;
+                    } elseif ($transport === 'php_mail') {
+                        $parts[] = '✗ mail() rejected' . $errSuffix;
+                    } else {
+                        $parts[] = '✗ Failed';
+                    }
+                }
             }
             return !empty($parts)
                 ? htmlspecialchars(implode(' • ', $parts), ENT_QUOTES, 'UTF-8')
