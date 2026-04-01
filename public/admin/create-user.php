@@ -105,7 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $message .= "We recommend changing your password after your first login.\n\n";
                         $message .= "Regards,\n" . APP_NAME . " Admin";
                         
-                        if (sendAppEmail($email, $subject, $message)) {
+                        if (sendAppEmail($email, $subject, $message, false, 'credentials')) {
                             $success = "User created successfully and credentials sent to $email";
                         } else {
                             $success = "User created successfully but failed to send credentials email";

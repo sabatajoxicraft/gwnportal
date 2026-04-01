@@ -98,7 +98,7 @@ if ($send_email && !empty($user['email'])) {
     $email_body .= "Best regards,\n";
     $email_body .= "GWN WiFi Portal Administration Team";
     
-    $email_sent = sendAppEmail($user['email'], $subject, $email_body, false);
+    $email_sent = sendAppEmail($user['email'], $subject, $email_body, false, 'password_reset');
 }
 
 // Build success message

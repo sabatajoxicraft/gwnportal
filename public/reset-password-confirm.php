@@ -70,6 +70,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ActivityLogger::logAuthEvent((int) $tokenData['user_id'], 'password_reset_completed', [
                     'ip_address' => $requestIp,
                     'method'     => 'self_service_email_token',
+                    'channel'    => 'email',
+                    'reason'     => 'Password updated successfully via reset link',
                 ]);
                 $success = true;
             } else {

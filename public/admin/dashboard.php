@@ -2,6 +2,7 @@
 require_once '../../includes/config.php';
 require_once '../../includes/db.php';
 require_once '../../includes/functions.php';
+require_once '../../includes/helpers/ActivityLogHelper.php';
 
 $pageTitle = "Admin Dashboard";
 
@@ -180,40 +181,18 @@ require_once '../../includes/components/header.php';
                     <?php if (count($recentActivity) > 0): ?>
                         <?php foreach ($recentActivity as $activity): ?>
                             <?php
-                            $rawTimestamp = $activity['activity_time'] ?? ($activity['timestamp'] ?? ($activity['created_at'] ?? null));
-                            $parsedTimestamp = $rawTimestamp ? strtotime((string)$rawTimestamp) : false;
-                            $displayTimestamp = $parsedTimestamp ? date('M j, Y g:i A', $parsedTimestamp) : date('M j, Y g:i A');
-                            $rawDetails = trim((string)($activity['details'] ?? ''));
-                            $displayDetails = '';
-                            if ($rawDetails !== '' && !in_array(strtolower($rawDetails), ['true', 'false', 'null', '[]', '{}'], true)) {
-                                $decodedDetails = json_decode($rawDetails, true);
-                                if (json_last_error() === JSON_ERROR_NONE && is_string($decodedDetails)) {
-                                    $decodedDetails = json_decode($decodedDetails, true);
-                                }
-
-                                if (is_array($decodedDetails)) {
-                                    $displayDetails = trim((string)($decodedDetails['reason'] ?? ($decodedDetails['message'] ?? '')));
-                                }
-
-                                if ($displayDetails === '' && preg_match('/"reason"\s*:\s*"([^"]+)"/', $rawDetails, $reasonMatch) === 1) {
-                                    $displayDetails = trim((string)$reasonMatch[1]);
-                                }
-
-                                if ($displayDetails === '') {
-                                    $displayDetails = $rawDetails;
-                                }
-                            }
+                            $actAction  = (string)($activity['action'] ?? '');
+                            $actDetails = (string)($activity['details'] ?? '');
+                            $actTs      = (string)($activity['activity_time'] ?? ($activity['timestamp'] ?? ''));
                             ?>
                             <div class="list-group-item">
                                 <div class="d-flex w-100 justify-content-between">
-                                    <h6 class="mb-1"><?= htmlspecialchars($activity['action'] ?? '') ?></h6>
-                                    <small><?= htmlspecialchars($displayTimestamp) ?></small>
+                                    <h6 class="mb-1"><?= ActivityLogHelper::normalizeActionLabel($actAction, $actDetails) ?></h6>
+                                    <small><?= ActivityLogHelper::formatTimestamp($actTs) ?></small>
                                 </div>
-                                <?php if ($displayDetails !== ''): ?>
-                                    <p class="mb-1"><?= htmlspecialchars($displayDetails) ?></p>
-                                <?php endif; ?>
+                                <p class="mb-1 small text-muted"><?= ActivityLogHelper::formatDetails($actAction, $actDetails) ?></p>
                                 <small>
-                                    By: 
+                                    By:
                                     <?php if (!empty($activity['user_name'])): ?>
                                         <?= htmlspecialchars($activity['user_name']) ?>
                                     <?php else: ?>

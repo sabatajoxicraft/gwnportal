@@ -31,9 +31,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Attempt to issue a reset token.  Returns a plaintext token for known
     // active users, null for unknown/inactive/throttled, false on DB error.
-    $tokenPlain = PasswordResetService::requestReset($conn, $email, $requestIp);
+    $tokenPlain  = PasswordResetService::requestReset($conn, $email, $requestIp);
+    $tokenIssued = ($tokenPlain !== false && $tokenPlain !== null);
+    $emailSent   = false;
 
-    if ($tokenPlain !== false && $tokenPlain !== null) {
+    if ($tokenIssued) {
         $resetUrl = ABSOLUTE_APP_URL . '/reset-password-confirm.php?token=' . urlencode($tokenPlain);
         $appName  = defined('APP_NAME') ? APP_NAME : 'GWN Portal';
         $subject  = $appName . ' – Password Reset Request';
@@ -46,15 +48,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                   . "your password will not change.\n\n"
                   . "— The {$appName} Team";
 
-        sendAppEmail($email, $subject, $body, false);
+        $emailSent = (bool) sendAppEmail($email, $subject, $body, false, 'password_reset');
     }
 
     // Always log at this point so the execution path does not differ between
     // known and unknown addresses (prevents account-existence timing inference).
     // The hint is derived from the submitted input, not from a DB lookup result.
     ActivityLogger::logAuthEvent(null, 'password_reset_requested', [
-        'ip_address' => $requestIp,
-        'email_hint' => substr($email, 0, 3) . str_repeat('*', max(0, strlen($email) - 3)),
+        'ip_address'   => $requestIp,
+        'email_hint'   => substr($email, 0, 3) . str_repeat('*', max(0, strlen($email) - 3)),
+        'token_issued' => $tokenIssued,
+        'email_sent'   => $emailSent,
     ]);
 
     // Always show the generic success page – never disclose account existence.

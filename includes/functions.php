@@ -161,22 +161,38 @@ function validateOnboardingCode($code) {
  * Send SMS message via Twilio REST API
  * Uses Messaging Service SID if available, falls back to phone number
  */
-function sendSMS($number, $message) {
-    return TwilioService::sendSMS($number, $message);
+function sendSMS($number, $message, $auditCategory = null) {
+    $result = TwilioService::sendSMS($number, $message);
+    if ($auditCategory !== null) {
+        CommunicationLogger::logSms((string)$number, (string)$auditCategory, (bool)$result);
+    }
+    return $result;
 }
 
 /**
  * Send WhatsApp message via Twilio REST API
  */
-function sendWhatsApp($number, $message) {
-    return TwilioService::sendWhatsApp($number, $message);
+function sendWhatsApp($number, $message, $auditCategory = null) {
+    $result = TwilioService::sendWhatsApp($number, $message);
+    if ($auditCategory !== null) {
+        CommunicationLogger::logWhatsApp((string)$number, (string)$auditCategory, (bool)$result);
+    }
+    return $result;
 }
 
 /**
  * Route message to SMS or WhatsApp based on preferred method
  */
-function sendMessage($number, $message, $method = 'SMS') {
-    return TwilioService::sendMessage($number, $message, $method);
+function sendMessage($number, $message, $method = 'SMS', $auditCategory = null) {
+    $result = TwilioService::sendMessage($number, $message, $method);
+    if ($auditCategory !== null) {
+        if (strtoupper((string)$method) === 'WHATSAPP') {
+            CommunicationLogger::logWhatsApp((string)$number, (string)$auditCategory, (bool)$result);
+        } else {
+            CommunicationLogger::logSms((string)$number, (string)$auditCategory, (bool)$result);
+        }
+    }
+    return $result;
 }
 
 /**
@@ -191,7 +207,13 @@ function sendMessage($number, $message, $method = 'SMS') {
  * @return bool
  */
 function sendVoucherMessage($number, $studentName, $month, $voucherCode, $method = 'SMS') {
-    return TwilioService::sendVoucherMessage($number, $studentName, $month, $voucherCode, $method);
+    $result = TwilioService::sendVoucherMessage($number, $studentName, $month, $voucherCode, $method);
+    if (strtoupper((string)$method) === 'WHATSAPP') {
+        CommunicationLogger::logWhatsApp((string)$number, 'voucher', (bool)$result);
+    } else {
+        CommunicationLogger::logSms((string)$number, 'voucher', (bool)$result);
+    }
+    return $result;
 }
 
 /**
@@ -199,7 +221,9 @@ function sendVoucherMessage($number, $studentName, $month, $voucherCode, $method
  * Template variables: {{1}} = first name, {{2}} = username, {{3}} = temp password
  */
 function sendCredentialsMessage($number, $firstName, $username, $tempPassword) {
-    return TwilioService::sendCredentialsMessage($number, $firstName, $username, $tempPassword);
+    $result = TwilioService::sendCredentialsMessage($number, $firstName, $username, $tempPassword);
+    CommunicationLogger::logSms((string)$number, 'credentials', (bool)$result);
+    return $result;
 }
 
 /**
@@ -208,7 +232,9 @@ function sendCredentialsMessage($number, $firstName, $username, $tempPassword) {
  * Falls back to plain SMS if TWILIO_SMS_INVITATION_TEMPLATE_SID is not set.
  */
 function sendInvitationCodeMessage($number, $firstName, $invitationCode, $registerUrl, $expiryDate) {
-    return TwilioService::sendInvitationCodeMessage($number, $firstName, $invitationCode, $registerUrl, $expiryDate);
+    $result = TwilioService::sendInvitationCodeMessage($number, $firstName, $invitationCode, $registerUrl, $expiryDate);
+    CommunicationLogger::logSms((string)$number, 'invitation_code', (bool)$result);
+    return $result;
 }
 
 /**
@@ -217,7 +243,9 @@ function sendInvitationCodeMessage($number, $firstName, $invitationCode, $regist
  * Uses TWILIO_WA_INVITATION_TEMPLATE_SID; falls back to TWILIO_SMS_INVITATION_TEMPLATE_SID.
  */
 function sendInvitationCodeWhatsAppMessage($number, $firstName, $invitationCode, $registerUrl, $expiryDate) {
-    return TwilioService::sendInvitationCodeWhatsAppMessage($number, $firstName, $invitationCode, $registerUrl, $expiryDate);
+    $result = TwilioService::sendInvitationCodeWhatsAppMessage($number, $firstName, $invitationCode, $registerUrl, $expiryDate);
+    CommunicationLogger::logWhatsApp((string)$number, 'invitation_code', (bool)$result);
+    return $result;
 }
 
 /**
@@ -816,8 +844,10 @@ function createNotification($recipient_id, $message, $type = 'info', $sender_id 
         "INSERT INTO notifications (recipient_id, sender_id, message, type, read_status) 
          VALUES (?, ?, ?, ?, 0)");
     $stmt->bind_param("iiss", $recipient_id, $sender_id, $message, $type);
-    
-    return $stmt->execute();
+
+    $success = $stmt->execute();
+    CommunicationLogger::logInApp((int)$recipient_id, (string)$type, (string)$message, $success, (int)$sender_id ?: null);
+    return $success;
 }
 
 /**
@@ -1195,8 +1225,11 @@ function wrapAppEmailContent($subject, $bodyHtml) {
         . '</body></html>';
 }
 
-function sendAppEmail($to, $subject, $message, $isHtml = false) {
+function sendAppEmail($to, $subject, $message, $isHtml = false, $auditCategory = 'general') {
+    $category = ($auditCategory !== null && $auditCategory !== '') ? (string)$auditCategory : 'general';
+
     if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
+        CommunicationLogger::logEmail((string)$to, (string)$subject, $category, false);
         return false;
     }
 
@@ -1207,21 +1240,29 @@ function sendAppEmail($to, $subject, $message, $isHtml = false) {
         : formatPlainAppEmailBody($message);
     $htmlMessage = wrapAppEmailContent($subject, $bodyContent);
 
+    $result = false;
+
     // Try Graph API first if enabled and configured
     if (M365_GRAPH_ENABLED === '1' && !empty(M365_TENANT_ID) && !empty(M365_CLIENT_ID) && !empty(M365_CLIENT_SECRET)) {
         if (sendGraphEmail($to, $subject, $htmlMessage, 'HTML', $graphSender)) {
-            return true;
+            $result = true;
         }
     }
 
-    // Fallback to PHP mail()
-    $headers = "MIME-Version: 1.0\r\n";
-    $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
-    $headers .= "From: " . (defined('APP_NAME') ? APP_NAME : 'System') . " <{$mailSender}>\r\n";
-    $headers .= "Reply-To: {$mailSender}\r\n";
-    $headers .= "X-Mailer: PHP/" . phpversion() . "\r\n";
+    // Fallback to PHP mail() if Graph API did not succeed
+    if (!$result) {
+        $headers = "MIME-Version: 1.0\r\n";
+        $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
+        $headers .= "From: " . (defined('APP_NAME') ? APP_NAME : 'System') . " <{$mailSender}>\r\n";
+        $headers .= "Reply-To: {$mailSender}\r\n";
+        $headers .= "X-Mailer: PHP/" . phpversion() . "\r\n";
 
-    return @mail($to, $subject, $htmlMessage, $headers, "-f {$mailSender}");
+        $result = (bool)@mail($to, $subject, $htmlMessage, $headers, "-f {$mailSender}");
+    }
+
+    CommunicationLogger::logEmail((string)$to, (string)$subject, $category, $result);
+
+    return $result;
 }
 
 /**

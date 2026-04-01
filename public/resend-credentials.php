@@ -56,7 +56,7 @@ if (!empty($sendNumber)) {
     // Fallback to email
     $subject = 'WiFi Portal - Login Credentials';
     $message = "Hello {$student['first_name']},\n\nHere are your login details for the WiFi Portal:\n\nUsername: {$student['username']}\nTemporary Password: {$temp_password}\n\nPlease login and change your password immediately.\n\n- WiFi Management Team";
-    $sent = sendAppEmail($student['email'], $subject, $message);
+    $sent = sendAppEmail($student['email'], $subject, $message, false, 'credentials');
     $method = 'Email';
 }
 

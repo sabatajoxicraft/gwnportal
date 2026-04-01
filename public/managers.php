@@ -221,7 +221,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_manager'])) {
                             . "Role: Manager\n\n"
                             . "Login at: " . ABSOLUTE_APP_URL . "/login.php\n\n"
                             . "Please change your password after your first login.";
-                        $email_sent = sendAppEmail($email, $email_subject, $email_body);
+                        $email_sent = sendAppEmail($email, $email_subject, $email_body, false, 'credentials');
 
                         if ($email_sent) {
                             $success = 'Manager account created successfully! Credentials have been sent to ' . $email . '.';
