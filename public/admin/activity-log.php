@@ -1,6 +1,7 @@
 <?php
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
+require_once '../../includes/helpers/ActivityLogHelper.php';
 
 // Ensure session is started
 if (session_status() === PHP_SESSION_NONE) {
@@ -15,8 +16,11 @@ $conn = getDbConnection();
 // Filter variables
 $filter_user = (int)($_GET['user'] ?? 0);
 $filter_action = $_GET['action'] ?? 'all';
-$filter_date_from = $_GET['date_from'] ?? date('Y-m-d', strtotime('-7 days'));
-$filter_date_to = $_GET['date_to'] ?? date('Y-m-d');
+// Default date range expressed in APP_TIMEZONE (local dates shown to user)
+$_localTz = new DateTimeZone(defined('APP_TIMEZONE') ? APP_TIMEZONE : 'Africa/Johannesburg');
+$filter_date_from = $_GET['date_from'] ?? (new DateTimeImmutable('-7 days', $_localTz))->format('Y-m-d');
+$filter_date_to   = $_GET['date_to']   ?? (new DateTimeImmutable('now',    $_localTz))->format('Y-m-d');
+unset($_localTz);
 $page = max(1, (int)($_GET['page'] ?? 1));
 $limit = 50;
 $offset = ($page - 1) * $limit;
@@ -24,15 +28,21 @@ $logs = [];
 $totalLogs = 0;
 $totalPages = 1;
 
+// Convert local date range to UTC boundaries for SQL timestamp filtering
+$_utcRange       = ActivityLogHelper::localDateRangeToUtc($filter_date_from, $filter_date_to);
+$utc_filter_from = $_utcRange['utc_from'] ?? ($filter_date_from . ' 00:00:00');
+$utc_filter_to   = $_utcRange['utc_to']   ?? ($filter_date_to   . ' 23:59:59');
+unset($_utcRange);
+
 $countSql = "SELECT COUNT(*) as total
              FROM activity_log al
              WHERE (? = 0 OR al.user_id = ?)
                AND (? = 'all' OR al.action LIKE CONCAT('%', ?, '%'))
-               AND DATE(al.timestamp) >= ?
-               AND DATE(al.timestamp) <= ?";
+               AND al.timestamp >= ?
+               AND al.timestamp < ?";
 $countStmt = safeQueryPrepare($conn, $countSql);
 if ($countStmt !== false) {
-    $countStmt->bind_param("iissss", $filter_user, $filter_user, $filter_action, $filter_action, $filter_date_from, $filter_date_to);
+    $countStmt->bind_param("iissss", $filter_user, $filter_user, $filter_action, $filter_action, $utc_filter_from, $utc_filter_to);
     $countStmt->execute();
     $countRow = $countStmt->get_result()->fetch_assoc();
     $totalLogs = (int)($countRow['total'] ?? 0);
@@ -59,13 +69,13 @@ $logsSql = "SELECT
             LEFT JOIN users u ON al.user_id = u.id
             WHERE (? = 0 OR al.user_id = ?)
               AND (? = 'all' OR al.action LIKE CONCAT('%', ?, '%'))
-              AND DATE(al.timestamp) >= ?
-              AND DATE(al.timestamp) <= ?
+              AND al.timestamp >= ?
+              AND al.timestamp < ?
             ORDER BY al.timestamp DESC
             LIMIT ? OFFSET ?";
 $logsStmt = safeQueryPrepare($conn, $logsSql);
 if ($logsStmt !== false) {
-    $logsStmt->bind_param("iissssii", $filter_user, $filter_user, $filter_action, $filter_action, $filter_date_from, $filter_date_to, $limit, $offset);
+    $logsStmt->bind_param("iissssii", $filter_user, $filter_user, $filter_action, $filter_action, $utc_filter_from, $utc_filter_to, $limit, $offset);
     $logsStmt->execute();
     $logs = $logsStmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $logsStmt->close();
@@ -91,7 +101,7 @@ if ($actionsStmt !== false) {
 $pageTitle = "Activity Log";
 $activePage = "activity-log";
 
-require_once '../../includes/helpers/ActivityLogHelper.php';
+// ActivityLogHelper already loaded at top of file
 
 // Include header
 require_once '../../includes/components/header.php';

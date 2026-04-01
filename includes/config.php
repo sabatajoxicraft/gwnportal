@@ -119,6 +119,14 @@ require_once __DIR__ . '/db.php';
 // Application settings from env file
 define('APP_NAME', $_ENV['APP_NAME'] ?? 'JoxiSphere');
 
+// Timezone constants.
+// APP_TIMEZONE      – local timezone for all display/UI output.
+// ACTIVITY_LOG_STORAGE_TIMEZONE – timezone used when writing activity_log timestamps.
+//   Keep this UTC so that all stored timestamps are timezone-agnostic.
+//   Do NOT call date_default_timezone_set() globally; use these constants explicitly.
+define('APP_TIMEZONE', getenv('APP_TIMEZONE') ?: 'Africa/Johannesburg');
+define('ACTIVITY_LOG_STORAGE_TIMEZONE', 'UTC');
+
 // ABSOLUTE_APP_URL: the full configured origin (scheme + host + port) from APP_URL.
 // Use this wherever an absolute URL is required, e.g. outbound email/SMS login links.
 $appUrl = rtrim($_ENV['APP_URL'] ?? '', '/');

@@ -1,6 +1,7 @@
 <?php
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
+require_once '../../includes/helpers/ActivityLogHelper.php';
 
 // Ensure session is started
 if (session_status() === PHP_SESSION_NONE) {
@@ -163,12 +164,11 @@ foreach ($activity_logs as &$log_row) {
 unset($log_row);
 
 $activity_stats['total'] = count($activity_logs);
-$today = date('Y-m-d');
 foreach ($activity_logs as $log) {
     if ($log['action'] !== '' && stripos($log['action'], 'login') !== false) {
         $activity_stats['logins']++;
     }
-    if ($log['timestamp'] !== null && $log['timestamp'] !== '' && date('Y-m-d', strtotime($log['timestamp'])) === $today) {
+    if ($log['timestamp'] !== null && $log['timestamp'] !== '' && ActivityLogHelper::isToday((string)$log['timestamp'])) {
         $activity_stats['today']++;
     }
 }
@@ -719,7 +719,7 @@ require_once '../../includes/components/header.php';
                                         }
                                         
                                         $ts_val = $log['timestamp'];
-                                        $isToday = ($ts_val !== null && $ts_val !== '') && date('Y-m-d', strtotime($ts_val)) === date('Y-m-d');
+                                        $isToday = ($ts_val !== null && $ts_val !== '') && ActivityLogHelper::isToday((string)$ts_val);
                                         ?>
                                         <tr class="<?= $isToday ? 'table-light' : '' ?>">
                                             <td>
@@ -734,7 +734,7 @@ require_once '../../includes/components/header.php';
                                             </td>
                                             <td>
                                                 <?php if ($ts_val !== null && $ts_val !== ''): ?>
-                                                    <small><?= date('M j, Y H:i:s', strtotime($ts_val)) ?></small>
+                                                    <small><?= ActivityLogHelper::formatTimestamp((string)$ts_val) ?></small>
                                                     <?php if ($isToday): ?>
                                                         <span class="badge bg-info ms-1">Today</span>
                                                     <?php endif; ?>

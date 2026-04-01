@@ -441,7 +441,8 @@ function logActivity($conn, $userId, $action, $details, $ipAddress = '') {
         $conn = getDbConnection();
     }
     
-    $timestamp = date('Y-m-d H:i:s');
+    $tz = defined('ACTIVITY_LOG_STORAGE_TIMEZONE') ? ACTIVITY_LOG_STORAGE_TIMEZONE : 'UTC';
+    $timestamp = (new DateTimeImmutable('now', new DateTimeZone($tz)))->format('Y-m-d H:i:s'); // always store UTC
     $ipAddress = $ipAddress ?: $_SERVER['REMOTE_ADDR'];
     $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
     

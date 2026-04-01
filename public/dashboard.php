@@ -15,6 +15,7 @@
 
 // Include page template (provides $conn, $currentUserId, $currentUserRole)
 include '../includes/page-template.php';
+require_once '../includes/helpers/ActivityLogHelper.php';
 
 // Require login
 if (!isset($_SESSION['user_id'])) {
@@ -502,7 +503,7 @@ require_once '../includes/components/header.php';
                                         <br>
                                         <small><?= htmlspecialchars($activity['action'] ?? 'N/A', ENT_QUOTES, 'UTF-8') ?></small>
                                         <br>
-                                        <small class="text-muted"><?= date('M j, Y H:i', strtotime($activity['timestamp'] ?? 'now')) ?></small>
+                                        <small class="text-muted"><?= ActivityLogHelper::formatTimestamp((string)($activity['timestamp'] ?? '')) ?></small>
                                     </li>
                                 <?php endforeach; ?>
                             </ul>

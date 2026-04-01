@@ -102,7 +102,9 @@ class ActivityLogHelper {
 
     /**
      * Format a raw timestamp string for display.
-     * Returns a styled "Legacy / unavailable" placeholder for invalid/zero timestamps.
+     * Parses stored value as ACTIVITY_LOG_STORAGE_TIMEZONE (UTC) and converts to
+     * APP_TIMEZONE for output. Returns a styled "Legacy / unavailable" placeholder
+     * for invalid or zero timestamps.
      *
      * @param string $rawTimestamp Value from activity_log.timestamp
      * @return string              HTML snippet (already HTML-safe)
@@ -112,12 +114,95 @@ class ActivityLogHelper {
             return '<span class="text-muted" title="Timestamp unavailable">Legacy / unavailable</span>';
         }
 
-        $ts = strtotime($rawTimestamp);
-        if ($ts === false || $ts <= 0) {
+        $storageTz = defined('ACTIVITY_LOG_STORAGE_TIMEZONE') ? ACTIVITY_LOG_STORAGE_TIMEZONE : 'UTC';
+        $displayTz = defined('APP_TIMEZONE') ? APP_TIMEZONE : 'Africa/Johannesburg';
+
+        try {
+            $dt = new DateTimeImmutable($rawTimestamp, new DateTimeZone($storageTz));
+            if ($dt->getTimestamp() <= 0) {
+                return '<span class="text-muted" title="Timestamp unavailable">Legacy / unavailable</span>';
+            }
+            $dt = $dt->setTimezone(new DateTimeZone($displayTz));
+            return htmlspecialchars($dt->format('M j, Y g:i A'), ENT_QUOTES, 'UTF-8');
+        } catch (\Exception $e) {
             return '<span class="text-muted" title="Timestamp unavailable">Legacy / unavailable</span>';
         }
+    }
 
-        return htmlspecialchars(date('M j, Y g:i A', $ts), ENT_QUOTES, 'UTF-8');
+    /**
+     * Return today's date string (YYYY-MM-DD) in APP_TIMEZONE.
+     *
+     * @return string e.g. '2024-07-15'
+     */
+    public static function localToday(): string {
+        $localTz = defined('APP_TIMEZONE') ? APP_TIMEZONE : 'Africa/Johannesburg';
+        return (new DateTimeImmutable('now', new DateTimeZone($localTz)))->format('Y-m-d');
+    }
+
+    /**
+     * Check whether an activity_log timestamp (stored in ACTIVITY_LOG_STORAGE_TIMEZONE)
+     * falls on today's date in APP_TIMEZONE.
+     *
+     * @param string $utcTs Value from activity_log.timestamp
+     * @return bool
+     */
+    public static function isLocalToday(string $utcTs): bool {
+        if ($utcTs === '' || strpos($utcTs, '0000-00-00') === 0) {
+            return false;
+        }
+        $storageTz = defined('ACTIVITY_LOG_STORAGE_TIMEZONE') ? ACTIVITY_LOG_STORAGE_TIMEZONE : 'UTC';
+        $localTz   = defined('APP_TIMEZONE') ? APP_TIMEZONE : 'Africa/Johannesburg';
+        try {
+            $localDate = (new DateTimeImmutable($utcTs, new DateTimeZone($storageTz)))
+                ->setTimezone(new DateTimeZone($localTz))
+                ->format('Y-m-d');
+            return $localDate === self::localToday();
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
+
+    /**
+     * Alias of isLocalToday() kept for any existing callers.
+     *
+     * @param string $rawTimestamp Value from activity_log.timestamp (stored as UTC)
+     * @return bool
+     */
+    public static function isToday(string $rawTimestamp): bool {
+        return self::isLocalToday($rawTimestamp);
+    }
+
+    /**
+     * Convert a local date range (YYYY-MM-DD values in APP_TIMEZONE) to UTC DATETIME
+     * boundaries suitable for SQL range filtering:
+     *   al.timestamp >= :utc_from AND al.timestamp < :utc_to
+     *
+     * @param string $dateFrom Local date string, e.g. '2024-01-01'
+     * @param string $dateTo   Local date string (inclusive), e.g. '2024-01-07'
+     * @return array           ['utc_from' => 'Y-m-d H:i:s', 'utc_to' => 'Y-m-d H:i:s'],
+     *                         or empty array on invalid input.
+     */
+    public static function localDateRangeToUtc(string $dateFrom, string $dateTo): array {
+        $storageTz = defined('ACTIVITY_LOG_STORAGE_TIMEZONE') ? ACTIVITY_LOG_STORAGE_TIMEZONE : 'UTC';
+        $localTz   = defined('APP_TIMEZONE') ? APP_TIMEZONE : 'Africa/Johannesburg';
+
+        try {
+            $tz    = new DateTimeZone($localTz);
+            $utcTz = new DateTimeZone($storageTz);
+
+            $from = (new DateTimeImmutable($dateFrom . ' 00:00:00', $tz))->setTimezone($utcTz);
+            // Upper bound: midnight at the start of the day after $dateTo (exclusive).
+            $to   = (new DateTimeImmutable($dateTo . ' 00:00:00', $tz))
+                        ->modify('+1 day')
+                        ->setTimezone($utcTz);
+
+            return [
+                'utc_from' => $from->format('Y-m-d H:i:s'),
+                'utc_to'   => $to->format('Y-m-d H:i:s'),
+            ];
+        } catch (\Exception $e) {
+            return [];
+        }
     }
 
     /**

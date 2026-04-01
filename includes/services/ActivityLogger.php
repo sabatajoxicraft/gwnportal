@@ -37,7 +37,8 @@ class ActivityLogger {
         }
 
         $detailsJson = !empty($details) ? json_encode($details) : null;
-        $timestamp = date('Y-m-d H:i:s');
+        $tz = defined('ACTIVITY_LOG_STORAGE_TIMEZONE') ? ACTIVITY_LOG_STORAGE_TIMEZONE : 'UTC';
+        $timestamp = (new DateTimeImmutable('now', new DateTimeZone($tz)))->format('Y-m-d H:i:s');
 
         $conn = self::getConn();
         $stmt = safeQueryPrepare($conn, "
