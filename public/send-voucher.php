@@ -3,6 +3,7 @@ require_once '../includes/config.php';
 require_once '../includes/functions.php';
 require_once '../includes/python_interface.php';
 require_once '../includes/services/ProfileChecklistService.php';
+require_once '../includes/helpers/VoucherMonthHelper.php';
 
 // Require manager login
 requireRole('manager');
@@ -42,6 +43,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     if (empty($month)) {
         $error = 'Please select a month';
+    } elseif (VoucherMonthHelper::isFutureMonth($month)) {
+        $error = 'Vouchers can only be issued for the current month.';
     } elseif ($student['status'] !== 'active') {
         $error = 'Student must be active to receive vouchers. Please activate the student first.';
     } else {
@@ -69,10 +72,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Generate month options for the form
-$current_month = date('F Y');
-$next_month = date('F Y', strtotime('+1 month'));
-$month_options = [$current_month, $next_month];
+// Only offer the current month; future-month issuance is not permitted.
+$current_month = (new DateTimeImmutable('now', new DateTimeZone(VOUCHER_TZ)))->format('F Y');
+$month_options = [$current_month];
 ?>
 <?php
 $pageTitle = "Send Voucher";

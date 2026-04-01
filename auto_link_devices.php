@@ -1,6 +1,7 @@
 <?php
 /**
- * Daily voucher first-use + auto-link job.
+ * Daily cron: Phase 1 — rollover cleanup of prior-month vouchers.
+ *             Phase 2 — first-use MAC linking for current-month vouchers.
  *
  * Usage:
  *   php auto_link_devices.php
@@ -18,6 +19,8 @@ require_once __DIR__ . '/includes/db.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/python_interface.php';
 require_once __DIR__ . '/includes/services/ProfileChecklistService.php';
+require_once __DIR__ . '/includes/helpers/VoucherMonthHelper.php';
+require_once __DIR__ . '/includes/services/VoucherService.php';
 
 function autoLinkLog($message) {
     echo '[' . date('Y-m-d H:i:s') . '] ' . $message . PHP_EOL;
@@ -101,8 +104,12 @@ function getVoucherUseNotificationRecipients($conn, $accommodationId) {
 
 $dryRun = in_array('--dry-run', $argv ?? array(), true);
 $debug = in_array('--debug', $argv ?? array(), true);
-$monthIso = date('Y-m');
-$monthLabel = date('F Y');
+// Derive the current month from the business timezone so Phase 2 stays
+// consistent with the Phase 1 rollover-cleanup boundaries.
+$_vNow      = new DateTimeImmutable('now', new DateTimeZone(VOUCHER_TZ));
+$monthIso   = $_vNow->format('Y-m');
+$monthLabel = $_vNow->format('F Y');
+unset($_vNow);
 $retryWindowDays = 7; // Keep trying to capture MACs for 7 days
 
 $firstUseDetected = 0;
@@ -118,7 +125,122 @@ $retriedMacs = 0;
 autoLinkLog('Auto-Link Devices - Starting (mode: ' . ($dryRun ? 'DRY-RUN' : 'LIVE') . ')');
 autoLinkDebug('Month context: ' . $monthIso . ' / ' . $monthLabel . ', Retry window: ' . $retryWindowDays . ' days', $debug);
 
+// =========================================================================
+// Phase 1: Rollover Cleanup
+// Find active sent vouchers from prior months, retire them from GWN, then
+// mark them inactive locally. If GWN deletion fails the row stays active so
+// the next cron run can retry.  Local audit rows (voucher_logs) are NEVER
+// hard-deleted; only is_active is flipped to 0 with a revoke_reason.
+// =========================================================================
+autoLinkLog('--- Phase 1: Rollover Cleanup ---');
+
+$conn = getDbConnection();
+$tz         = new DateTimeZone(VOUCHER_TZ);
+$nowCleanup = new DateTimeImmutable('now', $tz);
+
+// Both format variants of the current month (legacy rows may use Y-m).
+$currentMonthFY = $nowCleanup->format('F Y');
+$currentMonthYM = $nowCleanup->format('Y-m');
+
+$expiredCandidateSql =
+    "SELECT id, user_id, voucher_code, voucher_month, gwn_group_id, gwn_voucher_id
+     FROM voucher_logs
+     WHERE status = 'sent'
+       AND (is_active = 1 OR is_active IS NULL)
+       AND voucher_month != ?
+       AND voucher_month != ?
+     ORDER BY id ASC
+     LIMIT 500";
+
+$expiredCandidates = [];
+$expiredStmt = safeQueryPrepare($conn, $expiredCandidateSql, false);
+if ($expiredStmt) {
+    $expiredStmt->bind_param("ss", $currentMonthFY, $currentMonthYM);
+    $expiredStmt->execute();
+    $expiredCandidates = $expiredStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $expiredStmt->close();
+} else {
+    autoLinkLog('CLEANUP-WARN: Could not query expired voucher candidates; skipping cleanup phase.');
+}
+
+// Keep only vouchers whose month boundary has genuinely passed.
+$toRetire = array_filter($expiredCandidates, function ($ev) use ($nowCleanup) {
+    $window = VoucherMonthHelper::getWindow($ev['voucher_month']);
+    return $window !== null && $nowCleanup > $window['expiresAt'];
+});
+
+$cleanupRetired   = 0;
+$cleanupGwnFailed = 0;
+$cleanupSkipped   = 0;
+
+if (!empty($toRetire)) {
+    $voucherService = new VoucherService();
+
+    foreach ($toRetire as $ev) {
+        $voucherLogId = (int)$ev['id'];
+        $voucherCode  = $ev['voucher_code'];
+        $vMonth       = $ev['voucher_month'];
+        $gwnGroupId   = (int)($ev['gwn_group_id'] ?? 0);
+        $gwnVoucherId = (int)($ev['gwn_voucher_id'] ?? 0);
+
+        // Attempt remote GWN cleanup — prefer group-level deletion.
+        $remoteClean = true;
+        if ($gwnGroupId > 0) {
+            $deleteResult = $voucherService->deleteVoucherGroup([$gwnGroupId]);
+            if (!$voucherService->responseSuccessful($deleteResult)) {
+                autoLinkLog("CLEANUP-WARN: GWN group {$gwnGroupId} deletion failed for voucher {$voucherCode} ({$vMonth}); will retry next run.");
+                $remoteClean = false;
+                $cleanupGwnFailed++;
+            }
+        } elseif ($gwnVoucherId > 0) {
+            $deleteResult = $voucherService->deleteVoucher($gwnVoucherId);
+            if (!$voucherService->responseSuccessful($deleteResult)) {
+                autoLinkLog("CLEANUP-WARN: GWN voucher ID {$gwnVoucherId} deletion failed for {$voucherCode} ({$vMonth}); will retry next run.");
+                $remoteClean = false;
+                $cleanupGwnFailed++;
+            }
+        }
+        // No remote IDs: nothing to clean remotely — proceed straight to local retire.
+
+        if (!$remoteClean) {
+            $cleanupSkipped++;
+            continue;
+        }
+
+        if ($dryRun) {
+            autoLinkLog("DRY-RUN CLEANUP: Would retire voucher {$voucherCode} ({$vMonth}) - expired at end of calendar month.");
+            $cleanupRetired++;
+            continue;
+        }
+
+        $retireStmt = safeQueryPrepare($conn,
+            "UPDATE voucher_logs
+             SET is_active = 0, revoked_at = NOW(), revoke_reason = ?
+             WHERE id = ? AND (is_active = 1 OR is_active IS NULL)", false);
+        if ($retireStmt) {
+            $retireReason = 'Expired at calendar month end';
+            $retireStmt->bind_param("si", $retireReason, $voucherLogId);
+            $retireStmt->execute();
+            $retireStmt->close();
+            $cleanupRetired++;
+            autoLinkLog("CLEANUP: Retired voucher {$voucherCode} ({$vMonth}) - expired at end of calendar month.");
+        } else {
+            autoLinkLog("CLEANUP-ERROR: Failed to update voucher_logs for voucher {$voucherCode}; leaving active.");
+            $cleanupGwnFailed++;
+            $cleanupSkipped++;
+        }
+    }
+}
+
+autoLinkLog("Rollover Cleanup: Retired={$cleanupRetired}, GWN-cleanup-failed={$cleanupGwnFailed}, Skipped/Retry={$cleanupSkipped}");
+autoLinkLog('--- Phase 1: Rollover Cleanup Done ---');
+autoLinkLog('');
+
+// =========================================================================
+// Phase 2: First-use MAC linking
+// =========================================================================
 $mappings = getVoucherDeviceMappings($monthIso);
+autoLinkLog('--- Phase 2: First-use MAC Linking ---');
 autoLinkLog('Found ' . count($mappings) . ' voucher-use mappings for ' . $monthIso);
 if ($debug && !empty($mappings)) {
     $sample = array_slice($mappings, 0, 5);
@@ -126,11 +248,10 @@ if ($debug && !empty($mappings)) {
 }
 
 if (empty($mappings)) {
-    autoLinkLog('No used voucher mappings found. Exiting.');
-    exit(0);
+    autoLinkLog('No used voucher mappings found for Phase 2. Done.');
+    exit($cleanupGwnFailed > 0 ? 1 : 0);
 }
 
-$conn = getDbConnection();
 $seen = array();
 $hasFirstUsedAt = false;
 $hasFirstUsedMac = false;
@@ -449,10 +570,11 @@ foreach ($mappings as $map) {
 }
 
 autoLinkLog('=== Summary ===');
+autoLinkLog("Rollover cleanup: Retired={$cleanupRetired} | GWN-failed/retry={$cleanupGwnFailed} | Skipped={$cleanupSkipped}");
 autoLinkLog("First-use detected: {$firstUseDetected} | Linked: {$linked} | MAC retries attempted: {$retriedMacs} | Manual review needed: {$pendingManual} | Already linked: {$alreadyLinked} | Already processed: {$alreadyProcessed} | Conflicts: {$conflicts} | Skipped: {$skipped} | Errors: {$errors}");
 
 if (!$dryRun) {
-    $summary = "Auto-link completed for {$monthIso}: {$firstUseDetected} first-used, {$linked} linked, {$retriedMacs} MAC-retries, {$pendingManual} manual-review, {$alreadyLinked} already-linked, {$conflicts} conflicts, {$skipped} skipped, {$errors} errors.";
+    $summary = "Auto-link completed for {$monthIso}: cleanup retired={$cleanupRetired}, {$firstUseDetected} first-used, {$linked} linked, {$retriedMacs} MAC-retries, {$pendingManual} manual-review, {$alreadyLinked} already-linked, {$conflicts} conflicts, {$skipped} skipped, {$errors} errors.";
     $adminStmt = safeQueryPrepare($conn, "SELECT u.id FROM users u JOIN roles r ON u.role_id = r.id WHERE r.name = 'admin'");
     if ($adminStmt) {
         $adminStmt->execute();
@@ -465,4 +587,4 @@ if (!$dryRun) {
 }
 
 autoLinkLog('Done.');
-exit($errors > 0 ? 1 : 0);
+exit(($errors > 0 || $cleanupGwnFailed > 0) ? 1 : 0);

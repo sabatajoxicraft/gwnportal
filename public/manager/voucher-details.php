@@ -62,9 +62,15 @@ if (!empty($voucher['first_used_mac'])) {
     }
 }
 
-// Calculate expiry date (end of voucher month)
-$expiry_date = date('Y-m-t', strtotime($voucher['voucher_month']));
-$is_expired = strtotime($expiry_date) < time();
+// Calculate expiry: vouchers are valid through 23:59:59 of the last day of
+// the month in the business timezone. Using start-of-last-day (Y-m-t) causes
+// the voucher to appear expired all day on the final day — fixed here.
+require_once '../../includes/helpers/VoucherMonthHelper.php';
+$_vw         = VoucherMonthHelper::getWindow($voucher['voucher_month']);
+$expiry_date = $_vw ? $_vw['expiresAt']->format('Y-m-d')
+                    : date('Y-m-t', strtotime($voucher['voucher_month']));
+$is_expired  = $_vw ? (new DateTimeImmutable('now', new DateTimeZone(VOUCHER_TZ)) > $_vw['expiresAt'])
+                    : (time() > strtotime($expiry_date . ' 23:59:59'));
 $is_revoked = isset($voucher['is_active']) && $voucher['is_active'] == 0;
 $can_revoke = $voucher['status'] === 'sent' && !$is_revoked && !$is_expired;
 

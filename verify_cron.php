@@ -15,7 +15,7 @@ if (php_sapi_name() !== 'cli') {
 }
 
 echo "===================================\n";
-echo "Auto-Link Cron Job Verification\n";
+echo "Auto-Link + Rollover Cleanup Cron Verification\n";
 echo "===================================\n\n";
 
 // Check 1: Script exists and is readable
@@ -56,7 +56,7 @@ try {
 
 // Check 4: Required database columns
 echo "[4] Checking database schema...\n";
-$required_columns = ['gwn_group_id', 'is_active', 'first_used_at', 'first_used_mac'];
+$required_columns = ['gwn_group_id', 'is_active', 'first_used_at', 'first_used_mac', 'revoke_reason', 'revoked_at'];
 $stmt = $conn->query("DESCRIBE voucher_logs");
 if (!$stmt) {
     echo " ✗ FAILED: Could not query voucher_logs table\n";
@@ -85,7 +85,24 @@ if (!empty($missing)) {
     echo "   - db/migrations/add_device_management.sql\n\n";
 }
 
-// Check 5: Log directory
+// Check 4b: VoucherMonthHelper availability
+echo "[4b] Checking VoucherMonthHelper...\n";
+if (file_exists(__DIR__ . '/includes/helpers/VoucherMonthHelper.php')) {
+    require_once __DIR__ . '/includes/helpers/VoucherMonthHelper.php';
+    $_vNow      = new DateTimeImmutable('now', new DateTimeZone(VOUCHER_TZ));
+    $testWindow = VoucherMonthHelper::getWindow($_vNow->format('F Y'));
+    unset($_vNow);
+    if ($testWindow !== null) {
+        echo "     ✓ VoucherMonthHelper loaded; current month window OK\n";
+        echo "     - Expires at: " . $testWindow['expiresAt']->format('Y-m-d H:i:s T') . "\n";
+    } else {
+        echo "     ✗ VoucherMonthHelper::getWindow() returned null for current month\n";
+    }
+} else {
+    echo "     ✗ NOT FOUND: includes/helpers/VoucherMonthHelper.php\n";
+}
+
+
 echo "[5] Checking log directory...\n";
 $log_paths = [
     '/var/log/autolink.log',
@@ -147,7 +164,7 @@ if (defined('GWN_NETWORK_ID') && !empty(GWN_NETWORK_ID)) {
 
 // Check 8: Recent voucher activity
 echo "[8] Checking recent voucher activity...\n";
-$month_iso = date('Y-m');
+$month_iso = (new DateTimeImmutable('now', new DateTimeZone(VOUCHER_TZ)))->format('Y-m');
 $stmt = $conn->prepare(
     "SELECT COUNT(*) as count FROM voucher_logs 
      WHERE voucher_month = ? OR DATE_FORMAT(created_at, '%Y-%m') = ?"
@@ -190,7 +207,7 @@ echo "Verification Summary\n";
 echo "===================================\n\n";
 
 if (empty($missing) && $exit_code === 0) {
-    echo "✅ AUTO-LINK SCRIPT IS READY\n\n";
+    echo "✅ AUTO-LINK + ROLLOVER CLEANUP SCRIPT IS READY\n\n";
     
     if (stripos($crontab_output ?? '', 'auto_link_devices.php') === false) {
         echo "📋 Next Steps:\n";

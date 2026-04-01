@@ -1070,7 +1070,11 @@ if (!function_exists('getVoucherDeviceMappings')) {
     function getVoucherDeviceMappings($month) {
         $month = trim((string)$month);
         if ($month === '') {
-            $month = date('Y-m');
+            // Use the voucher business timezone for the default month so the
+            // result is consistent near midnight / month boundaries.
+            $_vTz  = defined('VOUCHER_TZ') ? new DateTimeZone(VOUCHER_TZ) : new DateTimeZone('Africa/Johannesburg');
+            $month = (new DateTimeImmutable('now', $_vTz))->format('Y-m');
+            unset($_vTz);
         }
 
         $monthIso = $month;

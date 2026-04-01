@@ -4,6 +4,7 @@ require_once '../../includes/db.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/python_interface.php';
 require_once '../../includes/services/ProfileChecklistService.php';
+require_once '../../includes/helpers/VoucherMonthHelper.php';
 
 $pageTitle = "Request WiFi Voucher";
 $activePage = "student-voucher";
@@ -35,9 +36,12 @@ $stmtStatus->execute();
 $studentRow = $stmtStatus->get_result()->fetch_assoc();
 $studentActive = ($studentRow && strtolower($studentRow['status'] ?? '') === 'active');
 
-// Current month in both formats for robust matching (legacy data may use "2026-02" format)
-$currentMonth = date('F Y');          // "February 2026"
-$currentMonthAlt = date('Y-m');       // "2026-02"
+// Current month in both formats for robust matching (legacy data may use "2026-02" format).
+// Derived from the business timezone so month boundaries are consistent near midnight.
+$_vNow           = new DateTimeImmutable('now', new DateTimeZone(VOUCHER_TZ));
+$currentMonth    = $_vNow->format('F Y');   // "February 2026"
+$currentMonthAlt = $_vNow->format('Y-m');   // "2026-02"
+unset($_vNow);
 
 // Check eligibility: has the student received an active voucher this month?
 // Fallback omits is_active filter if the column doesn't exist yet.

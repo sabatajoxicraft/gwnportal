@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/GwnService.php';
+require_once __DIR__ . '/../helpers/VoucherMonthHelper.php';
 
 class VoucherService extends GwnService {
     public function listVoucherGroups($networkId = null, $pageNum = 1, $pageSize = 200, $search = '', $order = '', $type = '') {
@@ -142,6 +143,12 @@ class VoucherService extends GwnService {
             return false;
         }
 
+        // Reject future-month issuance to prevent pre-emptive voucher creation.
+        if (VoucherMonthHelper::isFutureMonth($month)) {
+            error_log("VoucherService::sendStudentVoucher: Rejected future-month issuance for student $student_id, month='$month'");
+            return false;
+        }
+
         // Duplicate send prevention: block if voucher already sent this month
         if (!$forceResend) {
             $existing = $this->getExistingVoucher($conn, $student['user_id'], $month);
@@ -257,13 +264,22 @@ class VoucherService extends GwnService {
         if ($deviceNum < 1) $deviceNum = 1;
         $durationDays = 30;
 
-        $voucherMonth = DateTime::createFromFormat('F Y', trim((string)$month));
-        if (!$voucherMonth) $voucherMonth = new DateTime('first day of this month');
+        $tz     = new DateTimeZone(VOUCHER_TZ);
+        $now    = new DateTimeImmutable('now', $tz);
+        $window = VoucherMonthHelper::getWindow((string)$month);
 
-        $expiryBoundary = (clone $voucherMonth)->modify('first day of next month')->setTime(0, 0, 0);
-        $now = new DateTime();
+        if ($window !== null) {
+            // Use midnight of next-month as the GWN expiry boundary; this
+            // keeps the voucher alive through 23:59:59 of the last day.
+            $expiryBoundary = $window['nextMonthStart'];
+        } else {
+            $expiryBoundary = $now->modify('first day of next month')->setTime(0, 0, 0);
+        }
+
+        // Safety: if boundary is already in the past (e.g. reissue for an
+        // expired month), push forward to the next calendar month boundary.
         if ($expiryBoundary <= $now) {
-            $expiryBoundary = (clone $now)->modify('first day of next month')->setTime(0, 0, 0);
+            $expiryBoundary = $now->modify('first day of next month')->setTime(0, 0, 0);
         }
 
         $secondsToBoundary = $expiryBoundary->getTimestamp() - $now->getTimestamp();

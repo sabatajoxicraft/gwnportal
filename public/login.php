@@ -264,6 +264,13 @@ require_once '../includes/components/header.php';
                     </button>
                 </div>
                 
+                <!-- Forgot Password -->
+                <div class="text-center mb-2">
+                    <a href="forgot-password.php" class="text-primary text-decoration-none small">
+                        <i class="bi bi-key me-1"></i>Forgot password?
+                    </a>
+                </div>
+
                 <!-- Help Links -->
                 <div class="text-center">
                     <small class="text-muted">

@@ -2,6 +2,7 @@
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 require_once '../includes/permissions.php';
+require_once '../includes/helpers/VoucherMonthHelper.php';
 
 // Require manager login
 requireManagerLogin();
@@ -136,8 +137,9 @@ if ($filter == 'active') {
 // Determine the allowed device limit
 $allowedDevices = defined('GWN_ALLOWED_DEVICES') ? (int)GWN_ALLOWED_DEVICES : 2;
 
-// Get current month in the format stored in voucher_logs (e.g. "March 2026")
-$currentMonth = date('F Y');
+// Get current month in the format stored in voucher_logs (e.g. "March 2026").
+// Use the business timezone so the label is correct near midnight / month boundaries.
+$currentMonth = (new DateTimeImmutable('now', new DateTimeZone(VOUCHER_TZ)))->format('F Y');
 
 // Get students for this manager with device counts and flag data
 $sql = "SELECT s.id, s.status, s.created_at, u.id as user_id,
