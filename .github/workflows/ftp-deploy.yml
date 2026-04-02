@@ -66,18 +66,20 @@ jobs:
           deploy() {
             # Run lftp from inside the staged directory so lftp only ever
             # mirrors '.' — avoids lftp local-path parsing quirks entirely.
-            (cd "$DEPLOY_STAGE" && lftp -u "$FTP_USERNAME","$FTP_PASSWORD" \
-              -e "
+            # Use an explicit 'open' command inside -c so the site connection
+            # is guaranteed to be established before mirror runs.
+            (cd "$DEPLOY_STAGE" && lftp -c "
                 set ftp:passive-mode on;
                 set ftp:prefer-epsv off;
                 set net:timeout 120;
                 set net:max-retries 2;
                 set net:reconnect-interval-base 10;
                 set ftp:sync-mode on;
+                debug 3;
+                open -u \"$FTP_USERNAME\",\"$FTP_PASSWORD\" \"$FTP_PROTOCOL://$FTP_SERVER:$FTP_PORT\";
                 mirror --reverse --delete --verbose . \"$FTP_SERVER_DIR\";
                 bye
-              " \
-              "$FTP_PROTOCOL://$FTP_SERVER:$FTP_PORT")
+              ")
           }
 
           for attempt in 1 2 3; do
