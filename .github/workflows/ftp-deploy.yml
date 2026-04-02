@@ -5,6 +5,12 @@ on:
     branches: [main]
   workflow_dispatch:
 
+env:
+  FTP_PROTOCOL: ftp
+  FTP_PORT: 21
+  FTP_SERVER: ftp.joxicraft.co.za
+  FTP_SERVER_DIR: /
+
 jobs:
   deploy:
     name: Deploy via FTP
@@ -27,19 +33,50 @@ jobs:
       - name: Remove legacy env.production to avoid ambiguity
         run: rm -f env.production
 
-      - name: Sync files via FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ftp.joxicraft.co.za
-          port: 21
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          server-dir: /
-          protocol: ftp
-          dangerous-clean-slate: true
-          exclude: |
-            **/.git
-            **/.git/**
-            **/.vscode/**
-            **/.copilot/**
-            **/.github/**
+      - name: Install lftp and rsync
+        run: sudo apt-get install -y lftp rsync
+
+      - name: Stage deploy files
+        run: |
+          STAGE_DIR="$RUNNER_TEMP/deploy-stage"
+          mkdir -p "$STAGE_DIR"
+          rsync -a --delete \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='.vscode/' \
+            --exclude='.copilot/' \
+            ./ "$STAGE_DIR/"
+          echo "DEPLOY_STAGE=$STAGE_DIR" >> "$GITHUB_ENV"
+
+      - name: Deploy via lftp with retry
+        env:
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          deploy() {
+            lftp -u "$FTP_USERNAME","$FTP_PASSWORD" \
+              -e "
+                set ftp:passive-mode on;
+                set ftp:prefer-epsv off;
+                set net:timeout 120;
+                set net:max-retries 2;
+                set net:reconnect-interval-base 10;
+                set ftp:sync-mode on;
+                mirror --reverse --delete --verbose \"$DEPLOY_STAGE\" \"$FTP_SERVER_DIR\";
+                bye
+              " \
+              "$FTP_PROTOCOL://$FTP_SERVER:$FTP_PORT"
+          }
+
+          for attempt in 1 2 3; do
+            echo "--- Deploy attempt $attempt of 3 ---"
+            if deploy; then
+              echo "Deploy succeeded on attempt $attempt."
+              exit 0
+            fi
+            echo "Attempt $attempt failed."
+            [ $attempt -lt 3 ] && sleep 20
+          done
+
+          echo "ERROR: All 3 deploy attempts failed." >&2
+          exit 1
