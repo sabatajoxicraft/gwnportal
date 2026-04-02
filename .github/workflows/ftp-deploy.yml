@@ -69,6 +69,7 @@ jobs:
             # Use an explicit 'open' command inside -c so the site connection
             # is guaranteed to be established before mirror runs.
             (cd "$DEPLOY_STAGE" && lftp -c "
+                set ftp:ssl-allow no;
                 set ftp:passive-mode on;
                 set ftp:prefer-epsv off;
                 set net:timeout 120;
@@ -77,7 +78,8 @@ jobs:
                 set ftp:sync-mode on;
                 debug 3;
                 open -u \"$FTP_USERNAME\",\"$FTP_PASSWORD\" \"$FTP_PROTOCOL://$FTP_SERVER:$FTP_PORT\";
-                mirror --reverse --delete --verbose . \"$FTP_SERVER_DIR\";
+                cd \"$FTP_SERVER_DIR\";
+                mirror --reverse --delete --verbose . .;
                 bye
               ")
           }
