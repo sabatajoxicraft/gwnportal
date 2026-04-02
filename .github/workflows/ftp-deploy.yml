@@ -62,7 +62,8 @@ jobs:
                 set net:max-retries 2;
                 set net:reconnect-interval-base 10;
                 set ftp:sync-mode on;
-                mirror --reverse --delete --verbose \"$DEPLOY_STAGE\" \"$FTP_SERVER_DIR\";
+                lcd \"$DEPLOY_STAGE\";
+                mirror --reverse --delete --verbose . \"$FTP_SERVER_DIR\";
                 bye
               " \
               "$FTP_PROTOCOL://$FTP_SERVER:$FTP_PORT"
