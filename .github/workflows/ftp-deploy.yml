@@ -70,8 +70,7 @@ jobs:
             # is guaranteed to be established before mirror runs.
             (cd "$DEPLOY_STAGE" && lftp -c "
                 set ftp:ssl-allow no;
-                set ftp:passive-mode on;
-                set ftp:prefer-epsv off;
+                set ftp:passive-mode off;
                 set net:timeout 120;
                 set net:max-retries 2;
                 set net:reconnect-interval-base 10;
