@@ -33,65 +33,19 @@ jobs:
       - name: Remove legacy env.production to avoid ambiguity
         run: rm -f env.production
 
-      - name: Install lftp and rsync
-        run: sudo apt-get install -y lftp rsync
-
-      - name: Stage deploy files
-        run: |
-          STAGE_DIR="$RUNNER_TEMP/deploy-stage"
-          mkdir -p "$STAGE_DIR"
-          rsync -a --delete \
-            --exclude='.git/' \
-            --exclude='.github/' \
-            --exclude='.vscode/' \
-            --exclude='.copilot/' \
-            ./ "$STAGE_DIR/"
-          echo "DEPLOY_STAGE=$STAGE_DIR" >> "$GITHUB_ENV"
-
-      - name: Deploy via lftp with retry
-        env:
-          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
-          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
-        run: |
-          # Preflight: ensure the staging directory was created and exported
-          if [ -z "$DEPLOY_STAGE" ]; then
-            echo "ERROR: DEPLOY_STAGE is not set. Staging step may have failed." >&2
-            exit 1
-          fi
-          if [ ! -d "$DEPLOY_STAGE" ]; then
-            echo "ERROR: DEPLOY_STAGE directory does not exist: $DEPLOY_STAGE" >&2
-            exit 1
-          fi
-
-          deploy() {
-            # Run lftp from inside the staged directory so lftp only ever
-            # mirrors '.' — avoids lftp local-path parsing quirks entirely.
-            # Use an explicit 'open' command inside -c so the site connection
-            # is guaranteed to be established before mirror runs.
-            (cd "$DEPLOY_STAGE" && lftp -c "
-                set ftp:ssl-allow no;
-                set ftp:passive-mode off;
-                set net:timeout 120;
-                set net:max-retries 2;
-                set net:reconnect-interval-base 10;
-                set ftp:sync-mode on;
-                debug 3;
-                open -u \"$FTP_USERNAME\",\"$FTP_PASSWORD\" \"$FTP_PROTOCOL://$FTP_SERVER:$FTP_PORT\";
-                cd \"$FTP_SERVER_DIR\";
-                mirror --reverse --delete --verbose . .;
-                bye
-              ")
-          }
-
-          for attempt in 1 2 3; do
-            echo "--- Deploy attempt $attempt of 3 ---"
-            if deploy; then
-              echo "Deploy succeeded on attempt $attempt."
-              exit 0
-            fi
-            echo "Attempt $attempt failed."
-            [ $attempt -lt 3 ] && sleep 20
-          done
-
-          echo "ERROR: All 3 deploy attempts failed." >&2
-          exit 1
+      - name: Sync files via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ env.FTP_SERVER }}
+          port: ${{ env.FTP_PORT }}
+          protocol: ${{ env.FTP_PROTOCOL }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: ${{ env.FTP_SERVER_DIR }}
+          dangerous-clean-slate: true
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/.vscode/**
+            **/.copilot/**
+            **/.github/**
