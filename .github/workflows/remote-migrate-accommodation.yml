@@ -131,7 +131,6 @@ jobs:
           set ftp:ssl-force yes
           set ftp:ssl-protect-data yes
           set ftp:passive-mode on
-          set ftp:use-epsv no
           set ftp:sync-mode on
           set ssl:verify-certificate yes
           set ssl:check-hostname yes
@@ -191,7 +190,6 @@ jobs:
           set ftp:ssl-force yes
           set ftp:ssl-protect-data yes
           set ftp:passive-mode on
-          set ftp:use-epsv no
           set ftp:sync-mode on
           set ssl:verify-certificate yes
           set ssl:check-hostname yes
