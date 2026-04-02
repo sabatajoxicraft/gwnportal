@@ -6,7 +6,10 @@ on:
   workflow_dispatch:
 
 env:
-  FTP_SERVER: ftp.joxicraft.co.za
+  # Use aserv.co.za (not ftp.joxicraft.co.za) — the FTPS service presents a DigiCert
+  # certificate for *.aserv.co.za/aserv.co.za; this hostname matches that cert so
+  # ssl:verify-certificate and ssl:check-hostname can both remain enabled.
+  FTP_SERVER: aserv.co.za
   FTP_PORT: 21
   # Dedicated FTP account is rooted at the site directory, so '.' is the site root.
   FTP_SERVER_DIR: "."
