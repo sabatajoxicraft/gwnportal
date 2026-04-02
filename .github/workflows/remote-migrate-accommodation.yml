@@ -4,9 +4,10 @@ on:
   workflow_dispatch:
 
 env:
-  DEPLOY_HOST: student.joxicraft.co.za
-  DEPLOY_PORT: 22
-  DEPLOY_TARGET_DIR: /home/joxicaxs/student.joxicraft.co.za
+  FTP_SERVER: ftp.joxicraft.co.za
+  FTP_PORT: 21
+  # Dedicated FTP account is rooted at the site directory, so '.' is the site root.
+  FTP_SERVER_DIR: "."
 
 jobs:
   migrate:
@@ -23,7 +24,7 @@ jobs:
 
       - name: Create PHP migration script
         run: |
-          cat > "/tmp/${MIGRATION_FILENAME}" << 'PHPEOF'
+          cat > "${GITHUB_WORKSPACE}/${MIGRATION_FILENAME}" << 'PHPEOF'
           <?php
           $expected = 'TOKEN_PLACEHOLDER';
           $provided = $_GET['token'] ?? '';
@@ -98,45 +99,66 @@ jobs:
               echo 'OK. ' . $msg . ' max_students modified.';
           }
           PHPEOF
-          sed -i "s|TOKEN_PLACEHOLDER|${MIGRATION_TOKEN}|" "/tmp/${MIGRATION_FILENAME}"
+          sed -i "s|TOKEN_PLACEHOLDER|${MIGRATION_TOKEN}|" "${GITHUB_WORKSPACE}/${MIGRATION_FILENAME}"
 
-      - name: Set up SSH
+      - name: Install deploy tools
         run: |
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_deploy
-          chmod 600 ~/.ssh/id_deploy
-          ssh-keyscan -p "$DEPLOY_PORT" "$DEPLOY_HOST" >> ~/.ssh/known_hosts
-          chmod 644 ~/.ssh/known_hosts
+          sudo apt-get update
+          sudo apt-get install -y lftp
 
-      - name: Upload migration script via SCP
+      - name: Upload migration script via explicit FTPS
+        env:
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
         run: |
-          # Upload into public/ if it exists on the remote, otherwise into the root target dir.
-          if ssh -i ~/.ssh/id_deploy -p "$DEPLOY_PORT" -o BatchMode=yes \
-               "${{ secrets.SSH_USERNAME }}@$DEPLOY_HOST" \
-               "[ -d '${DEPLOY_TARGET_DIR}/public' ]"; then
-            REMOTE_PATH="${DEPLOY_TARGET_DIR}/public/${MIGRATION_FILENAME}"
-          else
-            REMOTE_PATH="${DEPLOY_TARGET_DIR}/${MIGRATION_FILENAME}"
+          if [ -z "$FTP_USERNAME" ] || [ -z "$FTP_PASSWORD" ]; then
+            echo "ERROR: FTP credentials are missing." >&2
+            exit 1
           fi
+
+          REMOTE_PATH="public/${MIGRATION_FILENAME}"
           echo "REMOTE_SCRIPT_PATH=${REMOTE_PATH}" >> "$GITHUB_ENV"
-          scp -i ~/.ssh/id_deploy \
-            -P "$DEPLOY_PORT" \
-            -o BatchMode=yes \
-            "/tmp/${MIGRATION_FILENAME}" \
-            "${{ secrets.SSH_USERNAME }}@$DEPLOY_HOST:${REMOTE_PATH}"
+
+          _FTP_USER=$(printf '%s' "$FTP_USERNAME" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\$/\\$/g; s/`/\\`/g')
+          _FTP_PASS=$(printf '%s' "$FTP_PASSWORD" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\$/\\$/g; s/`/\\`/g')
+
+          LFTP_SCRIPT=$(mktemp -p "$RUNNER_TEMP" lftp_migrate_XXXXXX)
+          chmod 600 "$LFTP_SCRIPT"
+          cat > "$LFTP_SCRIPT" <<LFTP_EOF
+set cmd:fail-exit yes
+set ftp:ssl-allow yes
+set ftp:ssl-force yes
+set ftp:ssl-protect-data yes
+set ftp:passive-mode on
+set ftp:use-epsv no
+set ftp:sync-mode on
+set ssl:verify-certificate yes
+set ssl:check-hostname yes
+set net:timeout 120
+set net:max-retries 2
+set net:reconnect-interval-base 10
+set net:reconnect-interval-max 20
+open ftp://$FTP_SERVER:$FTP_PORT
+user "$_FTP_USER" "$_FTP_PASS"
+mkdir -f "public"
+put "${GITHUB_WORKSPACE}/${MIGRATION_FILENAME}" -o "$REMOTE_PATH"
+bye
+LFTP_EOF
+
+          lftp -f "$LFTP_SCRIPT"
+          rm -f "$LFTP_SCRIPT"
 
       - name: Execute migration via HTTP
         run: |
-          ROOT_STATUS=$(curl --silent --output /tmp/mig_root.txt --write-out "%{http_code}" \
+          ROOT_STATUS=$(curl --silent --output "${GITHUB_WORKSPACE}/mig_root.txt" --write-out "%{http_code}" \
             "https://student.joxicraft.co.za/${MIGRATION_FILENAME}?token=${MIGRATION_TOKEN}" || true)
           ROOT_STATUS=${ROOT_STATUS:-000}
-          ROOT_BODY=$(cat /tmp/mig_root.txt 2>/dev/null || true)
+          ROOT_BODY=$(cat "${GITHUB_WORKSPACE}/mig_root.txt" 2>/dev/null || true)
 
-          PUB_STATUS=$(curl --silent --output /tmp/mig_pub.txt --write-out "%{http_code}" \
+          PUB_STATUS=$(curl --silent --output "${GITHUB_WORKSPACE}/mig_pub.txt" --write-out "%{http_code}" \
             "https://student.joxicraft.co.za/public/${MIGRATION_FILENAME}?token=${MIGRATION_TOKEN}" || true)
           PUB_STATUS=${PUB_STATUS:-000}
-          PUB_BODY=$(cat /tmp/mig_pub.txt 2>/dev/null || true)
+          PUB_BODY=$(cat "${GITHUB_WORKSPACE}/mig_pub.txt" 2>/dev/null || true)
 
           if { [ "$ROOT_STATUS" = "200" ] && ! echo "$ROOT_BODY" | grep -qi "error"; }; then
             echo "Migration succeeded."
@@ -149,11 +171,34 @@ jobs:
 
       - name: Cleanup remote migration script
         if: always()
+        env:
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
         run: |
-          if [ -n "${REMOTE_SCRIPT_PATH}" ]; then
-            ssh -i ~/.ssh/id_deploy \
-              -p "$DEPLOY_PORT" \
-              -o BatchMode=yes \
-              "${{ secrets.SSH_USERNAME }}@$DEPLOY_HOST" \
-              "rm -f '${REMOTE_SCRIPT_PATH}'" || true
+          if [ -n "${REMOTE_SCRIPT_PATH}" ] && [ -n "$FTP_USERNAME" ] && [ -n "$FTP_PASSWORD" ]; then
+            _FTP_USER=$(printf '%s' "$FTP_USERNAME" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\$/\\$/g; s/`/\\`/g')
+            _FTP_PASS=$(printf '%s' "$FTP_PASSWORD" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\$/\\$/g; s/`/\\`/g')
+
+            LFTP_SCRIPT=$(mktemp -p "$RUNNER_TEMP" lftp_cleanup_XXXXXX)
+            chmod 600 "$LFTP_SCRIPT"
+            cat > "$LFTP_SCRIPT" <<LFTP_EOF
+set cmd:fail-exit yes
+set ftp:ssl-allow yes
+set ftp:ssl-force yes
+set ftp:ssl-protect-data yes
+set ftp:passive-mode on
+set ftp:use-epsv no
+set ftp:sync-mode on
+set ssl:verify-certificate yes
+set ssl:check-hostname yes
+set net:timeout 120
+set net:max-retries 1
+open ftp://$FTP_SERVER:$FTP_PORT
+user "$_FTP_USER" "$_FTP_PASS"
+rm "$REMOTE_SCRIPT_PATH"
+bye
+LFTP_EOF
+
+            lftp -f "$LFTP_SCRIPT" || true
+            rm -f "$LFTP_SCRIPT"
           fi

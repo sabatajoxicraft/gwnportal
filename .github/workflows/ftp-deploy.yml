@@ -1,4 +1,4 @@
-name: Deploy to Joxicraft (SSH)
+name: FTPS Deploy to Joxicraft
 
 on:
   push:
@@ -6,13 +6,14 @@ on:
   workflow_dispatch:
 
 env:
-  DEPLOY_HOST: student.joxicraft.co.za
-  DEPLOY_PORT: 22
-  DEPLOY_TARGET_DIR: /home/joxicaxs/student.joxicraft.co.za
+  FTP_SERVER: ftp.joxicraft.co.za
+  FTP_PORT: 21
+  # Dedicated FTP account is rooted at the site directory, so '.' is the site root.
+  FTP_SERVER_DIR: "."
 
 jobs:
   deploy:
-    name: Deploy via SSH/rsync
+    name: Deploy via explicit FTPS
     runs-on: ubuntu-latest
 
     steps:
@@ -32,35 +33,16 @@ jobs:
       - name: Remove legacy env.production to avoid ambiguity
         run: rm -f env.production
 
-      - name: Set up SSH
+      - name: Install deploy tools
         run: |
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_deploy
-          chmod 600 ~/.ssh/id_deploy
-          ssh-keyscan -p "$DEPLOY_PORT" "$DEPLOY_HOST" >> ~/.ssh/known_hosts
-          chmod 644 ~/.ssh/known_hosts
+          sudo apt-get update
+          sudo apt-get install -y lftp rsync
 
-      - name: Verify rsync is available on remote
+      - name: Stage deploy files
         run: |
-          ssh -i ~/.ssh/id_deploy \
-            -p "$DEPLOY_PORT" \
-            -o BatchMode=yes \
-            "${{ secrets.SSH_USERNAME }}@$DEPLOY_HOST" \
-            'command -v rsync >/dev/null 2>&1 || { echo "ERROR: rsync not found on remote; install it before deploying." >&2; exit 1; }'
-
-      - name: Ensure remote target directory exists
-        run: |
-          ssh -i ~/.ssh/id_deploy \
-            -p "$DEPLOY_PORT" \
-            -o BatchMode=yes \
-            "${{ secrets.SSH_USERNAME }}@$DEPLOY_HOST" \
-            "mkdir -p '$DEPLOY_TARGET_DIR'"
-
-      - name: Deploy via rsync
-        run: |
-          rsync -az --delete \
-            -e "ssh -i $HOME/.ssh/id_deploy -p $DEPLOY_PORT -o BatchMode=yes" \
+          STAGE_DIR="${GITHUB_WORKSPACE}/_ftp_staging"
+          mkdir -p "$STAGE_DIR"
+          rsync -a --delete \
             --exclude='.git*' \
             --exclude='.github/' \
             --exclude='.vscode/' \
@@ -68,5 +50,76 @@ jobs:
             --exclude='uploads/' \
             --exclude='public/uploads/' \
             --exclude='.well-known/' \
-            ./ \
-            "${{ secrets.SSH_USERNAME }}@$DEPLOY_HOST:$DEPLOY_TARGET_DIR/"
+            --exclude='_ftp_staging/' \
+            ./ "$STAGE_DIR/"
+          echo "DEPLOY_STAGE=$STAGE_DIR" >> "$GITHUB_ENV"
+
+      - name: Deploy via lftp with retry
+        env:
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          if [ -z "$FTP_USERNAME" ] || [ -z "$FTP_PASSWORD" ]; then
+            echo "ERROR: FTP credentials are missing." >&2
+            exit 1
+          fi
+
+          # Escape backslashes, double-quotes, dollar-signs, and backticks so
+          # credentials are safe inside lftp double-quoted string literals.
+          _FTP_USER=$(printf '%s' "$FTP_USERNAME" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\$/\\$/g; s/`/\\`/g')
+          _FTP_PASS=$(printf '%s' "$FTP_PASSWORD" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\$/\\$/g; s/`/\\`/g')
+
+          LFTP_SCRIPT=$(mktemp -p "$RUNNER_TEMP" lftp_deploy_XXXXXX)
+          chmod 600 "$LFTP_SCRIPT"
+          # Heredoc expansion fills in server/path values; credentials are
+          # interpolated via the pre-escaped variables above.
+          cat > "$LFTP_SCRIPT" <<LFTP_EOF
+set cmd:fail-exit yes
+set ftp:ssl-allow yes
+set ftp:ssl-force yes
+set ftp:ssl-protect-data yes
+set ftp:passive-mode on
+set ftp:use-epsv no
+set ftp:sync-mode on
+set ssl:verify-certificate yes
+set ssl:check-hostname yes
+set net:timeout 120
+set net:max-retries 2
+set net:reconnect-interval-base 10
+set net:reconnect-interval-max 20
+set mirror:parallel-transfer-count 1
+open ftp://$FTP_SERVER:$FTP_PORT
+user "$_FTP_USER" "$_FTP_PASS"
+mirror --reverse --delete --only-newer --verbose \\
+  -x '(^|/)\\.git($|/)' \\
+  -x '(^|/)\\.github($|/)' \\
+  -x '(^|/)\\.vscode($|/)' \\
+  -x '(^|/)\\.copilot($|/)' \\
+  -x '(^|/)uploads($|/)' \\
+  -x '(^|/)public/uploads($|/)' \\
+  -x '(^|/)\\.well-known($|/)' \\
+  "$DEPLOY_STAGE/" "$FTP_SERVER_DIR"
+bye
+LFTP_EOF
+
+          deploy() {
+            lftp -f "$LFTP_SCRIPT"
+          }
+
+          for attempt in 1 2 3; do
+            echo "--- Deploy attempt $attempt of 3 ---"
+            if deploy; then
+              echo "Deploy succeeded on attempt $attempt."
+              rm -f "$LFTP_SCRIPT"
+              exit 0
+            fi
+
+            echo "Attempt $attempt failed."
+            if [ "$attempt" -lt 3 ]; then
+              sleep 20
+            fi
+          done
+
+          rm -f "$LFTP_SCRIPT"
+          echo "ERROR: All 3 deploy attempts failed." >&2
+          exit 1
