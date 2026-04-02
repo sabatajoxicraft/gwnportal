@@ -53,8 +53,20 @@ jobs:
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
         run: |
+          # Preflight: ensure the staging directory was created and exported
+          if [ -z "$DEPLOY_STAGE" ]; then
+            echo "ERROR: DEPLOY_STAGE is not set. Staging step may have failed." >&2
+            exit 1
+          fi
+          if [ ! -d "$DEPLOY_STAGE" ]; then
+            echo "ERROR: DEPLOY_STAGE directory does not exist: $DEPLOY_STAGE" >&2
+            exit 1
+          fi
+
           deploy() {
-            lftp -u "$FTP_USERNAME","$FTP_PASSWORD" \
+            # Run lftp from inside the staged directory so lftp only ever
+            # mirrors '.' — avoids lftp local-path parsing quirks entirely.
+            (cd "$DEPLOY_STAGE" && lftp -u "$FTP_USERNAME","$FTP_PASSWORD" \
               -e "
                 set ftp:passive-mode on;
                 set ftp:prefer-epsv off;
@@ -62,11 +74,10 @@ jobs:
                 set net:max-retries 2;
                 set net:reconnect-interval-base 10;
                 set ftp:sync-mode on;
-                lcd \"$DEPLOY_STAGE\";
                 mirror --reverse --delete --verbose . \"$FTP_SERVER_DIR\";
                 bye
               " \
-              "$FTP_PROTOCOL://$FTP_SERVER:$FTP_PORT"
+              "$FTP_PROTOCOL://$FTP_SERVER:$FTP_PORT")
           }
 
           for attempt in 1 2 3; do
