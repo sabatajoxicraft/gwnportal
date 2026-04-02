@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 260" width="480" height="260" font-family="Nunito,sans-serif">
+  <rect width="480" height="260" rx="12" fill="#f0f7ff"/>
+  <!-- WiFi icon large -->
+  <g transform="translate(40,40)">
+    <path d="M60,80 A60,60 0 0,1 120,80" fill="none" stroke="#cfe2ff" stroke-width="8" stroke-linecap="round"/>
+    <path d="M44,64 A80,80 0 0,1 136,64" fill="none" stroke="#9ec5fe" stroke-width="8" stroke-linecap="round"/>
+    <path d="M28,48 A100,100 0 0,1 152,48" fill="none" stroke="#0d6efd" stroke-width="8" stroke-linecap="round"/>
+    <circle cx="90" cy="90" r="8" fill="#0d6efd"/>
+  </g>
+  <!-- Steps panel -->
+  <rect x="200" y="20" width="260" height="220" rx="10" fill="#fff" stroke="#dee2e6" stroke-width="1.5"/>
+  <text x="330" y="48" text-anchor="middle" font-size="13" fill="#0d6efd" font-weight="700">Request a Voucher</text>
+  <!-- Step 1 -->
+  <circle cx="224" cy="78" r="12" fill="#0d6efd"/>
+  <text x="224" y="83" text-anchor="middle" font-size="10" fill="#fff" font-weight="700">1</text>
+  <text x="244" y="74" font-size="10" fill="#212529" font-weight="600">Go to Dashboard</text>
+  <text x="244" y="87" font-size="9" fill="#6c757d">Click "Request Voucher"</text>
+  <!-- Step 2 -->
+  <line x1="224" y1="90" x2="224" y2="112" stroke="#dee2e6" stroke-width="1.5" stroke-dasharray="3,2"/>
+  <circle cx="224" cy="124" r="12" fill="#0d6efd"/>
+  <text x="224" y="129" text-anchor="middle" font-size="10" fill="#fff" font-weight="700">2</text>
+  <text x="244" y="120" font-size="10" fill="#212529" font-weight="600">Check eligibility</text>
+  <text x="244" y="133" font-size="9" fill="#6c757d">Confirm your details are correct</text>
+  <!-- Step 3 -->
+  <line x1="224" y1="136" x2="224" y2="158" stroke="#dee2e6" stroke-width="1.5" stroke-dasharray="3,2"/>
+  <circle cx="224" cy="170" r="12" fill="#0d6efd"/>
+  <text x="224" y="175" text-anchor="middle" font-size="10" fill="#fff" font-weight="700">3</text>
+  <text x="244" y="166" font-size="10" fill="#212529" font-weight="600">Submit request</text>
+  <text x="244" y="179" font-size="9" fill="#6c757d">Manager reviews &amp; approves</text>
+  <!-- Step 4 -->
+  <line x1="224" y1="182" x2="224" y2="204" stroke="#dee2e6" stroke-width="1.5" stroke-dasharray="3,2"/>
+  <circle cx="224" cy="216" r="12" fill="#198754"/>
+  <text x="224" y="221" text-anchor="middle" font-size="10" fill="#fff" font-weight="700">4</text>
+  <text x="244" y="212" font-size="10" fill="#212529" font-weight="600">Receive voucher</text>
+  <text x="244" y="225" font-size="9" fill="#198754">Via SMS or WhatsApp</text>
+</svg>

@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 260" width="480" height="260" font-family="Nunito,sans-serif">
+  <rect width="480" height="260" rx="12" fill="#fff0f0"/>
+  <!-- Admin title -->
+  <text x="240" y="36" text-anchor="middle" font-size="14" fill="#dc3545" font-weight="700">Admin Control Panel</text>
+  <!-- Stat cards -->
+  <rect x="20" y="50" width="100" height="60" rx="8" fill="#fff" stroke="#dee2e6" stroke-width="1.5"/>
+  <text x="70" y="74" text-anchor="middle" font-size="22" fill="#dc3545" font-weight="700">42</text>
+  <text x="70" y="96" text-anchor="middle" font-size="9" fill="#6c757d">Users</text>
+  <rect x="132" y="50" width="100" height="60" rx="8" fill="#fff" stroke="#dee2e6" stroke-width="1.5"/>
+  <text x="182" y="74" text-anchor="middle" font-size="22" fill="#0d6efd" font-weight="700">8</text>
+  <text x="182" y="96" text-anchor="middle" font-size="9" fill="#6c757d">Accommodations</text>
+  <rect x="244" y="50" width="100" height="60" rx="8" fill="#fff" stroke="#dee2e6" stroke-width="1.5"/>
+  <text x="294" y="74" text-anchor="middle" font-size="22" fill="#198754" font-weight="700">156</text>
+  <text x="294" y="96" text-anchor="middle" font-size="9" fill="#6c757d">Vouchers Sent</text>
+  <rect x="356" y="50" width="104" height="60" rx="8" fill="#fff" stroke="#dee2e6" stroke-width="1.5"/>
+  <text x="408" y="74" text-anchor="middle" font-size="22" fill="#fd7e14" font-weight="700">3</text>
+  <text x="408" y="96" text-anchor="middle" font-size="9" fill="#6c757d">Active Managers</text>
+  <!-- Admin action tiles -->
+  <rect x="20" y="128" width="96" height="60" rx="8" fill="#fff" stroke="#dee2e6" stroke-width="1.5"/>
+  <text x="68" y="152" text-anchor="middle" font-size="20">&#128101;</text>
+  <text x="68" y="178" text-anchor="middle" font-size="9" fill="#495057">Manage Users</text>
+  <rect x="128" y="128" width="96" height="60" rx="8" fill="#fff" stroke="#dee2e6" stroke-width="1.5"/>
+  <text x="176" y="152" text-anchor="middle" font-size="20">&#127968;</text>
+  <text x="176" y="178" text-anchor="middle" font-size="9" fill="#495057">Accommodations</text>
+  <rect x="236" y="128" width="96" height="60" rx="8" fill="#fff" stroke="#dee2e6" stroke-width="1.5"/>
+  <text x="284" y="152" text-anchor="middle" font-size="20">&#128246;</text>
+  <text x="284" y="178" text-anchor="middle" font-size="9" fill="#495057">Activity Log</text>
+  <rect x="344" y="128" width="116" height="60" rx="8" fill="#fff" stroke="#dee2e6" stroke-width="1.5"/>
+  <text x="402" y="152" text-anchor="middle" font-size="20">&#9881;</text>
+  <text x="402" y="178" text-anchor="middle" font-size="9" fill="#495057">System Settings</text>
+  <!-- Network status bar -->
+  <rect x="20" y="206" width="440" height="36" rx="8" fill="#d1e7dd" stroke="#a3cfbb" stroke-width="1"/>
+  <circle cx="44" cy="224" r="7" fill="#198754"/>
+  <text x="60" y="228" font-size="10" fill="#0f5132" font-weight="600">Network: Online</text>
+  <text x="180" y="228" font-size="9" fill="#0f5132">|  24 Mbps pool active  |  Router: Connected  |  All systems OK</text>
+</svg>

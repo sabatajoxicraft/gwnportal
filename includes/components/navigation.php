@@ -156,10 +156,8 @@ if (isLoggedIn()) {
                                 <li><hr class="dropdown-divider"></li>
                             <?php endif; ?>
 
-                            <?php if ($userRole === 'student'): ?>
-                                <li><a class="dropdown-item" href="<?= BASE_URL ?>/help.php"><i class="bi bi-question-circle me-2"></i> Help</a></li>
-                                <li><hr class="dropdown-divider"></li>
-                            <?php endif; ?>
+                            <li><a class="dropdown-item" href="<?= BASE_URL ?>/help.php"><i class="bi bi-question-circle me-2"></i> Help</a></li>
+                            <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="<?= BASE_URL ?>/logout.php"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
                         </ul>
                     </li>

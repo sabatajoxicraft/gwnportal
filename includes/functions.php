@@ -973,24 +973,16 @@ function timeAgo($datetime) {
     }
 }
 
-function resolveSenderEmail($preferGraphSender = false) {
-    $m365Sender = defined('M365_SENDER_EMAIL') ? M365_SENDER_EMAIL : '';
-    if ($preferGraphSender && !empty($m365Sender) && filter_var($m365Sender, FILTER_VALIDATE_EMAIL)) {
-        return $m365Sender;
-    }
-
-    // Priority 1 (fallback mail): Valid SMTP_FROM env
+/**
+ * Resolve the sender address for SMTP fallback delivery.
+ * Returns SMTP_FROM if valid, otherwise derives noreply@<host>.
+ */
+function resolveSenderEmail(): string {
     $smtpFrom = getenv('SMTP_FROM');
     if ($smtpFrom !== false && !empty($smtpFrom) && filter_var($smtpFrom, FILTER_VALIDATE_EMAIL)) {
         return $smtpFrom;
     }
 
-    // Priority 2: Valid M365 sender
-    if (!empty($m365Sender) && filter_var($m365Sender, FILTER_VALIDATE_EMAIL)) {
-        return $m365Sender;
-    }
-
-    // Priority 3: noreply@host from ABSOLUTE_APP_URL, SERVER_NAME, or localhost
     $host = 'localhost';
     if (defined('ABSOLUTE_APP_URL') && !empty(ABSOLUTE_APP_URL)) {
         $parsedHost = parse_url(ABSOLUTE_APP_URL, PHP_URL_HOST);
@@ -1003,117 +995,10 @@ function resolveSenderEmail($preferGraphSender = false) {
         $host = $_SERVER['SERVER_NAME'];
     }
 
-    // Strip port and leading www
     $host = preg_replace('/:\d+$/', '', $host);
     $host = preg_replace('/^www\./i', '', $host);
 
     return 'noreply@' . $host;
-}
-
-function getGraphToken() {
-    if (empty(M365_TENANT_ID) || empty(M365_CLIENT_ID) || empty(M365_CLIENT_SECRET)) {
-        return null;
-    }
-
-    $tokenUrl = 'https://login.microsoftonline.com/' . M365_TENANT_ID . '/oauth2/v2.0/token';
-    $postData = [
-        'client_id' => M365_CLIENT_ID,
-        'client_secret' => M365_CLIENT_SECRET,
-        'scope' => 'https://graph.microsoft.com/.default',
-        'grant_type' => 'client_credentials'
-    ];
-
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $tokenUrl);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/x-www-form-urlencoded']);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($response === false || $httpCode !== 200) {
-        error_log("Graph token request failed: HTTP $httpCode");
-        return null;
-    }
-
-    return json_decode($response, true);
-}
-
-/**
- * Send an email via Microsoft Graph API.
- * Returns structured transport details for audit logging.
- *
- * @return array{success: bool, transport: string, http_code: int, sender: string, error: string}
- */
-function _sendGraphEmailDetails($to, $subject, $body, $contentType = 'HTML', $sender = null) {
-    if (!$sender) {
-        $sender = resolveSenderEmail(true);
-    }
-    $result = [
-        'success'   => false,
-        'transport' => 'graph',
-        'http_code' => 0,
-        'sender'    => $sender,
-        'error'     => '',
-    ];
-
-    $tokenData = getGraphToken();
-    if (!$tokenData || empty($tokenData['access_token'])) {
-        $result['error'] = 'No access token';
-        error_log("Graph email failed: No token");
-        return $result;
-    }
-
-    $sendMailUrl = 'https://graph.microsoft.com/v1.0/users/' . urlencode($sender) . '/sendMail';
-    $email = [
-        'message' => [
-            'subject' => $subject,
-            'body'    => ['contentType' => $contentType, 'content' => $body],
-            'toRecipients' => [['emailAddress' => ['address' => $to]]],
-        ],
-    ];
-
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $sendMailUrl);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($email));
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $tokenData['access_token'],
-        'Content-Type: application/json',
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    $result['http_code'] = $httpCode;
-
-    if ($httpCode === 202) {
-        $result['success'] = true;
-        return $result;
-    }
-
-    // Extract a short error snippet for the audit log
-    $errSnippet = '';
-    if ($response) {
-        $decoded = json_decode($response, true);
-        if (is_array($decoded) && isset($decoded['error']['message'])) {
-            $errSnippet = substr($decoded['error']['message'], 0, 120);
-        } elseif (is_string($response)) {
-            $errSnippet = substr($response, 0, 80);
-        }
-    }
-    $result['error'] = $errSnippet ?: "HTTP {$httpCode}";
-    error_log("Graph email failed: HTTP $httpCode" . ($errSnippet ? " – $errSnippet" : ''));
-    return $result;
-}
-
-function sendGraphEmail($to, $subject, $body, $contentType = 'Text', $sender = null) {
-    return _sendGraphEmailDetails($to, $subject, $body, $contentType ?: 'Text', $sender)['success'];
 }
 
 function resolveAppEmailUrl($url) {
@@ -1253,6 +1138,117 @@ function wrapAppEmailContent($subject, $bodyHtml) {
 }
 
 /**
+ * Send an HTML email via SendGrid Web API v3.
+ * No Composer required – uses direct cURL.
+ * Returns structured transport details for audit logging.
+ *
+ * @param  string      $to        Recipient address
+ * @param  string      $subject   Email subject
+ * @param  string      $htmlBody  Full HTML body
+ * @param  string|null $sender    From address (defaults to SENDGRID_FROM constant)
+ * @param  string|null $fromName  Sender display name (defaults to SENDGRID_FROM_NAME constant)
+ * @return array{success: bool, transport: string, http_code: int, sender: string, error: string, message_id: string}
+ */
+function _sendSendGridEmailDetails(
+    string  $to,
+    string  $subject,
+    string  $htmlBody,
+    ?string $sender   = null,
+    ?string $fromName = null
+): array {
+    $apiKey    = defined('SENDGRID_API_KEY')   ? SENDGRID_API_KEY   : '';
+    $fromEmail = $sender   ?? (defined('SENDGRID_FROM')      ? SENDGRID_FROM      : '');
+    $fromName  = $fromName ?? (defined('SENDGRID_FROM_NAME') ? SENDGRID_FROM_NAME : (defined('APP_NAME') ? APP_NAME : 'System'));
+
+    $result = [
+        'success'    => false,
+        'transport'  => 'sendgrid',
+        'http_code'  => 0,
+        'sender'     => $fromEmail,
+        'error'      => '',
+        'message_id' => '',
+    ];
+
+    if (empty($apiKey)) {
+        $result['error'] = 'SendGrid API key not configured';
+        error_log('SendGrid email failed: API key not configured');
+        return $result;
+    }
+
+    if (empty($fromEmail) || !filter_var($fromEmail, FILTER_VALIDATE_EMAIL)) {
+        $result['error'] = 'Invalid or missing SendGrid From address';
+        error_log("SendGrid email failed: invalid SENDGRID_FROM ({$fromEmail})");
+        return $result;
+    }
+
+    if (empty($to) || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
+        $result['error'] = 'Invalid or missing recipient address';
+        error_log("SendGrid email failed: invalid recipient ({$to})");
+        return $result;
+    }
+
+    $payload = [
+        'personalizations' => [
+            ['to' => [['email' => $to]]],
+        ],
+        'from'    => ['email' => $fromEmail, 'name' => $fromName],
+        'subject' => $subject,
+        'content' => [
+            ['type' => 'text/plain', 'value' => strip_tags($htmlBody)],
+            ['type' => 'text/html',  'value' => $htmlBody],
+        ],
+    ];
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, 'https://api.sendgrid.com/v3/mail/send');
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HEADER, true); // capture headers to extract X-Message-Id
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: Bearer ' . $apiKey,
+        'Content-Type: application/json',
+    ]);
+
+    $rawResponse = curl_exec($ch);
+    $httpCode    = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $headerSize  = (int) curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+    curl_close($ch);
+
+    $result['http_code'] = $httpCode;
+
+    // SendGrid returns 202 Accepted with an empty body on success
+    if ($httpCode === 202) {
+        $result['success'] = true;
+        // Best-effort: extract X-Message-Id from response headers
+        if ($rawResponse !== false && $headerSize > 0) {
+            $headers = substr($rawResponse, 0, $headerSize);
+            if (preg_match('/^X-Message-Id:\s*(\S+)/im', $headers, $m)) {
+                $result['message_id'] = trim($m[1]);
+            }
+        }
+        return $result;
+    }
+
+    // Extract a human-readable error from the JSON body (SendGrid error format)
+    $body       = ($rawResponse !== false && $headerSize > 0) ? substr($rawResponse, $headerSize) : (string)$rawResponse;
+    $errSnippet = '';
+    if ($body !== '') {
+        $decoded = json_decode($body, true);
+        if (is_array($decoded) && isset($decoded['errors'][0]['message'])) {
+            $errSnippet = substr((string)$decoded['errors'][0]['message'], 0, 120);
+        } elseif (is_array($decoded) && isset($decoded['message'])) {
+            $errSnippet = substr((string)$decoded['message'], 0, 120);
+        } elseif (is_string($body)) {
+            $errSnippet = substr($body, 0, 80);
+        }
+    }
+    $result['error'] = $errSnippet ?: "HTTP {$httpCode}";
+    error_log("SendGrid email failed [to={$to}]: HTTP {$httpCode}" . ($errSnippet ? " – {$errSnippet}" : ''));
+    return $result;
+}
+
+/**
  * Send an email via PHPMailer over authenticated SMTP.
  * Returns structured transport details for audit logging.
  *
@@ -1264,10 +1260,11 @@ function wrapAppEmailContent($subject, $bodyHtml) {
  */
 function _sendSmtpEmailDetails(string $to, string $subject, string $htmlBody, string $sender): array {
     $result = [
-        'success'   => false,
-        'transport' => 'smtp',
-        'sender'    => $sender,
-        'error'     => '',
+        'success'    => false,
+        'transport'  => 'smtp',
+        'sender'     => $sender,
+        'error'      => '',
+        'message_id' => '',
     ];
 
     try {
@@ -1329,40 +1326,46 @@ function sendAppEmail($to, $subject, $message, $isHtml = false, $auditCategory =
     $bodyContent = $isHtml ? (string) $message : formatPlainAppEmailBody($message);
     $htmlMessage = wrapAppEmailContent($subject, $bodyContent);
 
-    $result        = false;
-    $transportMeta = [];
+    $result           = false;
+    $transportMeta    = [];
+    $priorAttemptMade = false;
 
-    // ── Primary: PHPMailer SMTP ────────────────────────────────────────────
-    $smtpReady = class_exists('\\PHPMailer\\PHPMailer\\PHPMailer')
-        && defined('SMTP_HOST') && SMTP_HOST !== ''
-        && defined('SMTP_USER') && SMTP_USER !== ''
-        && defined('SMTP_PASSWORD') && SMTP_PASSWORD !== '';
+    // ── Primary: SendGrid Web API v3 ──────────────────────────────────────
+    $sendgridReady = defined('SENDGRID_API_KEY') && SENDGRID_API_KEY !== ''
+        && defined('SENDGRID_FROM') && SENDGRID_FROM !== ''
+        && filter_var(SENDGRID_FROM, FILTER_VALIDATE_EMAIL);
 
-    if ($smtpReady) {
-        $smtpSender    = (defined('SMTP_FROM') && filter_var(SMTP_FROM, FILTER_VALIDATE_EMAIL))
-            ? SMTP_FROM
-            : resolveSenderEmail(false);
-        $smtpResult    = _sendSmtpEmailDetails((string)$to, (string)$subject, $htmlMessage, $smtpSender);
-        $transportMeta = $smtpResult;
-        $result        = $smtpResult['success'];
+    if ($sendgridReady) {
+        $sgResult         = _sendSendGridEmailDetails((string)$to, (string)$subject, $htmlMessage);
+        $transportMeta    = $sgResult;
+        $result           = $sgResult['success'];
+        $priorAttemptMade = true;
     }
 
-    // ── Optional fallback: Microsoft Graph (only if SMTP failed/unconfigured) ─
-    if (!$result && M365_GRAPH_ENABLED === '1'
-        && !empty(M365_TENANT_ID) && !empty(M365_CLIENT_ID) && !empty(M365_CLIENT_SECRET)
-    ) {
-        $graphSender   = resolveSenderEmail(true);
-        $graphResult   = _sendGraphEmailDetails((string)$to, (string)$subject, $htmlMessage, 'HTML', $graphSender);
-        $graphResult['fallback_used'] = true;
-        $transportMeta = $graphResult;
-        $result        = $graphResult['success'];
+    // ── Fallback: PHPMailer SMTP ──────────────────────────────────────────
+    if (!$result) {
+        $smtpReady = class_exists('\\PHPMailer\\PHPMailer\\PHPMailer')
+            && defined('SMTP_HOST') && SMTP_HOST !== ''
+            && defined('SMTP_USER') && SMTP_USER !== ''
+            && defined('SMTP_PASSWORD') && SMTP_PASSWORD !== '';
+
+        if ($smtpReady) {
+            $smtpSender    = (defined('SMTP_FROM') && filter_var(SMTP_FROM, FILTER_VALIDATE_EMAIL))
+                ? SMTP_FROM
+                : resolveSenderEmail();
+            $smtpResult    = _sendSmtpEmailDetails((string)$to, (string)$subject, $htmlMessage, $smtpSender);
+            $smtpResult['fallback_used'] = $priorAttemptMade;
+            $transportMeta    = $smtpResult;
+            $result           = $smtpResult['success'];
+            $priorAttemptMade = true;
+        }
     }
 
     if (empty($transportMeta)) {
         $transportMeta = [
             'transport' => 'none',
             'success'   => false,
-            'error'     => 'No configured transport available (check SMTP_HOST, SMTP_USER, SMTP_PASSWORD)',
+            'error'     => 'No configured transport available (check SENDGRID_API_KEY/SENDGRID_FROM or SMTP_HOST/SMTP_USER/SMTP_PASSWORD)',
         ];
     }
 

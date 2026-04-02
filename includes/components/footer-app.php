@@ -37,7 +37,7 @@ $userName = $_SESSION['full_name'] ?? 'User';
                             </a>
                         <?php endif; ?>
                         
-                        <?php if (in_array($userRole, ['owner', 'manager', 'admin'])): ?>
+                        <?php if (in_array($userRole, ['owner', 'manager', 'admin', 'student'])): ?>
                             <a href="<?= BASE_URL ?>/help.php" class="text-muted text-decoration-none me-3 hover-link">
                                 <i class="bi bi-question-circle-fill me-1"></i>Help
                             </a>

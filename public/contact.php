@@ -23,14 +23,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $error = 'Please enter a valid email address';
     } else {
-        // In a real application, you would send an email or save to database here
-        
-        // Log the contact request
-        $conn = getDbConnection();
-        logActivity($conn, 0, 'contact_form', "Contact form submitted by $name ($email): $subject");
-        
-        // Show success message
-        $success = true;
+        $email_body = "Name: $name\nEmail: $email\nSubject: $subject\n\nMessage:\n$message";
+        if (sendAppEmail('support@joxicraft.co.za', "Contact Form: $subject", $email_body, false, 'support')) {
+            $conn = getDbConnection();
+            logActivity($conn, 0, 'contact_form', "Contact form submitted by $name ($email): $subject");
+            $success = true;
+        } else {
+            $error = 'Your message could not be sent. Please try again or contact us directly.';
+        }
     }
 }
 

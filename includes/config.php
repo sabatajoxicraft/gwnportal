@@ -170,7 +170,16 @@ define('PYTHON_SCRIPT_PATH', getenv('PYTHON_SCRIPT_PATH') ?: (getenv('PYTHON_SCR
 define('GOOGLE_MAPS_API_KEY', getenv('GOOGLE_MAPS_API_KEY') ?: '');
 
 // ============================================================================
-// SMTP Configuration (PHPMailer – primary email transport)
+// SendGrid Configuration (primary outbound email transport – Web API v3)
+// No Composer required; uses direct cURL in _sendSendGridEmailDetails().
+// Set SENDGRID_API_KEY + SENDGRID_FROM to activate. Leave empty to skip.
+// ============================================================================
+define('SENDGRID_API_KEY',   getenv('SENDGRID_API_KEY')   ?: '');
+define('SENDGRID_FROM',      getenv('SENDGRID_FROM')      ?: '');
+define('SENDGRID_FROM_NAME', getenv('SENDGRID_FROM_NAME') ?: (defined('APP_NAME') ? APP_NAME : 'System'));
+
+// ============================================================================
+// SMTP Configuration (PHPMailer – fallback email transport)
 // Defaults match docker-entrypoint.sh; override via .env or server environment.
 // ============================================================================
 define('SMTP_HOST',       getenv('SMTP_HOST')       ?: 'student.joxicraft.co.za');
@@ -182,13 +191,6 @@ define('SMTP_FROM',       getenv('SMTP_FROM')       ?: 'donotreply@student.joxic
 define('SMTP_ENCRYPTION', getenv('SMTP_ENCRYPTION') ?: (((int)(getenv('SMTP_PORT') ?: 465)) === 587 ? 'tls' : 'ssl'));
 // Set to '0' to disable SMTP AUTH (not recommended)
 define('SMTP_AUTH',       (getenv('SMTP_AUTH') !== false ? (bool)(int)getenv('SMTP_AUTH') : true));
-
-// Microsoft 365 Graph Configuration
-define('M365_GRAPH_ENABLED', getenv('M365_GRAPH_ENABLED') ?: '1');
-define('M365_TENANT_ID', getenv('M365_TENANT_ID') ?: (getenv('TENANT_ID') ?: ''));
-define('M365_CLIENT_ID', getenv('M365_CLIENT_ID') ?: (getenv('CLIENT_ID') ?: ''));
-define('M365_CLIENT_SECRET', getenv('M365_CLIENT_SECRET') ?: (getenv('CLIENT_SECRET') ?: ''));
-define('M365_SENDER_EMAIL', getenv('M365_SENDER_EMAIL') ?: 'system@joxicraft.co.za');
 
 // Path settings
 define('PUBLIC_PATH', __DIR__ . '/../public');

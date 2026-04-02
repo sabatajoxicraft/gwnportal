@@ -314,14 +314,15 @@ class ActivityLogHelper {
             if (isset($decoded['success'])) {
                 if ($decoded['success']) {
                     $transport = $decoded['transport'] ?? '';
-                    if ($transport === 'smtp') {
-                        $parts[] = '✓ Accepted by SMTP server';
-                    } elseif ($transport === 'graph') {
+                    if ($transport === 'sendgrid') {
                         $httpCode = isset($decoded['http_code']) ? (int)$decoded['http_code'] : 202;
-                        $parts[] = '✓ Accepted by Graph (HTTP ' . $httpCode . ')';
+                        $parts[]  = '✓ Accepted by SendGrid (HTTP ' . $httpCode . ')';
+                    } elseif ($transport === 'smtp') {
+                        $fallback = !empty($decoded['fallback_used']) ? ' (fallback from SendGrid)' : '';
+                        $parts[]  = '✓ Accepted by SMTP server' . $fallback;
                     } elseif ($transport === 'php_mail') {
-                        $fallback = !empty($decoded['fallback_used']) ? ' (fallback from Graph)' : '';
-                        $parts[] = '✓ Accepted by mail server' . $fallback;
+                        $fallback = !empty($decoded['fallback_used']) ? ' (fallback)' : '';
+                        $parts[]  = '✓ Accepted by mail server' . $fallback;
                     } else {
                         // Legacy row without transport metadata
                         $parts[] = '✓ Queued';
@@ -331,15 +332,15 @@ class ActivityLogHelper {
                     $errSuffix = !empty($decoded['transport_error'])
                         ? ': ' . substr((string)$decoded['transport_error'], 0, 80)
                         : '';
-                    if ($transport === 'smtp') {
-                        $parts[] = '✗ SMTP error' . $errSuffix;
-                    } elseif ($transport === 'graph') {
+                    if ($transport === 'sendgrid') {
                         $httpCode = isset($decoded['http_code']) && $decoded['http_code'] > 0
                             ? (int)$decoded['http_code']
                             : 0;
-                        $parts[] = $httpCode > 0
-                            ? '✗ Graph HTTP ' . $httpCode . $errSuffix
-                            : '✗ Graph error' . $errSuffix;
+                        $parts[]  = $httpCode > 0
+                            ? '✗ SendGrid HTTP ' . $httpCode . $errSuffix
+                            : '✗ SendGrid error' . $errSuffix;
+                    } elseif ($transport === 'smtp') {
+                        $parts[] = '✗ SMTP error' . $errSuffix;
                     } elseif ($transport === 'php_mail') {
                         $parts[] = '✗ mail() rejected' . $errSuffix;
                     } else {

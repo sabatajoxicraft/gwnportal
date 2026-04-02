@@ -92,6 +92,10 @@ class CommunicationLogger {
             if (isset($transportMeta['fallback_used'])) {
                 $details['fallback_used'] = (bool) $transportMeta['fallback_used'];
             }
+            // Capture SendGrid X-Message-Id (or equivalent) when available
+            if (!empty($transportMeta['message_id'])) {
+                $details['message_id'] = substr((string) $transportMeta['message_id'], 0, 100);
+            }
             // Store only the sender domain (not the full address) for diagnostics
             if (!empty($transportMeta['sender'])) {
                 $atPos = strpos((string) $transportMeta['sender'], '@');
