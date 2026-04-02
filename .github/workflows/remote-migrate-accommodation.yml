@@ -124,29 +124,32 @@ jobs:
 
           LFTP_SCRIPT=$(mktemp -p "$RUNNER_TEMP" lftp_migrate_XXXXXX)
           chmod 600 "$LFTP_SCRIPT"
+          trap 'rm -f "${LFTP_SCRIPT:-}"' EXIT
           cat > "$LFTP_SCRIPT" <<LFTP_EOF
-set cmd:fail-exit yes
-set ftp:ssl-allow yes
-set ftp:ssl-force yes
-set ftp:ssl-protect-data yes
-set ftp:passive-mode on
-set ftp:use-epsv no
-set ftp:sync-mode on
-set ssl:verify-certificate yes
-set ssl:check-hostname yes
-set net:timeout 120
-set net:max-retries 2
-set net:reconnect-interval-base 10
-set net:reconnect-interval-max 20
-open ftp://$FTP_SERVER:$FTP_PORT
-user "$_FTP_USER" "$_FTP_PASS"
-mkdir -f "public"
-put "${GITHUB_WORKSPACE}/${MIGRATION_FILENAME}" -o "$REMOTE_PATH"
-bye
-LFTP_EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-allow yes
+          set ftp:ssl-force yes
+          set ftp:ssl-protect-data yes
+          set ftp:passive-mode on
+          set ftp:use-epsv no
+          set ftp:sync-mode on
+          set ssl:verify-certificate yes
+          set ssl:check-hostname yes
+          set net:timeout 120
+          set net:max-retries 2
+          set net:reconnect-interval-base 10
+          set net:reconnect-interval-max 20
+          open ftp://$FTP_SERVER:$FTP_PORT
+          user "$_FTP_USER" "$_FTP_PASS"
+          mkdir -f "public"
+          put "${GITHUB_WORKSPACE}/${MIGRATION_FILENAME}" -o "$REMOTE_PATH"
+          bye
+          LFTP_EOF
 
-          lftp -f "$LFTP_SCRIPT"
-          rm -f "$LFTP_SCRIPT"
+          if ! lftp -f "$LFTP_SCRIPT"; then
+            echo "ERROR: lftp upload failed; aborting before HTTP execution." >&2
+            exit 1
+          fi
 
       - name: Execute migration via HTTP
         run: |
@@ -181,24 +184,31 @@ LFTP_EOF
 
             LFTP_SCRIPT=$(mktemp -p "$RUNNER_TEMP" lftp_cleanup_XXXXXX)
             chmod 600 "$LFTP_SCRIPT"
+            trap 'rm -f "${LFTP_SCRIPT:-}"' EXIT
             cat > "$LFTP_SCRIPT" <<LFTP_EOF
-set cmd:fail-exit yes
-set ftp:ssl-allow yes
-set ftp:ssl-force yes
-set ftp:ssl-protect-data yes
-set ftp:passive-mode on
-set ftp:use-epsv no
-set ftp:sync-mode on
-set ssl:verify-certificate yes
-set ssl:check-hostname yes
-set net:timeout 120
-set net:max-retries 1
-open ftp://$FTP_SERVER:$FTP_PORT
-user "$_FTP_USER" "$_FTP_PASS"
-rm "$REMOTE_SCRIPT_PATH"
-bye
-LFTP_EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-allow yes
+          set ftp:ssl-force yes
+          set ftp:ssl-protect-data yes
+          set ftp:passive-mode on
+          set ftp:use-epsv no
+          set ftp:sync-mode on
+          set ssl:verify-certificate yes
+          set ssl:check-hostname yes
+          set net:timeout 120
+          set net:max-retries 1
+          open ftp://$FTP_SERVER:$FTP_PORT
+          user "$_FTP_USER" "$_FTP_PASS"
+          rm "$REMOTE_SCRIPT_PATH"
+          bye
+          LFTP_EOF
 
             lftp -f "$LFTP_SCRIPT" || true
-            rm -f "$LFTP_SCRIPT"
           fi
+
+      - name: Cleanup local temp files
+        if: always()
+        run: |
+          rm -f "${GITHUB_WORKSPACE}/${MIGRATION_FILENAME:-nonexistent_placeholder}"
+          rm -f "${GITHUB_WORKSPACE}/mig_root.txt"
+          rm -f "${GITHUB_WORKSPACE}/mig_pub.txt"

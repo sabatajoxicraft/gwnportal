@@ -71,36 +71,37 @@ jobs:
 
           LFTP_SCRIPT=$(mktemp -p "$RUNNER_TEMP" lftp_deploy_XXXXXX)
           chmod 600 "$LFTP_SCRIPT"
+          trap 'rm -f "${LFTP_SCRIPT:-}"' EXIT
           # Heredoc expansion fills in server/path values; credentials are
           # interpolated via the pre-escaped variables above.
           cat > "$LFTP_SCRIPT" <<LFTP_EOF
-set cmd:fail-exit yes
-set ftp:ssl-allow yes
-set ftp:ssl-force yes
-set ftp:ssl-protect-data yes
-set ftp:passive-mode on
-set ftp:use-epsv no
-set ftp:sync-mode on
-set ssl:verify-certificate yes
-set ssl:check-hostname yes
-set net:timeout 120
-set net:max-retries 2
-set net:reconnect-interval-base 10
-set net:reconnect-interval-max 20
-set mirror:parallel-transfer-count 1
-open ftp://$FTP_SERVER:$FTP_PORT
-user "$_FTP_USER" "$_FTP_PASS"
-mirror --reverse --delete --only-newer --verbose \\
-  -x '(^|/)\\.git($|/)' \\
-  -x '(^|/)\\.github($|/)' \\
-  -x '(^|/)\\.vscode($|/)' \\
-  -x '(^|/)\\.copilot($|/)' \\
-  -x '(^|/)uploads($|/)' \\
-  -x '(^|/)public/uploads($|/)' \\
-  -x '(^|/)\\.well-known($|/)' \\
-  "$DEPLOY_STAGE/" "$FTP_SERVER_DIR"
-bye
-LFTP_EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-allow yes
+          set ftp:ssl-force yes
+          set ftp:ssl-protect-data yes
+          set ftp:passive-mode on
+          set ftp:use-epsv no
+          set ftp:sync-mode on
+          set ssl:verify-certificate yes
+          set ssl:check-hostname yes
+          set net:timeout 120
+          set net:max-retries 2
+          set net:reconnect-interval-base 10
+          set net:reconnect-interval-max 20
+          set mirror:parallel-transfer-count 1
+          open ftp://$FTP_SERVER:$FTP_PORT
+          user "$_FTP_USER" "$_FTP_PASS"
+          mirror --reverse --delete --only-newer --verbose \\
+            -x '(^|/)\\.git($|/)' \\
+            -x '(^|/)\\.github($|/)' \\
+            -x '(^|/)\\.vscode($|/)' \\
+            -x '(^|/)\\.copilot($|/)' \\
+            -x '(^|/)uploads($|/)' \\
+            -x '(^|/)public/uploads($|/)' \\
+            -x '(^|/)\\.well-known($|/)' \\
+            "$DEPLOY_STAGE/" "$FTP_SERVER_DIR"
+          bye
+          LFTP_EOF
 
           deploy() {
             lftp -f "$LFTP_SCRIPT"
