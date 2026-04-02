@@ -3,6 +3,11 @@ name: Remote Migrate - Accommodation
 on:
   workflow_dispatch:
 
+env:
+  DEPLOY_HOST: student.joxicraft.co.za
+  DEPLOY_PORT: 22
+  DEPLOY_TARGET_DIR: /home/joxicaxs/student.joxicraft.co.za
+
 jobs:
   migrate:
     runs-on: ubuntu-latest
@@ -27,7 +32,12 @@ jobs:
               exit('Forbidden');
           }
 
-          require_once __DIR__ . '/../includes/config.php';
+          $configPaths = [__DIR__ . '/../includes/config.php', __DIR__ . '/includes/config.php'];
+          $configLoaded = false;
+          foreach ($configPaths as $_cp) {
+              if (file_exists($_cp)) { require_once $_cp; $configLoaded = true; break; }
+          }
+          if (!$configLoaded) { http_response_code(500); exit('Config not found'); }
 
           if (!isset($conn)) {
               if (function_exists('getDbConnection')) {
@@ -90,13 +100,31 @@ jobs:
           PHPEOF
           sed -i "s|TOKEN_PLACEHOLDER|${MIGRATION_TOKEN}|" "/tmp/${MIGRATION_FILENAME}"
 
-      - name: Upload script via FTP
+      - name: Set up SSH
         run: |
-          curl --silent --show-error --fail \
-            --ftp-create-dirs \
-            -T "/tmp/${MIGRATION_FILENAME}" \
-            "ftp://ftp.joxicraft.co.za:21/public/${MIGRATION_FILENAME}" \
-            --user "${{ secrets.FTP_USERNAME }}:${{ secrets.FTP_PASSWORD }}"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -p "$DEPLOY_PORT" "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Upload migration script via SCP
+        run: |
+          # Upload into public/ if it exists on the remote, otherwise into the root target dir.
+          if ssh -i ~/.ssh/id_deploy -p "$DEPLOY_PORT" -o BatchMode=yes \
+               "${{ secrets.SSH_USERNAME }}@$DEPLOY_HOST" \
+               "[ -d '${DEPLOY_TARGET_DIR}/public' ]"; then
+            REMOTE_PATH="${DEPLOY_TARGET_DIR}/public/${MIGRATION_FILENAME}"
+          else
+            REMOTE_PATH="${DEPLOY_TARGET_DIR}/${MIGRATION_FILENAME}"
+          fi
+          echo "REMOTE_SCRIPT_PATH=${REMOTE_PATH}" >> "$GITHUB_ENV"
+          scp -i ~/.ssh/id_deploy \
+            -P "$DEPLOY_PORT" \
+            -o BatchMode=yes \
+            "/tmp/${MIGRATION_FILENAME}" \
+            "${{ secrets.SSH_USERNAME }}@$DEPLOY_HOST:${REMOTE_PATH}"
 
       - name: Execute migration via HTTP
         run: |
@@ -119,10 +147,13 @@ jobs:
             exit 1
           fi
 
-      - name: Cleanup remote script
+      - name: Cleanup remote migration script
         if: always()
         run: |
-          curl --silent \
-            "ftp://ftp.joxicraft.co.za:21/" \
-            --user "${{ secrets.FTP_USERNAME }}:${{ secrets.FTP_PASSWORD }}" \
-            -Q "DELE public/${MIGRATION_FILENAME}"
+          if [ -n "${REMOTE_SCRIPT_PATH}" ]; then
+            ssh -i ~/.ssh/id_deploy \
+              -p "$DEPLOY_PORT" \
+              -o BatchMode=yes \
+              "${{ secrets.SSH_USERNAME }}@$DEPLOY_HOST" \
+              "rm -f '${REMOTE_SCRIPT_PATH}'" || true
+          fi

@@ -1,4 +1,4 @@
-name: FTP Deploy to Joxicraft
+name: Deploy to Joxicraft (SSH)
 
 on:
   push:
@@ -6,14 +6,13 @@ on:
   workflow_dispatch:
 
 env:
-  FTP_PROTOCOL: ftp
-  FTP_PORT: 21
-  FTP_SERVER: ftp.joxicraft.co.za
-  FTP_SERVER_DIR: /
+  DEPLOY_HOST: student.joxicraft.co.za
+  DEPLOY_PORT: 22
+  DEPLOY_TARGET_DIR: /home/joxicaxs/student.joxicraft.co.za
 
 jobs:
   deploy:
-    name: Deploy via FTP
+    name: Deploy via SSH/rsync
     runs-on: ubuntu-latest
 
     steps:
@@ -33,19 +32,41 @@ jobs:
       - name: Remove legacy env.production to avoid ambiguity
         run: rm -f env.production
 
-      - name: Sync files via FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ env.FTP_SERVER }}
-          port: ${{ env.FTP_PORT }}
-          protocol: ${{ env.FTP_PROTOCOL }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          server-dir: ${{ env.FTP_SERVER_DIR }}
-          dangerous-clean-slate: true
-          exclude: |
-            **/.git*
-            **/.git*/**
-            **/.vscode/**
-            **/.copilot/**
-            **/.github/**
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -p "$DEPLOY_PORT" "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Verify rsync is available on remote
+        run: |
+          ssh -i ~/.ssh/id_deploy \
+            -p "$DEPLOY_PORT" \
+            -o BatchMode=yes \
+            "${{ secrets.SSH_USERNAME }}@$DEPLOY_HOST" \
+            'command -v rsync >/dev/null 2>&1 || { echo "ERROR: rsync not found on remote; install it before deploying." >&2; exit 1; }'
+
+      - name: Ensure remote target directory exists
+        run: |
+          ssh -i ~/.ssh/id_deploy \
+            -p "$DEPLOY_PORT" \
+            -o BatchMode=yes \
+            "${{ secrets.SSH_USERNAME }}@$DEPLOY_HOST" \
+            "mkdir -p '$DEPLOY_TARGET_DIR'"
+
+      - name: Deploy via rsync
+        run: |
+          rsync -az --delete \
+            -e "ssh -i $HOME/.ssh/id_deploy -p $DEPLOY_PORT -o BatchMode=yes" \
+            --exclude='.git*' \
+            --exclude='.github/' \
+            --exclude='.vscode/' \
+            --exclude='.copilot/' \
+            --exclude='uploads/' \
+            --exclude='public/uploads/' \
+            --exclude='.well-known/' \
+            ./ \
+            "${{ secrets.SSH_USERNAME }}@$DEPLOY_HOST:$DEPLOY_TARGET_DIR/"
