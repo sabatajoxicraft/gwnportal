@@ -4,10 +4,11 @@ on:
   workflow_dispatch:
 
 env:
-  # Use aserv.co.za (not ftp.joxicraft.co.za) — the FTPS service presents a DigiCert
-  # certificate for *.aserv.co.za/aserv.co.za; this hostname matches that cert so
-  # ssl:verify-certificate and ssl:check-hostname can both remain enabled.
-  FTP_SERVER: aserv.co.za
+  # Temporary workaround: ftp.joxicraft.co.za is the only reachable FTP endpoint,
+  # but its FTPS certificate is issued to *.aserv.co.za/aserv.co.za (not the connect
+  # hostname). Certificate validity is still verified; only hostname-checking is
+  # disabled. Revert once the host cert matches or a correct endpoint is available.
+  FTP_SERVER: ftp.joxicraft.co.za
   FTP_PORT: 21
   # Dedicated FTP account is rooted at the site directory, so '.' is the site root.
   FTP_SERVER_DIR: "."
@@ -136,7 +137,7 @@ jobs:
           set ftp:passive-mode on
           set ftp:sync-mode on
           set ssl:verify-certificate yes
-          set ssl:check-hostname yes
+          set ssl:check-hostname no
           set net:timeout 120
           set net:max-retries 2
           set net:reconnect-interval-base 10
@@ -195,7 +196,7 @@ jobs:
           set ftp:passive-mode on
           set ftp:sync-mode on
           set ssl:verify-certificate yes
-          set ssl:check-hostname yes
+          set ssl:check-hostname no
           set net:timeout 120
           set net:max-retries 1
           open ftp://$FTP_SERVER:$FTP_PORT
