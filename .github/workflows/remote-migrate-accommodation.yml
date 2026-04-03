@@ -3,6 +3,16 @@ name: Remote Migrate - Accommodation
 on:
   workflow_dispatch:
 
+env:
+  # Temporary workaround: ftp.joxicraft.co.za is the only reachable FTP endpoint,
+  # but its FTPS certificate is issued to *.aserv.co.za/aserv.co.za (not the connect
+  # hostname). Certificate validity is still verified; only hostname-checking is
+  # disabled. Revert once the host cert matches or a correct endpoint is available.
+  FTP_SERVER: ftp.joxicraft.co.za
+  FTP_PORT: 21
+  # Dedicated FTP account is rooted at the site directory, so '.' is the site root.
+  FTP_SERVER_DIR: "."
+
 jobs:
   migrate:
     runs-on: ubuntu-latest
@@ -18,7 +28,7 @@ jobs:
 
       - name: Create PHP migration script
         run: |
-          cat > "/tmp/${MIGRATION_FILENAME}" << 'PHPEOF'
+          cat > "${GITHUB_WORKSPACE}/${MIGRATION_FILENAME}" << 'PHPEOF'
           <?php
           $expected = 'TOKEN_PLACEHOLDER';
           $provided = $_GET['token'] ?? '';
@@ -27,7 +37,12 @@ jobs:
               exit('Forbidden');
           }
 
-          require_once __DIR__ . '/../includes/config.php';
+          $configPaths = [__DIR__ . '/../includes/config.php', __DIR__ . '/includes/config.php'];
+          $configLoaded = false;
+          foreach ($configPaths as $_cp) {
+              if (file_exists($_cp)) { require_once $_cp; $configLoaded = true; break; }
+          }
+          if (!$configLoaded) { http_response_code(500); exit('Config not found'); }
 
           if (!isset($conn)) {
               if (function_exists('getDbConnection')) {
@@ -88,27 +103,68 @@ jobs:
               echo 'OK. ' . $msg . ' max_students modified.';
           }
           PHPEOF
-          sed -i "s|TOKEN_PLACEHOLDER|${MIGRATION_TOKEN}|" "/tmp/${MIGRATION_FILENAME}"
+          sed -i "s|TOKEN_PLACEHOLDER|${MIGRATION_TOKEN}|" "${GITHUB_WORKSPACE}/${MIGRATION_FILENAME}"
 
-      - name: Upload script via FTP
+      - name: Install deploy tools
         run: |
-          curl --silent --show-error --fail \
-            --ftp-create-dirs \
-            -T "/tmp/${MIGRATION_FILENAME}" \
-            "ftp://ftp.joxicraft.co.za:21/public/${MIGRATION_FILENAME}" \
-            --user "${{ secrets.FTP_USERNAME }}:${{ secrets.FTP_PASSWORD }}"
+          sudo apt-get update
+          sudo apt-get install -y lftp
+
+      - name: Upload migration script via explicit FTPS
+        env:
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          if [ -z "$FTP_USERNAME" ] || [ -z "$FTP_PASSWORD" ]; then
+            echo "ERROR: FTP credentials are missing." >&2
+            exit 1
+          fi
+
+          REMOTE_PATH="public/${MIGRATION_FILENAME}"
+          echo "REMOTE_SCRIPT_PATH=${REMOTE_PATH}" >> "$GITHUB_ENV"
+
+          _FTP_USER=$(printf '%s' "$FTP_USERNAME" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\$/\\$/g; s/`/\\`/g')
+          _FTP_PASS=$(printf '%s' "$FTP_PASSWORD" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\$/\\$/g; s/`/\\`/g')
+
+          LFTP_SCRIPT=$(mktemp -p "$RUNNER_TEMP" lftp_migrate_XXXXXX)
+          chmod 600 "$LFTP_SCRIPT"
+          trap 'rm -f "${LFTP_SCRIPT:-}"' EXIT
+          cat > "$LFTP_SCRIPT" <<LFTP_EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-allow yes
+          set ftp:ssl-force yes
+          set ftp:ssl-protect-data yes
+          set ftp:passive-mode on
+          set ftp:sync-mode on
+          set ssl:verify-certificate yes
+          set ssl:check-hostname no
+          set net:timeout 120
+          set net:max-retries 2
+          set net:reconnect-interval-base 10
+          set net:reconnect-interval-max 20
+          open ftp://$FTP_SERVER:$FTP_PORT
+          user "$_FTP_USER" "$_FTP_PASS"
+          mkdir -f "public"
+          put "${GITHUB_WORKSPACE}/${MIGRATION_FILENAME}" -o "$REMOTE_PATH"
+          bye
+          LFTP_EOF
+
+          if ! lftp -f "$LFTP_SCRIPT"; then
+            echo "ERROR: lftp upload failed; aborting before HTTP execution." >&2
+            exit 1
+          fi
 
       - name: Execute migration via HTTP
         run: |
-          ROOT_STATUS=$(curl --silent --output /tmp/mig_root.txt --write-out "%{http_code}" \
+          ROOT_STATUS=$(curl --silent --output "${GITHUB_WORKSPACE}/mig_root.txt" --write-out "%{http_code}" \
             "https://student.joxicraft.co.za/${MIGRATION_FILENAME}?token=${MIGRATION_TOKEN}" || true)
           ROOT_STATUS=${ROOT_STATUS:-000}
-          ROOT_BODY=$(cat /tmp/mig_root.txt 2>/dev/null || true)
+          ROOT_BODY=$(cat "${GITHUB_WORKSPACE}/mig_root.txt" 2>/dev/null || true)
 
-          PUB_STATUS=$(curl --silent --output /tmp/mig_pub.txt --write-out "%{http_code}" \
+          PUB_STATUS=$(curl --silent --output "${GITHUB_WORKSPACE}/mig_pub.txt" --write-out "%{http_code}" \
             "https://student.joxicraft.co.za/public/${MIGRATION_FILENAME}?token=${MIGRATION_TOKEN}" || true)
           PUB_STATUS=${PUB_STATUS:-000}
-          PUB_BODY=$(cat /tmp/mig_pub.txt 2>/dev/null || true)
+          PUB_BODY=$(cat "${GITHUB_WORKSPACE}/mig_pub.txt" 2>/dev/null || true)
 
           if { [ "$ROOT_STATUS" = "200" ] && ! echo "$ROOT_BODY" | grep -qi "error"; }; then
             echo "Migration succeeded."
@@ -119,10 +175,42 @@ jobs:
             exit 1
           fi
 
-      - name: Cleanup remote script
+      - name: Cleanup remote migration script
+        if: always()
+        env:
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          if [ -n "${REMOTE_SCRIPT_PATH}" ] && [ -n "$FTP_USERNAME" ] && [ -n "$FTP_PASSWORD" ]; then
+            _FTP_USER=$(printf '%s' "$FTP_USERNAME" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\$/\\$/g; s/`/\\`/g')
+            _FTP_PASS=$(printf '%s' "$FTP_PASSWORD" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\$/\\$/g; s/`/\\`/g')
+
+            LFTP_SCRIPT=$(mktemp -p "$RUNNER_TEMP" lftp_cleanup_XXXXXX)
+            chmod 600 "$LFTP_SCRIPT"
+            trap 'rm -f "${LFTP_SCRIPT:-}"' EXIT
+            cat > "$LFTP_SCRIPT" <<LFTP_EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-allow yes
+          set ftp:ssl-force yes
+          set ftp:ssl-protect-data yes
+          set ftp:passive-mode on
+          set ftp:sync-mode on
+          set ssl:verify-certificate yes
+          set ssl:check-hostname no
+          set net:timeout 120
+          set net:max-retries 1
+          open ftp://$FTP_SERVER:$FTP_PORT
+          user "$_FTP_USER" "$_FTP_PASS"
+          rm "$REMOTE_SCRIPT_PATH"
+          bye
+          LFTP_EOF
+
+            lftp -f "$LFTP_SCRIPT" || true
+          fi
+
+      - name: Cleanup local temp files
         if: always()
         run: |
-          curl --silent \
-            "ftp://ftp.joxicraft.co.za:21/" \
-            --user "${{ secrets.FTP_USERNAME }}:${{ secrets.FTP_PASSWORD }}" \
-            -Q "DELE public/${MIGRATION_FILENAME}"
+          rm -f "${GITHUB_WORKSPACE}/${MIGRATION_FILENAME:-nonexistent_placeholder}"
+          rm -f "${GITHUB_WORKSPACE}/mig_root.txt"
+          rm -f "${GITHUB_WORKSPACE}/mig_pub.txt"

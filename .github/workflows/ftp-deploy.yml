@@ -1,4 +1,4 @@
-name: FTP Deploy to Joxicraft
+name: FTPS Deploy to Joxicraft
 
 on:
   push:
@@ -6,14 +6,18 @@ on:
   workflow_dispatch:
 
 env:
-  FTP_PROTOCOL: ftp
-  FTP_PORT: 21
+  # Temporary workaround: ftp.joxicraft.co.za is the only reachable FTP endpoint,
+  # but its FTPS certificate is issued to *.aserv.co.za/aserv.co.za (not the connect
+  # hostname). Certificate validity is still verified; only hostname-checking is
+  # disabled. Revert once the host cert matches or a correct endpoint is available.
   FTP_SERVER: ftp.joxicraft.co.za
-  FTP_SERVER_DIR: /
+  FTP_PORT: 21
+  # Dedicated FTP account is rooted at the site directory, so '.' is the site root.
+  FTP_SERVER_DIR: "."
 
 jobs:
   deploy:
-    name: Deploy via FTP
+    name: Deploy via explicit FTPS
     runs-on: ubuntu-latest
 
     steps:
@@ -33,19 +37,95 @@ jobs:
       - name: Remove legacy env.production to avoid ambiguity
         run: rm -f env.production
 
-      - name: Sync files via FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ env.FTP_SERVER }}
-          port: ${{ env.FTP_PORT }}
-          protocol: ${{ env.FTP_PROTOCOL }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          server-dir: ${{ env.FTP_SERVER_DIR }}
-          dangerous-clean-slate: true
-          exclude: |
-            **/.git*
-            **/.git*/**
-            **/.vscode/**
-            **/.copilot/**
-            **/.github/**
+      - name: Install deploy tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp rsync
+
+      - name: Stage deploy files
+        run: |
+          STAGE_DIR="${GITHUB_WORKSPACE}/_ftp_staging"
+          mkdir -p "$STAGE_DIR"
+          rsync -a --delete \
+            --exclude='.git*' \
+            --exclude='.github/' \
+            --exclude='.vscode/' \
+            --exclude='.copilot/' \
+            --exclude='uploads/' \
+            --exclude='public/uploads/' \
+            --exclude='.well-known/' \
+            --exclude='.ftpquota' \
+            --exclude='_ftp_staging/' \
+            ./ "$STAGE_DIR/"
+          echo "DEPLOY_STAGE=$STAGE_DIR" >> "$GITHUB_ENV"
+
+      - name: Deploy via lftp with retry
+        env:
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          if [ -z "$FTP_USERNAME" ] || [ -z "$FTP_PASSWORD" ]; then
+            echo "ERROR: FTP credentials are missing." >&2
+            exit 1
+          fi
+
+          # Escape backslashes, double-quotes, dollar-signs, and backticks so
+          # credentials are safe inside lftp double-quoted string literals.
+          _FTP_USER=$(printf '%s' "$FTP_USERNAME" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\$/\\$/g; s/`/\\`/g')
+          _FTP_PASS=$(printf '%s' "$FTP_PASSWORD" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\$/\\$/g; s/`/\\`/g')
+
+          LFTP_SCRIPT=$(mktemp -p "$RUNNER_TEMP" lftp_deploy_XXXXXX)
+          chmod 600 "$LFTP_SCRIPT"
+          trap 'rm -f "${LFTP_SCRIPT:-}"' EXIT
+          # Heredoc expansion fills in server/path values; credentials are
+          # interpolated via the pre-escaped variables above.
+          cat > "$LFTP_SCRIPT" <<LFTP_EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-allow yes
+          set ftp:ssl-force yes
+          set ftp:ssl-protect-data yes
+          set ftp:passive-mode on
+          set ftp:sync-mode on
+          set ssl:verify-certificate yes
+          set ssl:check-hostname no
+          set net:timeout 120
+          set net:max-retries 2
+          set net:reconnect-interval-base 10
+          set net:reconnect-interval-max 20
+          set mirror:parallel-transfer-count 1
+          open ftp://$FTP_SERVER:$FTP_PORT
+          user "$_FTP_USER" "$_FTP_PASS"
+          mirror --reverse --delete --only-newer --verbose \\
+            -x '(^|/)\\.git($|/)' \\
+            -x '(^|/)\\.github($|/)' \\
+            -x '(^|/)\\.vscode($|/)' \\
+            -x '(^|/)\\.copilot($|/)' \\
+            -x '(^|/)uploads($|/)' \\
+            -x '(^|/)public/uploads($|/)' \\
+            -x '(^|/)\\.well-known($|/)' \\
+            -x '(^|/)\\.ftpquota$' \\
+            "$DEPLOY_STAGE/" "$FTP_SERVER_DIR"
+          bye
+          LFTP_EOF
+
+          deploy() {
+            lftp -f "$LFTP_SCRIPT"
+          }
+
+          for attempt in 1 2 3; do
+            echo "--- Deploy attempt $attempt of 3 ---"
+            if deploy; then
+              echo "Deploy succeeded on attempt $attempt."
+              rm -f "$LFTP_SCRIPT"
+              exit 0
+            fi
+
+            echo "Attempt $attempt failed."
+            if [ "$attempt" -lt 3 ]; then
+              sleep 20
+            fi
+          done
+
+          rm -f "$LFTP_SCRIPT"
+          echo "ERROR: All 3 deploy attempts failed." >&2
+          exit 1
