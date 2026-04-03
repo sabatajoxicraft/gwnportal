@@ -2,7 +2,9 @@ name: SSH Deploy to Joxicraft (Primary)
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - test/ssh-primary-20260403  # temporary: validate SSH deploy from test branch
   workflow_dispatch:
 
 env:
