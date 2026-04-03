@@ -89,8 +89,8 @@ docker-compose down -v
 - FTPS deploy is the manual fallback.
 - Remote migration intentionally remains FTPS/manual for now.
 - Required GitHub secrets: `PRODUCTION_ENV_FILE`, `SSH_PRIVATE_KEY`, `SSH_USERNAME`, `FTP_USERNAME`, `FTP_PASSWORD`.
-- The temporary trigger on `test/ssh-primary-20260403` remains until SSH key authentication succeeds from GitHub Actions.
-- Current blocker: the host is reachable, but SSH key authentication still fails with `Permission denied (publickey)`.
+- The temporary trigger on `test/ssh-primary-20260403` remains until a successful end-to-end SSH deploy is confirmed from GitHub Actions.
+- SSH auth is confirmed working (AUTH_OK with rotated key). Current workflow uses `tar`+`scp` because `rsync` is not installed on the shared host.
 
 ## Key Metrics
 
@@ -116,4 +116,4 @@ docker-compose down -v
 
 ---
 
-**Quick Start:** Pushes run CI automatically; production deployment is SSH-first on `main` with manual FTPS fallback while SSH auth is being validated. 🎉
+**Quick Start:** Pushes run CI automatically; production deployment uses SSH+tar/scp on `main` with manual FTPS fallback. 🎉

@@ -103,21 +103,22 @@ Production deployment is intentionally split between an SSH-first path and an FT
 - **SSH deploy (`.github/workflows/ssh-deploy.yml`) is the primary design target.**
 - **FTPS deploy (`.github/workflows/ftp-deploy.yml`) is manual fallback only.**
 - **Remote migration (`.github/workflows/remote-migrate-accommodation.yml`) intentionally remains manual/FTPS for now.**
-- The temporary push trigger on `test/ssh-primary-20260403` exists so the SSH workflow can be validated before this non-default-branch workflow is merged to `main`. Keep it until SSH authentication succeeds from GitHub Actions.
+- The temporary push trigger on `test/ssh-primary-20260403` exists so the SSH workflow can be validated before this non-default-branch workflow is merged to `main`. Keep it until the SSH deploy has been confirmed green end-to-end from GitHub Actions.
 
 ### 3. SSH Deploy (`.github/workflows/ssh-deploy.yml`) - Primary target
 
 **Triggers:**
 - Push to `main`
 - Manual trigger (`workflow_dispatch`)
-- Push to `test/ssh-primary-20260403` while SSH authentication is still being validated
+- Push to `test/ssh-primary-20260403` while end-to-end SSH deploy is being validated on GitHub Actions
 
 **Jobs:**
 1. **Write `.env` from secret** - Requires `PRODUCTION_ENV_FILE`
 2. **Set up SSH** - Installs the private key and adds the host to `known_hosts` with `ssh-keyscan`
-3. **Verify remote rsync** - Fails early if `rsync` is not available on the host
-4. **Ensure remote target directory exists** - Creates `/home/joxicaxs/student.joxicraft.co.za` with `mkdir -p` before syncing
-5. **Deploy via `rsync`** - Syncs the repository to `/home/joxicaxs/student.joxicraft.co.za` while preserving user-managed directories
+3. **Create deploy archive** - Builds a `.tar.gz` locally with the same exclusions previously used by `rsync`; `rsync` is not available on the shared host
+4. **Upload archive to remote** - Copies the archive to the remote home directory via `scp`
+5. **Extract archive on remote** - Ensures the target directory exists, extracts the archive into `/home/joxicaxs/student.joxicraft.co.za`, then removes the remote temp archive
+6. **Clean up local archive** - Removes the local `.tar.gz` (runs on success and failure)
 
 **Protected paths:**
 - `uploads/`
@@ -131,9 +132,9 @@ Production deployment is intentionally split between an SSH-first path and an FT
 - `SSH_USERNAME` - SSH user on the target host
 
 **Current rollout status:**
-- The host is reachable from GitHub Actions.
-- SSH public-key authentication is still blocked in practice (`Permission denied (publickey)` in prior validation).
-- Because of that, keep FTPS fallback available and treat the SSH workflow as not yet merge-ready without successful authentication validation.
+- SSH public-key authentication now succeeds (AUTH_OK confirmed with the rotated key).
+- `rsync` is not installed on the shared host, so the workflow uses `tar` + `scp` instead.
+- Auth is confirmed; the remaining gate is a successful end-to-end workflow run on GitHub Actions before the test-branch trigger is removed.
 
 ### 4. FTPS Deploy (`.github/workflows/ftp-deploy.yml`) - Manual fallback
 
@@ -151,7 +152,7 @@ Production deployment is intentionally split between an SSH-first path and an FT
 - `FTP_PASSWORD` - FTPS password
 
 **Operational note:**
-- This workflow is intentionally manual so the current stable FTPS path remains available as a fallback while SSH authentication is unresolved.
+- This workflow is intentionally manual so the stable FTPS path remains available as a fallback.
 - Hostname checking is disabled for FTPS because the provider certificate does not match `ftp.joxicraft.co.za`; certificate validity is still verified.
 
 ### 5. Remote Migrate - Accommodation (`.github/workflows/remote-migrate-accommodation.yml`) - Intentionally FTPS/manual
@@ -294,7 +295,7 @@ If you add a `composer.json` file:
 - Monitor workflow run times in Actions tab
 - Optimize slow steps with better caching
 - Add integration tests as application grows
-- Remove the temporary SSH test-branch trigger only after GitHub Actions successfully authenticates with the production SSH key
+- Remove the temporary SSH test-branch trigger only after GitHub Actions successfully completes an end-to-end deploy with the tar+scp path on `test/ssh-primary-20260403`
 - Migrate remote deployment steps away from FTPS only after the SSH path is proven end-to-end
 
 ---
