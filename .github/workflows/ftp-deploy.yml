@@ -54,6 +54,7 @@ jobs:
             --exclude='uploads/' \
             --exclude='public/uploads/' \
             --exclude='.well-known/' \
+            --exclude='.ftpquota' \
             --exclude='_ftp_staging/' \
             ./ "$STAGE_DIR/"
           echo "DEPLOY_STAGE=$STAGE_DIR" >> "$GITHUB_ENV"
@@ -102,6 +103,7 @@ jobs:
             -x '(^|/)uploads($|/)' \\
             -x '(^|/)public/uploads($|/)' \\
             -x '(^|/)\\.well-known($|/)' \\
+            -x '(^|/)\\.ftpquota$' \\
             "$DEPLOY_STAGE/" "$FTP_SERVER_DIR"
           bye
           LFTP_EOF
