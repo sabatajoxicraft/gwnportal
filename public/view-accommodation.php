@@ -325,10 +325,29 @@ if ($use_sv_js) {
     $sv_lng_val = (float)$lng;
     $extraScripts[] = '<script>
 function initOwnerStreetView() {
-    new google.maps.StreetViewPanorama(document.getElementById("sv-canvas-owner"), {
-        position: {lat: ' . $sv_lat_val . ', lng: ' . $sv_lng_val . '},
-        pov: {heading: 34, pitch: 10},
-        zoom: 1
+    var pos = {lat: ' . $sv_lat_val . ', lng: ' . $sv_lng_val . '};
+    var canvas = document.getElementById("sv-canvas-owner");
+    var sv = new google.maps.StreetViewService();
+    sv.getPanorama({location: pos, radius: 50, source: google.maps.StreetViewSource.OUTDOOR}, function(data, status) {
+        if (status === google.maps.StreetViewStatus.OK) {
+            new google.maps.StreetViewPanorama(canvas, {
+                pano: data.location.pano,
+                pov: {heading: 34, pitch: 10},
+                zoom: 1
+            });
+        } else {
+            sv.getPanorama({location: pos, radius: 500, source: google.maps.StreetViewSource.OUTDOOR}, function(d2, s2) {
+                if (s2 === google.maps.StreetViewStatus.OK) {
+                    new google.maps.StreetViewPanorama(canvas, {
+                        pano: d2.location.pano,
+                        pov: {heading: 34, pitch: 10},
+                        zoom: 1
+                    });
+                } else {
+                    canvas.innerHTML = "<p class=\"text-muted small p-3\">Street View imagery is not available for this location.</p>";
+                }
+            });
+        }
     });
 }
 </script>
