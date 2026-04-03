@@ -1,0 +1,84 @@
+name: SSH Deploy to Joxicraft (Primary)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  DEPLOY_HOST: 102.222.124.13
+  DEPLOY_PORT: 24
+  DEPLOY_TARGET_DIR: /home/joxicaxs/student.joxicraft.co.za
+
+jobs:
+  deploy:
+    name: Deploy via SSH/rsync
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Write .env from secret
+        env:
+          PRODUCTION_ENV_FILE: ${{ secrets.PRODUCTION_ENV_FILE }}
+        run: |
+          if [ -z "$PRODUCTION_ENV_FILE" ]; then
+            echo "ERROR: PRODUCTION_ENV_FILE secret is missing or empty. Aborting deploy." >&2
+            exit 1
+          fi
+          printf '%s' "$PRODUCTION_ENV_FILE" > .env
+
+      - name: Remove legacy env.production to avoid ambiguity
+        run: rm -f env.production
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          KNOWN_HOST_ENTRY=$(ssh-keyscan -p "$DEPLOY_PORT" "$DEPLOY_HOST" 2>/dev/null)
+          if [ -z "$KNOWN_HOST_ENTRY" ]; then
+            echo "ERROR: ssh-keyscan returned no host key for $DEPLOY_HOST:$DEPLOY_PORT. Aborting." >&2
+            exit 1
+          fi
+          printf '%s\n' "$KNOWN_HOST_ENTRY" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Verify rsync is available on remote
+        run: |
+          ssh -i ~/.ssh/id_deploy \
+            -p "$DEPLOY_PORT" \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            "${{ secrets.SSH_USERNAME }}@$DEPLOY_HOST" \
+            'command -v rsync >/dev/null 2>&1 || { echo "ERROR: rsync not found on remote; install it before deploying." >&2; exit 1; }'
+
+      - name: Ensure remote target directory exists
+        run: |
+          ssh -i ~/.ssh/id_deploy \
+            -p "$DEPLOY_PORT" \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            "${{ secrets.SSH_USERNAME }}@$DEPLOY_HOST" \
+            "mkdir -p '$DEPLOY_TARGET_DIR'"
+
+      - name: Deploy via rsync
+        run: |
+          rsync -az --delete \
+            -e "ssh -i $HOME/.ssh/id_deploy -p $DEPLOY_PORT -o BatchMode=yes -o StrictHostKeyChecking=yes" \
+            --exclude='.git*' \
+            --exclude='.github/' \
+            --exclude='.vscode/' \
+            --exclude='.copilot/' \
+            --exclude='uploads/' \
+            --exclude='public/uploads/' \
+            --exclude='.well-known/' \
+            --exclude='.ftpquota' \
+            --filter='protect uploads/' \
+            --filter='protect public/uploads/' \
+            --filter='protect .well-known/' \
+            --filter='protect .ftpquota' \
+            ./ \
+            "${{ secrets.SSH_USERNAME }}@$DEPLOY_HOST:$DEPLOY_TARGET_DIR/"
