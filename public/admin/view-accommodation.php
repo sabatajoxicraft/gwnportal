@@ -50,47 +50,10 @@ if ($map_url !== '') {
 
     if ($is_google_maps_link) {
         $show_map_previews = true;
-        $parse_url = $map_url;
-        if (($map_host === 'maps.app.goo.gl' || $map_host === 'goo.gl') && function_exists('curl_init')) {
-            $ch = curl_init($map_url);
-            curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_NOBODY, true);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 5);
-            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
-            curl_setopt($ch, CURLOPT_MAXREDIRS, 5);
-            curl_exec($ch);
-            $effective = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
-            curl_close($ch);
-            if (!empty($effective) && $effective !== $map_url) {
-                $parse_url = $effective;
-            }
-        }
-
-        $map_query = $parse_url;
-        $lat = null;
-        $lng = null;
-        if (preg_match('/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/', $parse_url, $matches)) {
-            $lat = $matches[1];
-            $lng = $matches[2];
-            $map_query = $lat . ',' . $lng;
-        } elseif (preg_match('/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/', $parse_url, $matches)) {
-            $lat = $matches[1];
-            $lng = $matches[2];
-            $map_query = $lat . ',' . $lng;
-        } else {
-            $parts = parse_url($parse_url);
-            if (!empty($parts['query'])) {
-                parse_str($parts['query'], $queryParams);
-                if (!empty($queryParams['q'])) {
-                    $map_query = (string)$queryParams['q'];
-                    if (preg_match('/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/', $map_query, $coordMatch)) {
-                        $lat = $coordMatch[1];
-                        $lng = $coordMatch[2];
-                    }
-                }
-            }
-        }
+        $coords = parseGoogleMapsCoords($map_url, $map_host);
+        $lat       = $coords['lat'];
+        $lng       = $coords['lng'];
+        $map_query = $coords['map_query'];
 
         $small_map_embed_url = 'https://maps.google.com/maps?q=' . rawurlencode($map_query) . '&z=17&output=embed';
         if ($lat !== null && $lng !== null) {
