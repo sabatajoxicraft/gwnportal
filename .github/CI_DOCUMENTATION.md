@@ -2,7 +2,7 @@
 
 ## Overview
 
-The GWN WiFi Portal uses GitHub Actions for automated testing and Docker build verification. This ensures code quality and deployment readiness on every push and pull request.
+The GWN WiFi Portal uses GitHub Actions for automated testing, Docker build verification, and controlled production deployment workflows. This keeps code quality checks and deployment paths repeatable across pushes, pull requests, and manual release operations.
 
 ## Workflows
 
@@ -95,6 +95,91 @@ TWILIO_PHONE_NUMBER=+1234567890
 - Uses GitHub Actions cache for Docker layers
 - Significantly speeds up subsequent builds
 - Cache key: `type=gha`
+
+## Deployment Workflows
+
+Production deployment is intentionally split between an SSH-first path and an FTPS fallback path:
+
+- **SSH deploy (`.github/workflows/ssh-deploy.yml`) is the primary design target.**
+- **FTPS deploy (`.github/workflows/ftp-deploy.yml`) is manual fallback only.**
+- **Remote migration (`.github/workflows/remote-migrate-accommodation.yml`) intentionally remains manual/FTPS for now.**
+- The temporary push trigger on `test/ssh-primary-20260403` exists so the SSH workflow can be validated before this non-default-branch workflow is merged to `main`. Keep it until SSH authentication succeeds from GitHub Actions.
+
+### 3. SSH Deploy (`.github/workflows/ssh-deploy.yml`) - Primary target
+
+**Triggers:**
+- Push to `main`
+- Manual trigger (`workflow_dispatch`)
+- Push to `test/ssh-primary-20260403` while SSH authentication is still being validated
+
+**Jobs:**
+1. **Write `.env` from secret** - Requires `PRODUCTION_ENV_FILE`
+2. **Set up SSH** - Installs the private key and adds the host to `known_hosts` with `ssh-keyscan`
+3. **Verify remote rsync** - Fails early if `rsync` is not available on the host
+4. **Ensure remote target directory exists** - Creates `/home/joxicaxs/student.joxicraft.co.za` with `mkdir -p` before syncing
+5. **Deploy via `rsync`** - Syncs the repository to `/home/joxicaxs/student.joxicraft.co.za` while preserving user-managed directories
+
+**Protected paths:**
+- `uploads/`
+- `public/uploads/`
+- `.well-known/`
+- `.ftpquota`
+
+**Required secrets:**
+- `PRODUCTION_ENV_FILE` - Complete production `.env` file stored as a multiline GitHub secret
+- `SSH_PRIVATE_KEY` - Private key used by GitHub Actions for deployment
+- `SSH_USERNAME` - SSH user on the target host
+
+**Current rollout status:**
+- The host is reachable from GitHub Actions.
+- SSH public-key authentication is still blocked in practice (`Permission denied (publickey)` in prior validation).
+- Because of that, keep FTPS fallback available and treat the SSH workflow as not yet merge-ready without successful authentication validation.
+
+### 4. FTPS Deploy (`.github/workflows/ftp-deploy.yml`) - Manual fallback
+
+**Triggers:**
+- Manual trigger only (`workflow_dispatch`)
+
+**Jobs:**
+1. **Write `.env` from secret** - Uses the same `PRODUCTION_ENV_FILE` secret as SSH deploy
+2. **Stage deploy files** - Builds a filtered staging directory before upload
+3. **Deploy via explicit FTPS** - Uses `lftp` with retry logic and the same deploy exclusions as the SSH workflow
+
+**Required secrets:**
+- `PRODUCTION_ENV_FILE` - Complete production `.env` file
+- `FTP_USERNAME` - FTPS username
+- `FTP_PASSWORD` - FTPS password
+
+**Operational note:**
+- This workflow is intentionally manual so the current stable FTPS path remains available as a fallback while SSH authentication is unresolved.
+- Hostname checking is disabled for FTPS because the provider certificate does not match `ftp.joxicraft.co.za`; certificate validity is still verified.
+
+### 5. Remote Migrate - Accommodation (`.github/workflows/remote-migrate-accommodation.yml`) - Intentionally FTPS/manual
+
+**Triggers:**
+- Manual trigger only (`workflow_dispatch`)
+
+**Behavior:**
+- Uploads a one-time PHP migration script over explicit FTPS
+- Executes it over HTTPS with a random token
+- Deletes the script afterward
+
+**Required secrets:**
+- `FTP_USERNAME`
+- `FTP_PASSWORD`
+
+**Why this stays on FTPS for now:**
+- Remote migration is intentionally left on the proven FTPS/manual path until the SSH deployment path works end-to-end.
+
+## Deployment Secrets
+
+| Secret | Used by | Purpose |
+|--------|---------|---------|
+| `PRODUCTION_ENV_FILE` | SSH deploy, FTPS deploy | Writes the production `.env` file during deployment |
+| `SSH_PRIVATE_KEY` | SSH deploy | Authenticates the GitHub Actions runner to the deployment host |
+| `SSH_USERNAME` | SSH deploy | SSH user for the deployment host |
+| `FTP_USERNAME` | FTPS deploy, remote migration | Authenticates FTPS fallback operations |
+| `FTP_PASSWORD` | FTPS deploy, remote migration | Authenticates FTPS fallback operations |
 
 ## Status Badges
 
@@ -202,13 +287,15 @@ If you add a `composer.json` file:
 2. **Secrets management** - Use GitHub Secrets for production deployments
 3. **Dependency scanning** - Trivy scans for known vulnerabilities
 4. **Code analysis** - Custom security checks detect common issues
+5. **Deployment credentials** - Keep SSH and FTPS credentials in GitHub Secrets only; never hardcode them in workflow files or tracked environment files
 
 ## Continuous Improvement
 
 - Monitor workflow run times in Actions tab
 - Optimize slow steps with better caching
 - Add integration tests as application grows
-- Consider adding deployment workflow for production
+- Remove the temporary SSH test-branch trigger only after GitHub Actions successfully authenticates with the production SSH key
+- Migrate remote deployment steps away from FTPS only after the SSH path is proven end-to-end
 
 ---
 

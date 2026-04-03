@@ -6,6 +6,9 @@
 |----------|---------|----------|---------|
 | **CI** | Any branch push/PR | ~3-5 min | PHP lint, DB init, security |
 | **Docker** | main/develop push/PR | ~5-7 min | Build test, health checks |
+| **SSH Deploy** | main push/manual + temporary test branch push | ~2-3 min | Production deploy target (primary design) |
+| **FTPS Deploy** | Manual only | ~3-5 min | Production deploy fallback |
+| **Remote Migrate** | Manual only | ~1-2 min | FTPS upload + HTTP execution for live migrations |
 
 ## Status Check URLs
 
@@ -14,6 +17,9 @@ Replace `YOUR_USERNAME` with your GitHub username:
 ```
 https://github.com/YOUR_USERNAME/gwn-portal/actions/workflows/ci.yml
 https://github.com/YOUR_USERNAME/gwn-portal/actions/workflows/docker.yml
+https://github.com/YOUR_USERNAME/gwn-portal/actions/workflows/ssh-deploy.yml
+https://github.com/YOUR_USERNAME/gwn-portal/actions/workflows/ftp-deploy.yml
+https://github.com/YOUR_USERNAME/gwn-portal/actions/workflows/remote-migrate-accommodation.yml
 ```
 
 ## Local Testing Commands
@@ -68,11 +74,23 @@ docker-compose down -v
 ```
 .github/
 ├── workflows/
-│   ├── ci.yml           # Main CI workflow
-│   └── docker.yml       # Docker build test
+│   ├── ci.yml                              # Main CI workflow
+│   ├── docker.yml                          # Docker build test
+│   ├── ssh-deploy.yml                      # SSH-primary deploy workflow
+│   ├── ftp-deploy.yml                      # Manual FTPS fallback workflow
+│   └── remote-migrate-accommodation.yml    # Manual FTPS migration workflow
 ├── CI_DOCUMENTATION.md  # Full documentation
 └── M0.5-T2-COMPLETION.md # Task completion report
 ```
+
+## Deployment Notes
+
+- SSH deploy is the primary design target.
+- FTPS deploy is the manual fallback.
+- Remote migration intentionally remains FTPS/manual for now.
+- Required GitHub secrets: `PRODUCTION_ENV_FILE`, `SSH_PRIVATE_KEY`, `SSH_USERNAME`, `FTP_USERNAME`, `FTP_PASSWORD`.
+- The temporary trigger on `test/ssh-primary-20260403` remains until SSH key authentication succeeds from GitHub Actions.
+- Current blocker: the host is reachable, but SSH key authentication still fails with `Permission denied (publickey)`.
 
 ## Key Metrics
 
@@ -98,4 +116,4 @@ docker-compose down -v
 
 ---
 
-**Quick Start:** Just push your code - workflows run automatically! 🎉
+**Quick Start:** Pushes run CI automatically; production deployment is SSH-first on `main` with manual FTPS fallback while SSH auth is being validated. 🎉
