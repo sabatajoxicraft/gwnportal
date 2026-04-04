@@ -1172,8 +1172,24 @@ if (!function_exists('getVoucherDeviceMappings')) {
                         continue;
                     }
                     $mac = gwnExtractMacFromVoucherRow($row);
-                    $isUsed = ($mac !== '') || gwnVoucherRowLooksUsed($row);
-                    if (!$isUsed) {
+
+                    // "used device" requires a MAC returned by the controller, OR at
+                    // least one device-count field > 0.  State strings alone (e.g.
+                    // 'used', 'inuse') are intentionally excluded here because they
+                    // reflect voucher state without confirming an actual connected
+                    // device count — matching the usedDeviceNum / usedNum pattern
+                    // used throughout this repo (see fetch_current_used_vouchers.php).
+                    $hasDeviceSignal = ($mac !== '');
+                    if (!$hasDeviceSignal) {
+                        $deviceCountKeys = array('usedDeviceNum', 'usedNum', 'usedCount', 'useCount', 'authCount', 'authorizedCount');
+                        foreach ($deviceCountKeys as $_dck) {
+                            if (isset($row[$_dck]) && (int)$row[$_dck] > 0) {
+                                $hasDeviceSignal = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (!$hasDeviceSignal) {
                         continue;
                     }
 

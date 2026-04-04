@@ -1,7 +1,12 @@
 <?php
 /**
- * Daily cron: Phase 1 — rollover cleanup of prior-month vouchers.
- *             Phase 2 — first-use MAC linking for current-month vouchers.
+ * Cron (every 6 hours): Phase 1 — rollover cleanup of prior-month vouchers.
+ *                       Phase 2 — first-use MAC linking for current-month vouchers.
+ *
+ * Phase 2 processes the full filtered set on every run: current-month, active
+ * vouchers that GWN currently reports with at least one used-device signal
+ * (usedDeviceNum / usedNum > 0, or a MAC address returned by the controller).
+ * No rotation cursor or offset is used.
  *
  * Usage:
  *   php auto_link_devices.php
@@ -305,22 +310,14 @@ autoLinkLog('--- Phase 1: Rollover Cleanup Done ---');
 autoLinkLog('');
 
 // =========================================================================
-// Phase 2: First-use MAC linking
+// Phase 2: First-use MAC linking (full filtered pass)
+// Every run processes the complete set of current-month active vouchers
+// that GWN currently reports with at least one used-device signal.
 // =========================================================================
-$mappings = getVoucherDeviceMappings($monthIso);
 autoLinkLog('--- Phase 2: First-use MAC Linking ---');
-autoLinkLog('Found ' . count($mappings) . ' voucher-use mappings for ' . $monthIso);
-if ($debug && !empty($mappings)) {
-    $sample = array_slice($mappings, 0, 5);
-    autoLinkDebug('Sample mappings: ' . json_encode($sample), $debug);
-}
 
-if (empty($mappings)) {
-    autoLinkLog('No used voucher mappings found for Phase 2. Done.');
-    exit($cleanupGwnFailed > 0 ? 1 : 0);
-}
-
-$seen = array();
+// Schema capability checks must come before the processing loop so we can
+// conditionally include first_used_at / first_used_mac in the SELECT.
 $hasFirstUsedAt = false;
 $hasFirstUsedMac = false;
 
@@ -342,6 +339,38 @@ if (!$hasFirstUsedAt) {
     autoLinkLog('WARN: first_used_at column not found in voucher_logs; apply migration for first-use tracking.');
 }
 autoLinkDebug('first_used_at column: ' . ($hasFirstUsedAt ? 'yes' : 'no') . ', first_used_mac column: ' . ($hasFirstUsedMac ? 'yes' : 'no'), $debug);
+
+// Fetch GWN used-voucher mappings — current-month active vouchers that GWN
+// currently reports with at least one used-device signal.
+$mappings = getVoucherDeviceMappings($monthIso);
+autoLinkLog('GWN used-voucher mappings found: ' . count($mappings) . ' for ' . $monthIso);
+if ($debug && !empty($mappings)) {
+    $sample = array_slice($mappings, 0, 5);
+    autoLinkDebug('Sample GWN mappings: ' . json_encode($sample), $debug);
+}
+
+// Index mappings by upper-case voucher code for O(1) lookup below.
+$mappingsByCode = [];
+foreach ($mappings as $mappingsEntry) {
+    $mappingsKey = strtoupper(trim((string)($mappingsEntry['voucher_code'] ?? '')));
+    if ($mappingsKey !== '') {
+        $mappingsByCode[$mappingsKey] = $mappingsEntry;
+    }
+}
+
+// Process the full filtered set every run — all vouchers GWN currently reports
+// with at least one used-device signal, intersected with active current-month
+// entries in voucher_logs.  No rotation or offset is applied.
+$processingList = $mappings;
+
+autoLinkLog('Vouchers to process this run: ' . count($processingList) . ' (GWN-reported used-device, full pass)');
+
+if (empty($processingList)) {
+    autoLinkLog('Nothing to process in Phase 2 for ' . $monthIso . '. Done.');
+    exit($cleanupGwnFailed > 0 ? 1 : 0);
+}
+
+$seen = array();
 
 $studentLookupSql = ($hasFirstUsedAt && $hasFirstUsedMac)
     ? "SELECT vl.id, vl.user_id, u.first_name, u.last_name, s.accommodation_id, vl.first_used_at, vl.first_used_mac
@@ -372,7 +401,7 @@ $studentLookupSql = ($hasFirstUsedAt && $hasFirstUsedMac)
            ORDER BY vl.id DESC
            LIMIT 1");
 
-foreach ($mappings as $map) {
+foreach ($processingList as $map) {
     $voucherCode = trim((string)($map['voucher_code'] ?? ''));
     $rawMac = trim((string)($map['mac'] ?? ''));
     $mac = $rawMac !== '' ? formatMacAddress($rawMac) : null;

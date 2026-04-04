@@ -15,6 +15,14 @@ If neither source provides a confirmed MAC, the voucher is queued for **manual r
 
 > **Removed in Phase 1 hardening:** heuristic client-history lookup (scanning a ±24h window of connected clients) has been disabled. That approach could not reliably identify the correct device without the voucher code being present in client data, and has been replaced by the manual-review path for unresolved cases.
 
+#### Phase 2 — Full Pass Every Run
+
+Each cron run queries GWN for all current-month, **active** vouchers that have **at least one used-device signal** (i.e. `usedDeviceNum` / `usedNum` > 0, or the controller returned a MAC address for the voucher). The entire filtered set is processed on every run — there is no rotation cursor, offset, or partial-roster behaviour.
+
+Running every 6 hours means a newly used voucher is typically linked within 6 hours of first use. A voucher that GWN still reports with a device signal will be retried on each run until a MAC is captured or the voucher is retired at month-end.
+
+> **Behavioural note:** vouchers where `first_used_at` was recorded but GWN no longer reports a used-device count (e.g. the device disconnected and the controller cleared its count) will not re-enter Phase 2 automatically. They remain in manual-review status until resolved from the Student Details page, or until GWN reports the device signal again.
+
 ---
 
 ## Production Requirements
@@ -45,7 +53,7 @@ Run `php verify_cron.php` to surface these checks interactively before schedulin
 ssh user@student.joxicraft.co.za
 
 # Navigate to web root
-cd /home/joxicaxs/public_html
+cd /home/joxicaxs/student.joxicraft.co.za
 
 # Test in dry-run mode (safe, makes no changes)
 php auto_link_devices.php --dry-run --debug
@@ -65,22 +73,22 @@ php auto_link_devices.php --dry-run --debug
 
 **Settings:**
 
-- **Common Setting:** Daily (0 0 \* \* \*)
+- **Common Setting:** 4 Times Per Day (0 \*/6 \* \* \*)
 - **Command:**
   ```bash
-  cd /home/joxicaxs/public_html && php auto_link_devices.php >> /home/joxicaxs/logs/autolink.log 2>&1
+  cd /home/joxicaxs/student.joxicraft.co.za && php auto_link_devices.php >> /home/joxicaxs/autolink.log 2>&1
   ```
 
-**Alternative (Every 6 hours for faster capture):**
+**Alternative (Daily for lower server load):**
 
-- **Common Setting:** 4 Times Per Day (0 _/6 _ \* \*)
+- **Common Setting:** Daily (0 0 \* \* \*)
 - **Command:** Same as above
 
 ### Step 3: Verify
 
 - Save the cron job
 - Wait for next scheduled run (check execution times in cPanel)
-- Check log file: `/home/joxicaxs/logs/autolink.log`
+- Check log file: `/home/joxicaxs/autolink.log`
 
 ---
 
@@ -96,11 +104,11 @@ crontab -e
 ### Step 2: Add Schedule
 
 ```bash
-# Daily at midnight (recommended)
-0 0 * * * cd /home/joxicaxs/public_html && php auto_link_devices.php >> /home/joxicaxs/logs/autolink.log 2>&1
+# Every 6 hours (recommended — processes active used-device vouchers each run)
+0 */6 * * * cd /home/joxicaxs/student.joxicraft.co.za && php auto_link_devices.php >> /home/joxicaxs/autolink.log 2>&1
 
-# OR every 6 hours for faster MAC capture
-0 */6 * * * cd /home/joxicaxs/public_html && php auto_link_devices.php >> /home/joxicaxs/logs/autolink.log 2>&1
+# OR daily at midnight for lower server load
+0 0 * * * cd /home/joxicaxs/student.joxicraft.co.za && php auto_link_devices.php >> /home/joxicaxs/autolink.log 2>&1
 ```
 
 ### Step 3: Save & Exit
@@ -119,19 +127,22 @@ crontab -e
 crontab -l | grep auto_link
 
 # Check recent executions
-tail -n 50 /home/joxicaxs/logs/autolink.log
+tail -n 50 /home/joxicaxs/autolink.log
 
 # Watch live (if running)
-tail -f /home/joxicaxs/logs/autolink.log
+tail -f /home/joxicaxs/autolink.log
 ```
 
 ### Expected Log Output
 
 ```
 [2026-03-05 00:00:01] Auto-Link Devices - Starting (mode: LIVE)
-[2026-03-05 00:00:01] Found 23 voucher-use mappings for 2026-03
-[2026-03-05 00:00:05] ✅ Linked device AA:BB:CC:DD:EE:FF to student John Doe
-[2026-03-05 00:00:08] Summary: linked=15, already_linked=8, pending=0, errors=0
+[2026-03-05 00:00:01] --- Phase 2: First-use MAC Linking ---
+[2026-03-05 00:00:01] GWN used-voucher mappings found: 23 for 2026-03
+[2026-03-05 00:00:01] Vouchers to process this run: 23 (GWN-reported used-device, full pass)
+[2026-03-05 00:00:04] LINKED: MAC AA:BB:CC:DD:EE:FF -> John Doe (Other, auto-detected)
+[2026-03-05 00:00:07] === Summary ===
+[2026-03-05 00:00:07] First-use detected: 15 | Linked: 15 | MAC retries attempted: 2 | Manual review needed: 0 | Already linked: 8 | ...
 ```
 
 ### Manual Test Run
@@ -166,11 +177,11 @@ sudo systemctl restart cron
 
 ```bash
 # Make script executable
-chmod +x /home/joxicaxs/public_html/auto_link_devices.php
+chmod +x /home/joxicaxs/student.joxicraft.co.za/auto_link_devices.php
 
 # Create log directory if missing
-mkdir -p /home/joxicaxs/logs
-chmod 755 /home/joxicaxs/logs
+mkdir -p /home/joxicaxs
+chmod 755 /home/joxicaxs
 ```
 
 ### Issue: PHP Not Found in Cron
@@ -180,14 +191,14 @@ chmod 755 /home/joxicaxs/logs
 which php
 
 # Use full path in cron
-0 0 * * * cd /home/joxicaxs/public_html && /usr/bin/php auto_link_devices.php >> /home/joxicaxs/logs/autolink.log 2>&1
+0 0 * * * cd /home/joxicaxs/student.joxicraft.co.za && /usr/bin/php auto_link_devices.php >> /home/joxicaxs/autolink.log 2>&1
 ```
 
 ### Issue: Script Reports Errors
 
 ```bash
 # Check log for details
-tail -n 100 /home/joxicaxs/logs/autolink.log
+tail -n 100 /home/joxicaxs/autolink.log
 
 # Test database connection
 php -r "require 'includes/db.php'; var_dump(getDbConnection());"
@@ -204,7 +215,7 @@ Prevent logs from growing indefinitely:
 Create `/etc/logrotate.d/autolink`:
 
 ```
-/home/joxicaxs/logs/autolink.log {
+/home/joxicaxs/autolink.log {
     daily
     rotate 30
     compress
@@ -218,7 +229,7 @@ Create `/etc/logrotate.d/autolink`:
 
 ```bash
 # Weekly cleanup (keep last 30 days)
-0 0 * * 0 find /home/joxicaxs/logs/autolink*.log -mtime +30 -delete
+0 0 * * 0 find /home/joxicaxs/autolink*.log -mtime +30 -delete
 ```
 
 ---
@@ -229,20 +240,20 @@ Create `/etc/logrotate.d/autolink`:
 
 | Schedule                 | Benefit               | Trade-off                          |
 | ------------------------ | --------------------- | ---------------------------------- |
+| Every 6h (0 \*/6 \* \* \*) | Faster device capture — new links within 6h | 4x server executions |
 | Daily (0 0 \* \* \*)     | Lower server load     | Up to 24h delay for device linking |
-| Every 6h (0 _/6 _ \* \*) | Faster device capture | 4x server executions               |
 
-**Recommendation:** Start with **daily**, then switch to every 6 hours if you see many "pending manual link" cases.
+**Recommendation:** **Every 6 hours** — Phase 2 processes only vouchers GWN currently reports with a used-device signal, so each run is lightweight and completes quickly.
 
 ### Retry Window
 
-The script retries MAC capture for **7 days** after first voucher use. This window is configurable in the script (near the top of the file):
+If GWN reports a voucher with a used-device signal but does not yet expose a MAC address (e.g. the controller hasn't resolved the MAC), the script records `first_used_at` and queues the voucher for manual review. On each subsequent 6-hour run, if GWN still reports a device signal for that voucher, the script will attempt to capture the MAC again (within the `$retryWindowDays` window, default 7 days). This window is configurable in the script:
 
 ```php
 $retryWindowDays = 7; // Increase to 14 for more aggressive retries
 ```
 
-During the retry window, if GWN still does not return a MAC for the voucher, the case remains in manual-review status. No heuristic matching is attempted.
+If GWN stops reporting a device signal for the voucher before the MAC is captured, the case stays in manual-review status and will not be retried automatically.
 
 ---
 
@@ -252,7 +263,7 @@ During the retry window, if GWN still does not return a MAC for the voucher, the
 - [ ] `php verify_cron.php` passes with no fatal issues
 - [ ] Auto-link script tested with `--dry-run`
 - [ ] Log directory created and writable
-- [ ] Cron job added (daily at midnight)
+- [ ] Cron job added (every 6 hours: `0 */6 * * *`)
 - [ ] First cron execution verified (check log after 24h)
 - [ ] Email notifications configured (cPanel can email cron output)
 - [ ] Log rotation set up (optional)
@@ -263,7 +274,7 @@ During the retry window, if GWN still does not return a MAC for the voucher, the
 
 If auto-linking fails consistently:
 
-1. Check `/home/joxicaxs/logs/autolink.log` for errors
+1. Check `/home/joxicaxs/autolink.log` for errors
 2. Run `php verify_cron.php` to check all prerequisites
 3. Verify GWN API credentials are set correctly in production `.env`
 4. Test manually: `php auto_link_devices.php --debug`
@@ -271,5 +282,5 @@ If auto-linking fails consistently:
 
 ---
 
-**Status:** ✅ Phase 1 hardened — auto-links on exact MAC evidence only; uncertain cases go to manual review
+**Status:** ✅ Phase 1 hardened — auto-links on exact MAC evidence only; uncertain cases go to manual review. Phase 2 runs a full pass every 6 hours over current-month active vouchers that GWN reports with at least one used-device signal (`usedDeviceNum` / `usedNum` > 0 or MAC returned). No rotation cursor or offset is used.
 **Last Updated:** 2026
