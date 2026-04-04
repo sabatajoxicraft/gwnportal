@@ -323,6 +323,18 @@ class ActivityLogHelper {
                     } elseif ($transport === 'php_mail') {
                         $fallback = !empty($decoded['fallback_used']) ? ' (fallback)' : '';
                         $parts[]  = '✓ Accepted by mail server' . $fallback;
+                    } elseif ($transport === 'twilio') {
+                        $messageStatus = strtolower((string)($decoded['message_status'] ?? ''));
+                        $httpCode      = isset($decoded['http_code']) ? (int)$decoded['http_code'] : 0;
+                        if (!empty($decoded['fallback_from'])) {
+                            $parts[] = '✓ SMS fallback accepted by Twilio';
+                        } elseif ($messageStatus !== '') {
+                            $parts[] = '✓ Accepted by Twilio (' . $messageStatus . ')';
+                        } elseif ($httpCode > 0) {
+                            $parts[] = '✓ Accepted by Twilio (HTTP ' . $httpCode . ')';
+                        } else {
+                            $parts[] = '✓ Accepted by Twilio';
+                        }
                     } else {
                         // Legacy row without transport metadata
                         $parts[] = '✓ Queued';
@@ -343,10 +355,38 @@ class ActivityLogHelper {
                         $parts[] = '✗ SMTP error' . $errSuffix;
                     } elseif ($transport === 'php_mail') {
                         $parts[] = '✗ mail() rejected' . $errSuffix;
+                    } elseif ($transport === 'twilio') {
+                        $messageStatus = strtolower((string)($decoded['message_status'] ?? ''));
+                        $code          = !empty($decoded['twilio_code'])
+                            ? ' (code ' . (int)$decoded['twilio_code'] . ')'
+                            : '';
+                        $callbackStatus = !empty($decoded['callback_status'])
+                            ? (string)$decoded['callback_status']
+                            : '';
+                        $prefix        = !empty($decoded['status_callback']) || $callbackStatus !== ''
+                            ? '✗ Twilio ' . ($messageStatus !== '' ? $messageStatus : ucfirst($callbackStatus))
+                            : '✗ Twilio send failed';
+                        if (!empty($decoded['fallback_from'])) {
+                            $prefix .= ' after ' . strtoupper((string)$decoded['fallback_from']);
+                        }
+                        $parts[] = $prefix . $code . $errSuffix;
                     } else {
                         $parts[] = '✗ Failed';
                     }
                 }
+            }
+            // Twilio delivery callback context (logged by the StatusCallback endpoint)
+            if (!empty($decoded['status_callback']) || !empty($decoded['callback_status'])) {
+                $cbRawStatus = $decoded['message_status'] ?? $decoded['callback_status'];
+                $cbStatus = ucfirst((string)$cbRawStatus);
+                $cbCode   = !empty($decoded['twilio_code'])
+                    ? ' (code ' . (int)$decoded['twilio_code'] . ')'
+                    : '';
+                $parts[] = 'Delivery: ' . $cbStatus . $cbCode;
+            }
+            // SMS fallback from failed WhatsApp delivery
+            if (!empty($decoded['fallback_from'])) {
+                $parts[] = 'Fallback from ' . ucfirst((string)$decoded['fallback_from']);
             }
             return !empty($parts)
                 ? htmlspecialchars(implode(' • ', $parts), ENT_QUOTES, 'UTF-8')

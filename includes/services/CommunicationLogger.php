@@ -111,18 +111,20 @@ class CommunicationLogger {
     /**
      * Log an outbound SMS send attempt.
      *
-     * @param string      $to       Recipient phone (will be masked)
-     * @param string      $category Context category
-     * @param bool        $success  Whether the send succeeded
-     * @param int|null    $userId   Acting user
-     * @param string|null $sid      Twilio message SID if available
+     * @param string      $to            Recipient phone (will be masked)
+     * @param string      $category      Context category
+     * @param bool        $success       Whether the send succeeded
+     * @param int|null    $userId        Acting user
+     * @param string|null $sid           Twilio message SID if available
+     * @param array       $transportMeta Optional transport diagnostics (transport, http_code, error, twilio_code, fallback_from)
      */
     public static function logSms(
         string  $to,
         string  $category,
         bool    $success,
         ?int    $userId = null,
-        ?string $sid    = null
+        ?string $sid    = null,
+        array   $transportMeta = []
     ): void {
         $action  = $success ? 'communication_sms_sent' : 'communication_sms_failed';
         $details = [
@@ -134,24 +136,27 @@ class CommunicationLogger {
         if ($sid !== null) {
             $details['message_sid'] = $sid;
         }
+        self::applyTransportMeta($details, $transportMeta);
         ActivityLogger::logAction(self::actingUserId($userId), $action, $details);
     }
 
     /**
      * Log an outbound WhatsApp send attempt.
      *
-     * @param string      $to       Recipient phone (will be masked)
-     * @param string      $category Context category
-     * @param bool        $success  Whether the send succeeded
-     * @param int|null    $userId   Acting user
-     * @param string|null $sid      Twilio message SID if available
+     * @param string      $to            Recipient phone (will be masked)
+     * @param string      $category      Context category
+     * @param bool        $success       Whether the send succeeded
+     * @param int|null    $userId        Acting user
+     * @param string|null $sid           Twilio message SID if available
+     * @param array       $transportMeta Optional transport diagnostics (transport, http_code, error, twilio_code, callback_status)
      */
     public static function logWhatsApp(
         string  $to,
         string  $category,
         bool    $success,
         ?int    $userId = null,
-        ?string $sid    = null
+        ?string $sid    = null,
+        array   $transportMeta = []
     ): void {
         $action  = $success ? 'communication_whatsapp_sent' : 'communication_whatsapp_failed';
         $details = [
@@ -163,6 +168,7 @@ class CommunicationLogger {
         if ($sid !== null) {
             $details['message_sid'] = $sid;
         }
+        self::applyTransportMeta($details, $transportMeta);
         ActivityLogger::logAction(self::actingUserId($userId), $action, $details);
     }
 
@@ -205,5 +211,59 @@ class CommunicationLogger {
             return $userId;
         }
         return isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
+    }
+
+    /**
+     * Attach concise transport diagnostics for Twilio-backed audit entries.
+     */
+    private static function applyTransportMeta(array &$details, array $transportMeta): void {
+        if (empty($transportMeta)) {
+            return;
+        }
+
+        if (!empty($transportMeta['transport'])) {
+            $details['transport'] = substr((string) $transportMeta['transport'], 0, 32);
+        }
+
+        if (isset($transportMeta['http_code']) && (int) $transportMeta['http_code'] > 0) {
+            $details['http_code'] = (int) $transportMeta['http_code'];
+        }
+
+        $transportError = $transportMeta['transport_error'] ?? ($transportMeta['error'] ?? '');
+        if ($transportError !== '') {
+            $details['transport_error'] = substr((string) $transportError, 0, 200);
+        }
+
+        if (isset($transportMeta['twilio_code']) && (int) $transportMeta['twilio_code'] > 0) {
+            $details['twilio_code'] = (int) $transportMeta['twilio_code'];
+        }
+
+        if (!empty($transportMeta['message_status'])) {
+            $details['message_status'] = substr((string) $transportMeta['message_status'], 0, 32);
+        }
+
+        if (isset($transportMeta['status_callback'])) {
+            $details['status_callback'] = (bool) $transportMeta['status_callback'];
+        }
+
+        if (!empty($transportMeta['fallback_from'])) {
+            $details['fallback_from'] = substr((string) $transportMeta['fallback_from'], 0, 32);
+        }
+
+        if (!empty($transportMeta['callback_status'])) {
+            $details['callback_status'] = substr((string) $transportMeta['callback_status'], 0, 32);
+        }
+
+        if (!empty($transportMeta['callback_sid'])) {
+            $details['callback_sid'] = substr((string) $transportMeta['callback_sid'], 0, 64);
+        }
+
+        if (!empty($transportMeta['voucher_code'])) {
+            $details['voucher_code'] = substr((string) $transportMeta['voucher_code'], 0, 64);
+        }
+
+        if (!empty($transportMeta['voucher_month'])) {
+            $details['voucher_month'] = substr((string) $transportMeta['voucher_month'], 0, 32);
+        }
     }
 }

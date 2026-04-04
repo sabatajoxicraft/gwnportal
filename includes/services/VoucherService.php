@@ -1,5 +1,7 @@
 <?php
 require_once __DIR__ . '/GwnService.php';
+require_once __DIR__ . '/CommunicationLogger.php';
+require_once __DIR__ . '/TwilioService.php';
 require_once __DIR__ . '/../helpers/VoucherMonthHelper.php';
 
 class VoucherService extends GwnService {
@@ -187,7 +189,19 @@ class VoucherService extends GwnService {
         $messageSent = false;
         $loggedSendMethod = $sendMethod;
         if (!empty($phoneNumber)) {
-            $messageSent = sendVoucherMessage($phoneNumber, $studentName, $month, $voucher_code, $sendMethod);
+            $callbackUrl = ($sendMethod === 'WhatsApp')
+                ? TwilioService::buildVoucherCallbackUrl((int)$student['user_id'], $voucher_code, $month, $sendMethod)
+                : '';
+            $sendMeta    = $this->sendVoucherMessageWithAudit(
+                (int)$student['user_id'],
+                $phoneNumber,
+                $studentName,
+                $month,
+                $voucher_code,
+                $sendMethod,
+                $callbackUrl
+            );
+            $messageSent = (bool)$sendMeta['success'];
         }
 
         // Fallback: if preferred method failed, try the other method
@@ -197,7 +211,20 @@ class VoucherService extends GwnService {
                 ? $student['phone_number'] 
                 : ($student['whatsapp_number'] ?: $student['phone_number']);
             if (!empty($fallbackNumber)) {
-                $messageSent = sendVoucherMessage($fallbackNumber, $studentName, $month, $voucher_code, $fallbackMethod);
+                $callbackUrl = ($fallbackMethod === 'WhatsApp')
+                    ? TwilioService::buildVoucherCallbackUrl((int)$student['user_id'], $voucher_code, $month, $fallbackMethod)
+                    : '';
+                $fallbackMeta = $this->sendVoucherMessageWithAudit(
+                    (int)$student['user_id'],
+                    $fallbackNumber,
+                    $studentName,
+                    $month,
+                    $voucher_code,
+                    $fallbackMethod,
+                    $callbackUrl,
+                    ['fallback_from' => strtolower((string)$sendMethod)]
+                );
+                $messageSent = (bool)$fallbackMeta['success'];
                 if ($messageSent) {
                     $loggedSendMethod = $fallbackMethod;
                 }
@@ -220,35 +247,41 @@ class VoucherService extends GwnService {
                       VALUES (?, ?, ?, ?, 'sent', NOW(), ?, ?)";
         $sqlLegacy = "INSERT INTO voucher_logs (user_id, voucher_code, voucher_month, sent_via, status, sent_at) 
                       VALUES (?, ?, ?, ?, 'sent', NOW())";
-        $stmt = safeQueryPrepare($conn, $sqlFull, false);
-        $useLegacy = ($stmt === false);
+        $stmt      = safeQueryPrepare($conn, $sqlFull, false);
+        $useLegacy = !$this->isUsableStmt($stmt);
         if ($useLegacy) {
             $stmt = safeQueryPrepare($conn, $sqlLegacy, false);
         }
-        
-        if ($stmt) {
+
+        if ($this->isUsableStmt($stmt)) {
             if ($useLegacy) {
                 $stmt->bind_param("isss", $student['user_id'], $voucher_code, $month, $loggedSendMethod);
             } else {
                 $gwn_voucher_id = 0;
                 $stmt->bind_param("isssii", $student['user_id'], $voucher_code, $month, $loggedSendMethod, $gwn_voucher_id, $groupId);
             }
-            $stmt->execute();
+            $ok = $stmt->execute();
+            if (!$ok) {
+                error_log("VoucherService::sendStudentVoucher: voucher_logs execute() failed: " . $stmt->error);
+            }
         } else {
-            error_log("VoucherService::sendStudentVoucher: voucher_logs insert failed - " . $conn->error);
+            error_log("VoucherService::sendStudentVoucher: voucher_logs insert prepare failed - " . $conn->error);
         }
-        
+
         // Step 5: Record the GWN voucher group for tracking
         $networkId = defined('GWN_NETWORK_ID') ? GWN_NETWORK_ID : '';
-        $sqlGroup = "INSERT INTO gwn_voucher_groups (gwn_group_id, group_name, accommodation_id, voucher_month, network_id, voucher_count, created_at) 
+        $sqlGroup  = "INSERT INTO gwn_voucher_groups (gwn_group_id, group_name, accommodation_id, voucher_month, network_id, voucher_count, created_at)
                      VALUES (?, ?, ?, ?, ?, 1, NOW())";
         $stmtGroup = safeQueryPrepare($conn, $sqlGroup, false);
-        if ($stmtGroup) {
+        if ($this->isUsableStmt($stmtGroup)) {
             $groupName = $result['groupName'] ?? '';
             $stmtGroup->bind_param("isiss", $groupId, $groupName, $student['accommodation_id'], $month, $networkId);
-            $stmtGroup->execute();
+            $ok = $stmtGroup->execute();
+            if (!$ok) {
+                error_log("VoucherService::sendStudentVoucher: gwn_voucher_groups execute() failed: " . $stmtGroup->error);
+            }
         } else {
-            error_log("VoucherService::sendStudentVoucher: gwn_voucher_groups insert failed - " . $conn->error);
+            error_log("VoucherService::sendStudentVoucher: gwn_voucher_groups insert prepare failed - " . $conn->error);
         }
         
         return [
@@ -418,5 +451,66 @@ class VoucherService extends GwnService {
         }
         
         return $result;
+    }
+
+    /**
+     * Returns true only if $stmt is a real mysqli_stmt that can be used.
+     * Catches the DummyStatement that safeQueryPrepare() returns on prepare failure.
+     */
+    private function isUsableStmt($stmt): bool
+    {
+        return $stmt !== false && !($stmt instanceof DummyStatement);
+    }
+
+    private function sendVoucherMessageWithAudit(
+        int $userId,
+        string $number,
+        string $studentName,
+        string $month,
+        string $voucherCode,
+        string $method,
+        string $callbackUrl = '',
+        array $extraTransportMeta = []
+    ): array {
+        $meta = TwilioService::sendVoucherMessageDetailed(
+            $number,
+            $studentName,
+            $month,
+            $voucherCode,
+            $method,
+            $callbackUrl !== '' ? $callbackUrl : null
+        );
+
+        $transportMeta = array_merge([
+            'transport'      => 'twilio',
+            'http_code'      => (int)($meta['http_code'] ?? 0),
+            'transport_error'=> (string)($meta['transport_error'] ?? ($meta['error'] ?? '')),
+            'twilio_code'    => isset($meta['twilio_code']) ? (int)$meta['twilio_code'] : 0,
+            'message_status' => (string)($meta['message_status'] ?? ''),
+            'voucher_code'   => $voucherCode,
+            'voucher_month'  => $month,
+        ], $extraTransportMeta);
+
+        if (strtoupper((string)$method) === 'WHATSAPP') {
+            CommunicationLogger::logWhatsApp(
+                $number,
+                'voucher',
+                (bool)($meta['success'] ?? false),
+                $userId,
+                $meta['sid'] ?? null,
+                $transportMeta
+            );
+        } else {
+            CommunicationLogger::logSms(
+                $number,
+                'voucher',
+                (bool)($meta['success'] ?? false),
+                $userId,
+                $meta['sid'] ?? null,
+                $transportMeta
+            );
+        }
+
+        return $meta;
     }
 }
