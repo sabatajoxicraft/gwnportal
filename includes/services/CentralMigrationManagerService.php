@@ -126,7 +126,6 @@ class CentralMigrationManagerService
     private static function findUnmanagedMigrationEntrypoints($projectRoot)
     {
         $candidates = [
-            $projectRoot . DIRECTORY_SEPARATOR . 'migrate_profile_checklist.php',
             $projectRoot . DIRECTORY_SEPARATOR . 'setup_db.php',
         ];
 

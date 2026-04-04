@@ -7,8 +7,9 @@
  * - Apply pending managed SQL migrations: php db/migrations/migration_manager.php --apply
  *
  * Notes:
- * - Non-destructive by design: it never drops tables/data on its own.
- * - It only executes managed SQL files and records successful runs in _migrations.
+ * - Executes managed SQL files and records successful runs in _migrations.
+ * - Migrations may include destructive operations (DROP TABLE, etc.); review each
+ *   SQL file before running --apply in production.
  */
 
 require_once __DIR__ . '/../../includes/config.php';
@@ -76,7 +77,6 @@ function findExcludedSqlMigrations($dir) {
 
 function findUnmanagedMigrationEntrypoints($projectRoot) {
     $candidates = [
-        $projectRoot . DIRECTORY_SEPARATOR . 'migrate_profile_checklist.php',
         $projectRoot . DIRECTORY_SEPARATOR . 'setup_db.php',
     ];
 

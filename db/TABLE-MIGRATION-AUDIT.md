@@ -1,8 +1,8 @@
 # Database Table vs Migration Audit
 
-**Generated:** March 6, 2026
+**Generated:** March 6, 2026 · **Updated:** July 11, 2026 (removed profile checklist feature)
 
-## Database Tables (16 total)
+## Database Tables (15 total)
 
 ### Core Tables (from schema.sql - baseline)
 
@@ -25,7 +25,7 @@ These are the foundation tables created during initial setup:
 12. **user_preferences** - ✅ `2026_01_15_100000_create_user_preferences.sql`
 13. **gwn_voucher_groups** - ✅ `2026_01_16_100000_create_gwn_voucher_groups.sql`
 14. **device_block_log** - ✅ `2026_02_10_100000_add_device_management.sql`
-15. **profile_checklist** - ✅ `2026_03_06_100000_create_profile_checklist.sql`
+15. **~~profile_checklist~~** - ~~`2026_03_06_100000_create_profile_checklist.sql`~~ → removed by `2026_07_11_100000_remove_profile_checklist.sql`
 
 ---
 
@@ -43,7 +43,8 @@ These are the foundation tables created during initial setup:
 | `2026_02_25_100000_add_voucher_revoke_fields.sql`     | Voucher revocation            | Adds `voucher_logs.revoked_at`, `voucher_logs.revoked_by`                             |
 | `2026_02_28_100000_add_accommodation_details.sql`     | Extended accommodation info   | Adds multiple columns to `accommodations`                                             |
 | `2026_03_05_100000_fix_activity_log_timestamp.sql`    | Fix timestamp default         | Modifies `activity_log.timestamp`                                                     |
-| `2026_03_06_100000_create_profile_checklist.sql`      | Profile completion tracking   | Creates `profile_checklist`, adds `user_preferences.checklist_widget_dismissed`       |
+| ~~`2026_03_06_100000_create_profile_checklist.sql`~~  | ~~Profile completion tracking~~ | ~~Creates `profile_checklist`, adds `user_preferences.checklist_widget_dismissed`~~ (superseded) |
+| `2026_07_11_100000_remove_profile_checklist.sql`      | Remove profile checklist      | Drops `profile_checklist` table, drops `user_preferences.checklist_widget_dismissed`  |
 
 ### ⛔ Excluded Migrations (2)
 
@@ -73,10 +74,11 @@ The following tables are part of the initial database schema:
 
 ### ✅ Good News
 
-- All 9 managed migrations are tracked and applied
+- All managed migrations are tracked and applied
 - Core schema contains 10 base tables
 - Migrations properly extend the base schema
 - No missing migrations for existing tables
+- Profile checklist feature fully removed via teardown migration
 
 ### ⚠️ Architecture Notes
 
@@ -100,10 +102,10 @@ The following tables are part of the initial database schema:
 
 ## Summary
 
-✅ **16 tables in database**  
+✅ **15 tables in database** (profile_checklist removed)
 ✅ **10 base tables** (from schema.sql)  
-✅ **4 tables created by migrations**  
-✅ **9 migrations tracked and applied**  
+✅ **3 active tables created by migrations** (user_preferences, gwn_voucher_groups, device_block_log)
+✅ **10 migrations tracked** (9 original + teardown for profile checklist)
 ⛔ **2 migrations excluded** (destructive operations)
 
 **Status**: Database structure is complete and properly tracked. No missing migrations detected.
