@@ -14,6 +14,11 @@
  *       or the user is inactive (caller shows the same generic response), and
  *       false on a hard database error.
  *
+ *       Throttle decisions are made before the account lookup so the response
+ *       is identical for known, inactive, and unknown addresses – preventing
+ *       user enumeration via repeated requests.  The primary throttle gate
+ *       consults activity_log keyed by a SHA-256 hash of the submitted email.
+ *
  *   PasswordResetService::validateToken($conn, $tokenPlain)
  *       Returns the DB row (array) for a valid, unexpired, pending token whose
  *       owner is still active.  Returns false otherwise.
@@ -52,6 +57,13 @@ class PasswordResetService
      * outstanding pending tokens, persist a new hashed token, and return the
      * plaintext token for inclusion in the reset email.
      *
+     * Throttle is checked BEFORE the account lookup so unknown/inactive
+     * addresses receive exactly the same response as active ones on repeated
+     * submissions, preventing user enumeration via the throttle branch.  The
+     * primary gate queries activity_log by a SHA-256 fingerprint of the
+     * submitted email; a secondary per-user check on password_reset_tokens
+     * provides defense-in-depth for edge cases (e.g. log write failure).
+     *
      * The revoke + insert is wrapped in a transaction with a row-level lock on
      * the user record to prevent concurrent requests for the same address from
      * each inserting a separate pending token.
@@ -61,7 +73,7 @@ class PasswordResetService
      * @param  string $requestIp  Requester IP (used for throttle + audit)
      * @return string|array|null|false
      *         Plaintext token on success.
-     *         Associative array ['throttled'=>true,'reason'=>'user'|'ip','retry_after_seconds'=>N] when throttled.
+     *         Associative array ['throttled'=>true,'reason'=>'email'|'user'|'ip','retry_after_seconds'=>N] when throttled.
      *         null when the email is unknown or the user is inactive.
      *         false on a hard database error.
      */
@@ -72,6 +84,21 @@ class PasswordResetService
             return null;
         }
 
+        // Primary throttle gate: keyed by SHA-256 of the submitted email so
+        // the check fires identically for active, inactive, and unknown
+        // addresses.  This MUST run before findActiveUserByEmail() to prevent
+        // distinguishing account existence through the throttle response.
+        $emailHash     = hash('sha256', $email);
+        $emailThrottle = self::emailFingerprintThrottleStatus($conn, $emailHash);
+        if ($emailThrottle['throttled']) {
+            error_log(
+                'PasswordResetService::requestReset - throttled (email fingerprint)'
+                . ' ip=' . $requestIp
+                . ' retry_after=' . $emailThrottle['retry_after_seconds']
+            );
+            return $emailThrottle;
+        }
+
         $user = self::findActiveUserByEmail($conn, $email);
         if (!$user) {
             // Unknown email or inactive account – return null so the caller
@@ -79,10 +106,14 @@ class PasswordResetService
             return null;
         }
 
+        // Secondary throttle checks (per-user token window + per-IP volume).
+        // These run after the account lookup and serve as a defense-in-depth
+        // layer; the primary email-fingerprint check above handles the common
+        // case and preserves enumeration resistance.
         $throttle = self::throttleStatus($conn, $user['id'], $requestIp);
         if ($throttle['throttled']) {
             error_log(
-                'PasswordResetService::requestReset - throttled'
+                'PasswordResetService::requestReset - throttled (secondary)'
                 . ' user_id=' . $user['id']
                 . ' ip=' . $requestIp
                 . ' reason=' . $throttle['reason']
@@ -309,13 +340,17 @@ class PasswordResetService
     }
 
     /**
-     * Determine whether a new reset request should be rejected.
+     * Secondary throttle checks for a reset request (post-account-lookup).
      *
      * Two independent checks:
      *  1. Per-user: any token (regardless of status) created within the last
      *     THROTTLE_USER_WINDOW_SECONDS seconds.
      *  2. Per-IP: more than THROTTLE_IP_MAX_PER_HOUR tokens created in the
      *     last hour from the same IP address.
+     *
+     * These run only after a valid active user is found.  The primary
+     * enumeration-resistant gate is emailFingerprintThrottleStatus(), which
+     * fires before the account lookup.
      *
      * @param  mysqli   $conn
      * @param  int      $userId
@@ -332,7 +367,49 @@ class PasswordResetService
     // -------------------------------------------------------------------------
 
     /**
-     * Compute throttle status for a reset request.
+     * Primary throttle gate: check whether a reset was recently submitted for
+     * the given email address fingerprint, regardless of account existence.
+     *
+     * Queries activity_log for a recent 'auth_password_reset_requested' entry
+     * whose JSON details include a matching 'email_fingerprint' value (SHA-256
+     * hex hash of the normalised email).  The fingerprint is written by the
+     * controller for every request – including those for unknown addresses –
+     * so this check is symmetric and cannot be used to infer account existence.
+     *
+     * @param  mysqli $conn
+     * @param  string $emailHash  SHA-256 hex hash of the normalised email address
+     * @return array  ['throttled'=>bool, 'reason'=>'email'|null, 'retry_after_seconds'=>int|null]
+     */
+    private static function emailFingerprintThrottleStatus($conn, $emailHash)
+    {
+        $windowStart = self::utcNow(-self::THROTTLE_USER_WINDOW_SECONDS);
+        $stmt = safeQueryPrepare(
+            $conn,
+            "SELECT MAX(UNIX_TIMESTAMP(timestamp)) AS last_ts
+             FROM   activity_log
+             WHERE  action    = 'auth_password_reset_requested'
+               AND  JSON_UNQUOTE(JSON_EXTRACT(details, '$.email_fingerprint')) = ?
+               AND  timestamp > ?"
+        );
+        if ($stmt) {
+            $stmt->bind_param('ss', $emailHash, $windowStart);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            if ($row && $row['last_ts'] !== null) {
+                $retryAfter = self::THROTTLE_USER_WINDOW_SECONDS - (time() - (int) $row['last_ts']);
+                return [
+                    'throttled'           => true,
+                    'reason'              => 'email',
+                    'retry_after_seconds' => max(1, $retryAfter),
+                ];
+            }
+        }
+        return ['throttled' => false, 'reason' => null, 'retry_after_seconds' => null];
+    }
+
+    /**
+     * Compute secondary throttle status for a reset request.
      *
      * Checks per-user and per-IP windows and, when a limit is exceeded, returns
      * structured data including the reason and how many seconds the caller must

@@ -55,10 +55,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Always log at this point so the execution path does not differ between
     // known and unknown addresses (prevents account-existence timing inference).
-    // The hint is derived from the submitted input, not from a DB lookup result.
+    // email_hint is a display-safe prefix; email_fingerprint is the SHA-256
+    // hash of the normalised address and is used by PasswordResetService to
+    // apply the throttle symmetrically on the next request for the same email,
+    // regardless of whether an account exists.
     ActivityLogger::logAuthEvent(null, 'password_reset_requested', [
         'ip_address'          => $requestIp,
         'email_hint'          => substr($email, 0, 3) . str_repeat('*', max(0, strlen($email) - 3)),
+        'email_fingerprint'   => hash('sha256', strtolower(trim($email))),
         'token_issued'        => $tokenIssued,
         'email_sent'          => $emailSent,
         'throttled'           => $throttleInfo !== null,
