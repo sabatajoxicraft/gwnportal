@@ -383,16 +383,20 @@ class PasswordResetService
     private static function emailFingerprintThrottleStatus($conn, $emailHash)
     {
         $windowStart = self::utcNow(-self::THROTTLE_USER_WINDOW_SECONDS);
+        // Use a LIKE search against the legacy text-based details column instead
+        // of JSON_EXTRACT, consistent with how other parts of this codebase query
+        // activity_log (e.g. the Twilio status-callback dedup check).
+        $likeFp = '%"email_fingerprint":"' . $emailHash . '"%';
         $stmt = safeQueryPrepare(
             $conn,
             "SELECT MAX(UNIX_TIMESTAMP(timestamp)) AS last_ts
              FROM   activity_log
              WHERE  action    = 'auth_password_reset_requested'
-               AND  JSON_UNQUOTE(JSON_EXTRACT(details, '$.email_fingerprint')) = ?
+               AND  details   LIKE ?
                AND  timestamp > ?"
         );
         if ($stmt) {
-            $stmt->bind_param('ss', $emailHash, $windowStart);
+            $stmt->bind_param('ss', $likeFp, $windowStart);
             $stmt->execute();
             $row = $stmt->get_result()->fetch_assoc();
             $stmt->close();

@@ -156,7 +156,7 @@ require_once '../includes/components/header.php';
                             <i class="bi bi-hourglass-split text-warning" style="font-size: 3rem;"></i>
                             <h5 class="mt-3 fw-bold">Too Many Requests</h5>
                             <p class="text-muted">
-                                A reset link was recently sent for this address. Please wait
+                                A password reset was recently requested for this address. Please wait
                                 <strong><?= htmlspecialchars($waitText) ?></strong> before requesting another.
                             </p>
                             <a href="login.php" class="btn btn-secondary">
