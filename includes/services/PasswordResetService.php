@@ -59,7 +59,11 @@ class PasswordResetService
      * @param  mysqli $conn
      * @param  string $email      Email address from the reset form
      * @param  string $requestIp  Requester IP (used for throttle + audit)
-     * @return string|null|false  Plaintext token, null for unknown/inactive/throttled, false on DB error
+     * @return string|array|null|false
+     *         Plaintext token on success.
+     *         Associative array ['throttled'=>true,'reason'=>'user'|'ip','retry_after_seconds'=>N] when throttled.
+     *         null when the email is unknown or the user is inactive.
+     *         false on a hard database error.
      */
     public static function requestReset($conn, $email, $requestIp)
     {
@@ -75,14 +79,16 @@ class PasswordResetService
             return null;
         }
 
-        if (self::isThrottled($conn, $user['id'], $requestIp)) {
+        $throttle = self::throttleStatus($conn, $user['id'], $requestIp);
+        if ($throttle['throttled']) {
             error_log(
                 'PasswordResetService::requestReset - throttled'
                 . ' user_id=' . $user['id']
                 . ' ip=' . $requestIp
+                . ' reason=' . $throttle['reason']
+                . ' retry_after=' . $throttle['retry_after_seconds']
             );
-            // Return null so the caller still shows the generic success page.
-            return null;
+            return $throttle;
         }
 
         $tokenPlain = bin2hex(random_bytes(32));
@@ -318,50 +324,78 @@ class PasswordResetService
      */
     public static function isThrottled($conn, $userId, $requestIp)
     {
-        // Per-user window
-        $userWindowStart = self::utcNow(-self::THROTTLE_USER_WINDOW_SECONDS);
-        $stmt = safeQueryPrepare(
-            $conn,
-            'SELECT COUNT(*) AS cnt FROM password_reset_tokens
-             WHERE user_id = ? AND created_at > ?'
-        );
-        if ($stmt) {
-            $stmt->bind_param('is', $userId, $userWindowStart);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            $row    = $result->fetch_assoc();
-            $stmt->close();
-            if ($row && (int) $row['cnt'] > 0) {
-                return true;
-            }
-        }
-
-        // Per-IP window
-        if (!empty($requestIp)) {
-            $ipWindowStart = self::utcNow(-3600);
-            $stmt2 = safeQueryPrepare(
-                $conn,
-                'SELECT COUNT(*) AS cnt FROM password_reset_tokens
-                 WHERE request_ip = ? AND created_at > ?'
-            );
-            if ($stmt2) {
-                $stmt2->bind_param('ss', $requestIp, $ipWindowStart);
-                $stmt2->execute();
-                $result2 = $stmt2->get_result();
-                $row2    = $result2->fetch_assoc();
-                $stmt2->close();
-                if ($row2 && (int) $row2['cnt'] >= self::THROTTLE_IP_MAX_PER_HOUR) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
+        return self::throttleStatus($conn, $userId, $requestIp)['throttled'];
     }
 
     // -------------------------------------------------------------------------
     // Private helpers
     // -------------------------------------------------------------------------
+
+    /**
+     * Compute throttle status for a reset request.
+     *
+     * Checks per-user and per-IP windows and, when a limit is exceeded, returns
+     * structured data including the reason and how many seconds the caller must
+     * wait before a new request will be accepted.
+     *
+     * @param  mysqli $conn
+     * @param  int    $userId
+     * @param  string $requestIp
+     * @return array  ['throttled'=>bool, 'reason'=>'user'|'ip'|null, 'retry_after_seconds'=>int|null]
+     */
+    private static function throttleStatus($conn, $userId, $requestIp)
+    {
+        // Per-user: one token per THROTTLE_USER_WINDOW_SECONDS regardless of status.
+        $userWindowStart = self::utcNow(-self::THROTTLE_USER_WINDOW_SECONDS);
+        $stmt = safeQueryPrepare(
+            $conn,
+            'SELECT MAX(UNIX_TIMESTAMP(created_at)) AS last_created
+             FROM   password_reset_tokens
+             WHERE  user_id = ? AND created_at > ?'
+        );
+        if ($stmt) {
+            $stmt->bind_param('is', $userId, $userWindowStart);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            if ($row && $row['last_created'] !== null) {
+                $retryAfter = self::THROTTLE_USER_WINDOW_SECONDS - (time() - (int) $row['last_created']);
+                return [
+                    'throttled'           => true,
+                    'reason'              => 'user',
+                    'retry_after_seconds' => max(1, $retryAfter),
+                ];
+            }
+        }
+
+        // Per-IP: no more than THROTTLE_IP_MAX_PER_HOUR tokens in the last hour.
+        if (!empty($requestIp)) {
+            $ipWindowStart = self::utcNow(-3600);
+            $stmt2 = safeQueryPrepare(
+                $conn,
+                'SELECT COUNT(*) AS cnt, MIN(UNIX_TIMESTAMP(created_at)) AS oldest_created
+                 FROM   password_reset_tokens
+                 WHERE  request_ip = ? AND created_at > ?'
+            );
+            if ($stmt2) {
+                $stmt2->bind_param('ss', $requestIp, $ipWindowStart);
+                $stmt2->execute();
+                $row2 = $stmt2->get_result()->fetch_assoc();
+                $stmt2->close();
+                if ($row2 && (int) $row2['cnt'] >= self::THROTTLE_IP_MAX_PER_HOUR) {
+                    // Retry once the oldest token in the window ages out.
+                    $retryAfter = 3600 - (time() - (int) $row2['oldest_created']);
+                    return [
+                        'throttled'           => true,
+                        'reason'              => 'ip',
+                        'retry_after_seconds' => max(1, $retryAfter),
+                    ];
+                }
+            }
+        }
+
+        return ['throttled' => false, 'reason' => null, 'retry_after_seconds' => null];
+    }
 
     /**
      * Returns the current UTC datetime string (MySQL-compatible format),

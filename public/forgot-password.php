@@ -29,14 +29,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email     = trim($_POST['email'] ?? '');
     $requestIp = $_SERVER['REMOTE_ADDR'] ?? '';
 
-    // Attempt to issue a reset token.  Returns a plaintext token for known
-    // active users, null for unknown/inactive/throttled, false on DB error.
-    $tokenPlain  = PasswordResetService::requestReset($conn, $email, $requestIp);
-    $tokenIssued = ($tokenPlain !== false && $tokenPlain !== null);
-    $emailSent   = false;
+    // Attempt to issue a reset token.
+    // Returns: plaintext token string (success), array with throttle info (throttled),
+    //          null (unknown/inactive), or false (DB error).
+    $resetResult  = PasswordResetService::requestReset($conn, $email, $requestIp);
+    $throttleInfo = (is_array($resetResult) && !empty($resetResult['throttled'])) ? $resetResult : null;
+    $tokenIssued  = is_string($resetResult);
+    $emailSent    = false;
 
     if ($tokenIssued) {
-        $resetUrl = ABSOLUTE_APP_URL . '/reset-password-confirm.php?token=' . urlencode($tokenPlain);
+        $resetUrl = ABSOLUTE_APP_URL . '/reset-password-confirm.php?token=' . urlencode($resetResult);
         $appName  = defined('APP_NAME') ? APP_NAME : 'GWN Portal';
         $subject  = $appName . ' – Password Reset Request';
         $body     = "Hello,\n\n"
@@ -55,13 +57,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // known and unknown addresses (prevents account-existence timing inference).
     // The hint is derived from the submitted input, not from a DB lookup result.
     ActivityLogger::logAuthEvent(null, 'password_reset_requested', [
-        'ip_address'   => $requestIp,
-        'email_hint'   => substr($email, 0, 3) . str_repeat('*', max(0, strlen($email) - 3)),
-        'token_issued' => $tokenIssued,
-        'email_sent'   => $emailSent,
+        'ip_address'          => $requestIp,
+        'email_hint'          => substr($email, 0, 3) . str_repeat('*', max(0, strlen($email) - 3)),
+        'token_issued'        => $tokenIssued,
+        'email_sent'          => $emailSent,
+        'throttled'           => $throttleInfo !== null,
+        'throttle_reason'     => $throttleInfo['reason'] ?? null,
+        'retry_after_seconds' => $throttleInfo['retry_after_seconds'] ?? null,
     ]);
 
-    // Always show the generic success page – never disclose account existence.
+    // Always show the result page – display a throttle warning when rate-limited,
+    // otherwise the generic success message (never disclosing account existence).
     $submitted = true;
 }
 
@@ -122,19 +128,52 @@ require_once '../includes/components/header.php';
             <!-- Card Body -->
             <div class="card-body p-5">
                 <?php if ($submitted): ?>
-                    <!-- Generic success – shown for all POST submissions -->
-                    <div class="text-center">
-                        <i class="bi bi-envelope-check text-success" style="font-size: 3rem;"></i>
-                        <h5 class="mt-3 fw-bold">Check Your Email</h5>
-                        <p class="text-muted">
-                            If an account with that email address exists, we've sent a
-                            password reset link. Please check your inbox and spam folder.
-                        </p>
-                        <p class="small text-muted mb-4">The link expires in 1 hour.</p>
-                        <a href="login.php" class="btn btn-primary">
-                            <i class="bi bi-box-arrow-in-right me-2"></i>Back to Login
-                        </a>
-                    </div>
+                    <?php if ($throttleInfo): ?>
+                        <?php
+                            $retrySecs = (int) $throttleInfo['retry_after_seconds'];
+                            if ($retrySecs < 60) {
+                                $waitText = $retrySecs . ' second' . ($retrySecs !== 1 ? 's' : '');
+                            } else {
+                                $mins = (int) ceil($retrySecs / 60);
+                                if ($mins < 60) {
+                                    $waitText = $mins . ' minute' . ($mins !== 1 ? 's' : '');
+                                } else {
+                                    $hrs = (int) floor($mins / 60);
+                                    $rem = $mins % 60;
+                                    $waitText = $hrs . ' hour' . ($hrs !== 1 ? 's' : '');
+                                    if ($rem > 0) {
+                                        $waitText .= ' ' . $rem . ' minute' . ($rem !== 1 ? 's' : '');
+                                    }
+                                }
+                            }
+                        ?>
+                        <!-- Throttle warning -->
+                        <div class="text-center">
+                            <i class="bi bi-hourglass-split text-warning" style="font-size: 3rem;"></i>
+                            <h5 class="mt-3 fw-bold">Too Many Requests</h5>
+                            <p class="text-muted">
+                                A reset link was recently sent for this address. Please wait
+                                <strong><?= htmlspecialchars($waitText) ?></strong> before requesting another.
+                            </p>
+                            <a href="login.php" class="btn btn-secondary">
+                                <i class="bi bi-box-arrow-in-right me-2"></i>Back to Login
+                            </a>
+                        </div>
+                    <?php else: ?>
+                        <!-- Generic success – shown for all non-throttle POST submissions -->
+                        <div class="text-center">
+                            <i class="bi bi-envelope-check text-success" style="font-size: 3rem;"></i>
+                            <h5 class="mt-3 fw-bold">Check Your Email</h5>
+                            <p class="text-muted">
+                                If an account with that email address exists, we've sent a
+                                password reset link. Please check your inbox and spam folder.
+                            </p>
+                            <p class="small text-muted mb-4">The link expires in 1 hour.</p>
+                            <a href="login.php" class="btn btn-primary">
+                                <i class="bi bi-box-arrow-in-right me-2"></i>Back to Login
+                            </a>
+                        </div>
+                    <?php endif; ?>
                 <?php else: ?>
                     <!-- Reset request form -->
                     <h5 class="mb-1 fw-bold">Forgot your password?</h5>

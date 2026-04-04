@@ -235,9 +235,23 @@ class ActivityLogHelper {
                 $parts[] = 'Email: ' . $decoded['email_hint'];
             }
             if (array_key_exists('token_issued', $decoded)) {
-                $parts[] = $decoded['token_issued']
-                    ? 'Token issued'
-                    : 'No token issued (unknown account or throttled)';
+                if ($decoded['token_issued']) {
+                    $parts[] = 'Token issued';
+                } elseif (!empty($decoded['throttled'])) {
+                    $retrySecs = isset($decoded['retry_after_seconds']) ? (int) $decoded['retry_after_seconds'] : 0;
+                    $waitHint  = '';
+                    if ($retrySecs > 0) {
+                        if ($retrySecs < 60) {
+                            $waitHint = ' – retry in ' . $retrySecs . 's';
+                        } else {
+                            $mins     = (int) ceil($retrySecs / 60);
+                            $waitHint = ' – retry in ' . $mins . ' min' . ($mins !== 1 ? 's' : '');
+                        }
+                    }
+                    $parts[] = 'Throttled' . $waitHint;
+                } else {
+                    $parts[] = 'No token issued (unknown account)';
+                }
             }
             if (array_key_exists('email_sent', $decoded)) {
                 $parts[] = 'Email sent: ' . ($decoded['email_sent'] ? 'yes' : 'no');
