@@ -319,6 +319,7 @@ function initAdminStreetView() {
                 zoom: 1
             });
         } else {
+            // Widen search radius before giving up
             sv.getPanorama({location: pos, radius: 500, source: google.maps.StreetViewSource.OUTDOOR}, function(d2, s2) {
                 if (s2 === google.maps.StreetViewStatus.OK) {
                     new google.maps.StreetViewPanorama(canvas, {
