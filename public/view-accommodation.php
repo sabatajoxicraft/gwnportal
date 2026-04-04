@@ -66,7 +66,7 @@ if ($map_url !== '') {
 
     if ($is_google_maps_link) {
     $show_map_previews = true;
-    $coords = parseGoogleMapsCoords($map_url, $map_host);
+    $coords    = parseGoogleMapsCoords($map_url, $map_host);
     $lat       = $coords['lat'];
     $lng       = $coords['lng'];
     $map_query = $coords['map_query'];
@@ -336,6 +336,7 @@ function initOwnerStreetView() {
                 zoom: 1
             });
         } else {
+            // Widen search radius before giving up
             sv.getPanorama({location: pos, radius: 500, source: google.maps.StreetViewSource.OUTDOOR}, function(d2, s2) {
                 if (s2 === google.maps.StreetViewStatus.OK) {
                     new google.maps.StreetViewPanorama(canvas, {

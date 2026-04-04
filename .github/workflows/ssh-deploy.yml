@@ -1,0 +1,105 @@
+name: SSH Deploy to Joxicraft (Primary)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  DEPLOY_HOST: 102.222.124.13
+  DEPLOY_PORT: 24
+  DEPLOY_TARGET_DIR: /home/joxicaxs/student.joxicraft.co.za
+
+jobs:
+  deploy:
+    name: Deploy via SSH/tar+scp
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Write .env from secret
+        env:
+          PRODUCTION_ENV_FILE: ${{ secrets.PRODUCTION_ENV_FILE }}
+        run: |
+          if [ -z "$PRODUCTION_ENV_FILE" ]; then
+            echo "ERROR: PRODUCTION_ENV_FILE secret is missing or empty. Aborting deploy." >&2
+            exit 1
+          fi
+          printf '%s' "$PRODUCTION_ENV_FILE" > .env
+
+      - name: Remove legacy env.production to avoid ambiguity
+        run: rm -f env.production
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          KNOWN_HOST_ENTRY=$(ssh-keyscan -p "$DEPLOY_PORT" "$DEPLOY_HOST" 2>/dev/null)
+          if [ -z "$KNOWN_HOST_ENTRY" ]; then
+            echo "ERROR: ssh-keyscan returned no host key for $DEPLOY_HOST:$DEPLOY_PORT. Aborting." >&2
+            exit 1
+          fi
+          printf '%s\n' "$KNOWN_HOST_ENTRY" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      # rsync is not installed on the shared host; tar+scp transfers the same
+      # file set without requiring rsync on the remote side.
+      - name: Create deploy archive
+        run: |
+          tar -czf "$RUNNER_TEMP/deploy.tar.gz" \
+            --exclude='.git*' \
+            --exclude='.github' \
+            --exclude='.vscode' \
+            --exclude='.copilot' \
+            --exclude='uploads' \
+            --exclude='public/uploads' \
+            --exclude='.well-known' \
+            --exclude='.ftpquota' \
+            .
+
+      - name: Upload archive to remote
+        run: |
+          scp -i ~/.ssh/id_deploy \
+            -P "$DEPLOY_PORT" \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            "$RUNNER_TEMP/deploy.tar.gz" \
+            "${{ secrets.SSH_USERNAME }}@$DEPLOY_HOST:gwn_deploy_${{ github.run_id }}.tar.gz"
+
+      - name: Extract archive on remote
+        run: |
+          ARCHIVE_NAME="gwn_deploy_${{ github.run_id }}.tar.gz"
+          # Pass runner-side values as positional args so the remote script needs
+          # no variable expansion of runner env vars (single-quoted heredoc).
+          ssh -i ~/.ssh/id_deploy \
+            -p "$DEPLOY_PORT" \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            "${{ secrets.SSH_USERNAME }}@$DEPLOY_HOST" \
+            bash -s -- "$DEPLOY_TARGET_DIR" "$ARCHIVE_NAME" << 'REMOTE'
+          set -e
+          DEPLOY_DIR="$1"
+          ARCHIVE_NAME="$2"
+          # Ensure the target directory tree exists before any find/rm operations.
+          mkdir -p "$DEPLOY_DIR" "$DEPLOY_DIR/public" "$DEPLOY_DIR/uploads" "$DEPLOY_DIR/public/uploads"
+          # Remove stale deployed files to mirror rsync --delete semantics.
+          # Protected top-level paths are left untouched.
+          find "$DEPLOY_DIR" -mindepth 1 -maxdepth 1 \
+            ! -name uploads ! -name .well-known ! -name .ftpquota ! -name public \
+            -exec rm -rf {} +
+          # Remove stale files under public/, preserving public/uploads.
+          if [ -d "$DEPLOY_DIR/public" ]; then
+            find "$DEPLOY_DIR/public" -mindepth 1 -maxdepth 1 ! -name uploads -exec rm -rf {} +
+          fi
+          tar -xzf "$HOME/$ARCHIVE_NAME" -C "$DEPLOY_DIR"
+          rm -f "$HOME/$ARCHIVE_NAME"
+          REMOTE
+
+      - name: Clean up local archive
+        if: always()
+        run: rm -f "$RUNNER_TEMP/deploy.tar.gz"

@@ -1,8 +1,6 @@
-name: FTPS Deploy to Joxicraft
+name: FTPS Deploy to Joxicraft (Fallback)
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 env:
