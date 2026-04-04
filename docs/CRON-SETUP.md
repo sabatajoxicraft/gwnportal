@@ -4,6 +4,17 @@
 
 The `auto_link_devices.php` script needs to run daily to automatically link student devices to their WiFi vouchers. This guide covers setup for both cPanel and SSH access.
 
+### How Phase 2 Auto-Linking Works (Phase 1 Hardening)
+
+Auto-linking uses **exact MAC evidence only**. A device is linked automatically only when:
+
+- The GWN voucher/device mapping returns an exact MAC address for a used voucher, **or**
+- `voucher_logs.first_used_mac` already contains a previously captured exact MAC for that voucher.
+
+If neither source provides a confirmed MAC, the voucher is queued for **manual review** — no guess-work or heuristic matching is performed. An admin/manager notification is sent so the link can be completed from the Student Details page.
+
+> **Removed in Phase 1 hardening:** heuristic client-history lookup (scanning a ±24h window of connected clients) has been disabled. That approach could not reliably identify the correct device without the voucher code being present in client data, and has been replaced by the manual-review path for unresolved cases.
+
 ---
 
 ## Production Requirements
@@ -16,6 +27,16 @@ The `auto_link_devices.php` script needs to run daily to automatically link stud
 2. db/migrations/add_voucher_revoke_fields.sql
 3. db/migrations/add_device_management.sql
 ```
+
+**Preflight checks (automatic):**
+
+`auto_link_devices.php` performs preflight checks on every run and **exits with code 2** (aborting all work) if any of the following are missing:
+
+- `voucher_logs` columns: `gwn_group_id`, `is_active`, `revoked_at`, `revoke_reason`, `first_used_at`, `first_used_mac`
+- A unique index on `user_devices.mac_address`
+- At least one current-month `voucher_logs` row with `gwn_group_id` set (if used vouchers exist)
+
+Run `php verify_cron.php` to surface these checks interactively before scheduling.
 
 **Test on Production Before Scheduling:**
 
@@ -215,17 +236,20 @@ Create `/etc/logrotate.d/autolink`:
 
 ### Retry Window
 
-The script retries MAC capture for **7 days** after first voucher use. This window is configurable in the script (line 102):
+The script retries MAC capture for **7 days** after first voucher use. This window is configurable in the script (near the top of the file):
 
 ```php
 $retryWindowDays = 7; // Increase to 14 for more aggressive retries
 ```
+
+During the retry window, if GWN still does not return a MAC for the voucher, the case remains in manual-review status. No heuristic matching is attempted.
 
 ---
 
 ## Production Checklist
 
 - [ ] Migrations applied to production database
+- [ ] `php verify_cron.php` passes with no fatal issues
 - [ ] Auto-link script tested with `--dry-run`
 - [ ] Log directory created and writable
 - [ ] Cron job added (daily at midnight)
@@ -240,11 +264,12 @@ $retryWindowDays = 7; // Increase to 14 for more aggressive retries
 If auto-linking fails consistently:
 
 1. Check `/home/joxicaxs/logs/autolink.log` for errors
-2. Verify GWN API credentials are set correctly in production `.env`
-3. Test manually: `php auto_link_devices.php --debug`
-4. Check if vouchers have MAC addresses: Query GWN API to see if devices are visible
+2. Run `php verify_cron.php` to check all prerequisites
+3. Verify GWN API credentials are set correctly in production `.env`
+4. Test manually: `php auto_link_devices.php --debug`
+5. If GWN returns no MACs, check that vouchers were issued via the GWN group flow and `gwn_group_id` is recorded in `voucher_logs`
 
 ---
 
-**Status:** ✅ Script tested and ready for production deployment
-**Last Updated:** March 5, 2026
+**Status:** ✅ Phase 1 hardened — auto-links on exact MAC evidence only; uncertain cases go to manual review
+**Last Updated:** 2026

@@ -55,7 +55,7 @@ try {
 }
 
 // Check 4: Required database columns
-echo "[4] Checking database schema...\n";
+echo "[4] Checking database schema (voucher_logs columns)...\n";
 $required_columns = ['gwn_group_id', 'is_active', 'first_used_at', 'first_used_mac', 'revoke_reason', 'revoked_at'];
 $stmt = $conn->query("DESCRIBE voucher_logs");
 if (!$stmt) {
@@ -78,15 +78,31 @@ foreach ($required_columns as $col) {
     }
 }
 
+$fatal_issues = [];
 if (!empty($missing)) {
-    echo "\n⚠️  WARNING: Missing columns. Run these migrations:\n";
+    echo "\n❌ FATAL: Missing required columns. auto_link_devices.php will abort with exit code 2.\n";
+    echo "   Apply these migrations:\n";
     echo "   - db/migrations/create_gwn_voucher_groups.sql\n";
     echo "   - db/migrations/add_voucher_revoke_fields.sql\n";
     echo "   - db/migrations/add_device_management.sql\n\n";
+    $fatal_issues[] = 'Missing voucher_logs columns: ' . implode(', ', $missing);
 }
 
-// Check 4b: VoucherMonthHelper availability
-echo "[4b] Checking VoucherMonthHelper...\n";
+// Check 4b: Unique index on user_devices.mac_address
+echo "[4b] Checking unique index on user_devices.mac_address...\n";
+$idx_result = $conn->query("SHOW INDEX FROM user_devices WHERE Column_name = 'mac_address' AND Non_unique = 0");
+if ($idx_result && $idx_result->num_rows > 0) {
+    $idx_row = $idx_result->fetch_assoc();
+    echo "     ✓ Unique index found: " . $idx_row['Key_name'] . "\n";
+} else {
+    echo "     ✗ FATAL: No unique index on user_devices.mac_address.\n";
+    echo "       Auto-link requires this constraint to prevent duplicate device rows.\n";
+    echo "       Apply: db/migrations/add_device_management.sql\n";
+    $fatal_issues[] = 'Missing unique index on user_devices.mac_address';
+}
+
+// Check 4c: VoucherMonthHelper availability
+echo "[4c] Checking VoucherMonthHelper...\n";
 if (file_exists(__DIR__ . '/includes/helpers/VoucherMonthHelper.php')) {
     require_once __DIR__ . '/includes/helpers/VoucherMonthHelper.php';
     $_vNow      = new DateTimeImmutable('now', new DateTimeZone(VOUCHER_TZ));
@@ -206,7 +222,7 @@ echo "\n===================================\n";
 echo "Verification Summary\n";
 echo "===================================\n\n";
 
-if (empty($missing) && $exit_code === 0) {
+if (empty($fatal_issues) && $exit_code === 0) {
     echo "✅ AUTO-LINK + ROLLOVER CLEANUP SCRIPT IS READY\n\n";
     
     if (stripos($crontab_output ?? '', 'auto_link_devices.php') === false) {
@@ -222,18 +238,20 @@ if (empty($missing) && $exit_code === 0) {
         echo "   - Manual test: php auto_link_devices.php --dry-run --debug\n\n";
     }
 } else {
-    echo "⚠️  ISSUES DETECTED - FIX BEFORE SCHEDULING\n\n";
+    echo "❌ FATAL ISSUES DETECTED - DO NOT SCHEDULE UNTIL RESOLVED\n\n";
     
-    if (!empty($missing)) {
-        echo "1. Apply missing migrations\n";
+    foreach ($fatal_issues as $i => $issue) {
+        echo ($i + 1) . ". $issue\n";
     }
     
     if ($exit_code !== 0) {
-        echo "2. Fix script execution errors (see output above)\n";
+        echo (count($fatal_issues) + 1) . ". Script execution failed (exit code: $exit_code) — see dry-run output above\n";
     }
     
     echo "\nSee docs/CRON-SETUP.md for detailed instructions.\n\n";
 }
 
+$overall_exit = (!empty($fatal_issues) || $exit_code !== 0) ? 1 : 0;
 echo "Documentation: docs/CRON-SETUP.md\n";
 echo "===================================\n";
+exit($overall_exit);

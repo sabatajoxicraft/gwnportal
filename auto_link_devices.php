@@ -63,6 +63,64 @@ function markVoucherFirstUseState($conn, $voucherLogId, $mac, $dryRun, $hasFirst
     return $ok;
 }
 
+/**
+ * Preflight checks — run before any Phase 1 or Phase 2 work.
+ * Returns an array of fatal error messages; empty array means all clear.
+ */
+function runPreflightChecks($conn, $monthIso, $monthLabel) {
+    $failures = [];
+
+    // 1. Required voucher_logs columns
+    $requiredCols = ['gwn_group_id', 'is_active', 'revoked_at', 'revoke_reason', 'first_used_at', 'first_used_mac'];
+    $colResult = $conn->query("SHOW COLUMNS FROM voucher_logs");
+    $existingCols = [];
+    if ($colResult) {
+        while ($row = $colResult->fetch_assoc()) {
+            $existingCols[] = $row['Field'];
+        }
+    } else {
+        $failures[] = 'PREFLIGHT-FATAL: Cannot query voucher_logs schema: ' . $conn->error;
+    }
+    foreach ($requiredCols as $col) {
+        if (!in_array($col, $existingCols, true)) {
+            $failures[] = "PREFLIGHT-FATAL: Required column voucher_logs.{$col} is missing. Apply pending migrations (create_gwn_voucher_groups.sql / add_voucher_revoke_fields.sql / add_device_management.sql).";
+        }
+    }
+
+    // 2. Unique constraint on user_devices.mac_address
+    $idxResult = $conn->query("SHOW INDEX FROM user_devices WHERE Column_name = 'mac_address' AND Non_unique = 0");
+    if (!$idxResult || $idxResult->num_rows === 0) {
+        $failures[] = 'PREFLIGHT-FATAL: No unique index found on user_devices.mac_address. Apply the add_device_management.sql migration to prevent duplicate device rows.';
+    }
+
+    // 3. Detect missing gwn_group_id data when voucher rows exist for current month.
+    // Only run if gwn_group_id and is_active columns are confirmed present.
+    $hasMissingSchemaForCheck3 = !empty(array_intersect(['gwn_group_id', 'is_active'], array_diff($requiredCols, $existingCols)));
+    if (!$hasMissingSchemaForCheck3) {
+        $chkStmt = $conn->prepare(
+            "SELECT COUNT(*) AS total, SUM(CASE WHEN gwn_group_id > 0 THEN 1 ELSE 0 END) AS with_group
+             FROM voucher_logs
+             WHERE (voucher_month = ? OR voucher_month = ? OR DATE_FORMAT(created_at, '%Y-%m') = ?)
+               AND (is_active = 1 OR is_active IS NULL)"
+        );
+        if (!$chkStmt) {
+            $failures[] = 'PREFLIGHT-FATAL: Cannot prepare gwn_group_id coverage query: ' . $conn->error;
+        } else {
+            $chkStmt->bind_param('sss', $monthLabel, $monthIso, $monthIso);
+            $chkStmt->execute();
+            $chkRow = $chkStmt->get_result()->fetch_assoc();
+            $chkStmt->close();
+            $total     = (int)($chkRow['total']      ?? 0);
+            $withGroup = (int)($chkRow['with_group'] ?? 0);
+            if ($total > 0 && $withGroup === 0) {
+                $failures[] = "PREFLIGHT-FATAL: Found {$total} active voucher_logs row(s) for {$monthIso} but none have gwn_group_id set. Phase 2 cannot auto-link any devices. Check that vouchers were issued via the GWN group flow and that gwn_group_id was recorded correctly.";
+            }
+        }
+    }
+
+    return $failures;
+}
+
 function getVoucherUseNotificationRecipients($conn, $accommodationId) {
     $recipientIds = array();
 
@@ -136,6 +194,17 @@ autoLinkLog('--- Phase 1: Rollover Cleanup ---');
 $conn = getDbConnection();
 $tz         = new DateTimeZone(VOUCHER_TZ);
 $nowCleanup = new DateTimeImmutable('now', $tz);
+
+// --- Preflight: fail loudly on missing schema prerequisites ---
+$preflightFailures = runPreflightChecks($conn, $monthIso, $monthLabel);
+if (!empty($preflightFailures)) {
+    foreach ($preflightFailures as $pf) {
+        autoLinkLog($pf);
+    }
+    autoLinkLog('PREFLIGHT: Critical prerequisites missing. Aborting — no changes were made. Fix the issues above and re-run.');
+    exit(2);
+}
+autoLinkLog('Preflight checks passed.');
 
 // Both format variants of the current month (legacy rows may use Y-m).
 $currentMonthFY = $nowCleanup->format('F Y');
@@ -369,84 +438,44 @@ foreach ($mappings as $map) {
             autoLinkDebug('Using historical MAC from first_used_mac: ' . $mac, $debug);
             // Continue processing with the historical MAC
         } else {
-            // Try to find MAC from client service for recent voucher usage
-            if ($needsMacRetry && $firstUsedTime > 0) {
-                autoLinkDebug("Attempting to find MAC via client service for voucher {$voucherCode}", $debug);
-                $clientService = new ClientService();
-                
-                // Query clients from around the first_used_at timestamp (± 24 hours)
-                $searchStart = ($firstUsedTime - 86400) * 1000; // Convert to milliseconds
-                $searchEnd = ($firstUsedTime + 86400) * 1000;
-                
-                $clientHistory = $clientService->listClientHistory(null, 1, 100, '', '', '', array(), $searchStart, $searchEnd);
-                
-                if ($clientService->responseSuccessful($clientHistory)) {
-                    $clients = gwnCollectRows($clientHistory);
-                    autoLinkDebug("Found " . count($clients) . " clients in time window around first use", $debug);
-                    
-                    // Look for clients that might match this voucher
-                    // This is a heuristic - we can't perfectly match without voucher code in client data
-                    // but we can use timing and user patterns
-                    foreach ($clients as $client) {
-                        $clientMac = gwnNormalizeMac($client['clientId'] ?? ($client['mac'] ?? ''));
-                        if ($clientMac !== '') {
-                            // Check if this MAC is already linked to another user
-                            $checkStmt = safeQueryPrepare($conn, "SELECT user_id FROM user_devices WHERE mac_address = ? LIMIT 1");
-                            if ($checkStmt) {
-                                $checkStmt->bind_param("s", $clientMac);
-                                $checkStmt->execute();
-                                $macOwner = $checkStmt->get_result()->fetch_assoc();
-                                $checkStmt->close();
-                                
-                                // If not linked, this could be the device
-                                if (!$macOwner) {
-                                    $mac = $clientMac;
-                                    autoLinkDebug("Found potential MAC from client history: {$mac}", $debug);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // No MAC from GWN API, database, or client history
-            if (!$mac) {
-                if (!$hasFirstUsedAt) {
-                    $skipped++;
-                    autoLinkLog("SKIP: Voucher {$voucherCode} is used but no MAC is exposed by GWN; first-use migration required for manual workflow.");
-                    continue;
-                }
-
-                if ($dryRun) {
-                    $firstUseDetected++;
-                    $pendingManual++;
-                    autoLinkLog("DRY-RUN: Voucher {$voucherCode} first used by {$studentName}; no MAC exposed by GWN. Would queue manual link review.");
-                    continue;
-                }
-
-                if (!markVoucherFirstUseState($conn, $voucherLogId, null, false, $hasFirstUsedAt, $hasFirstUsedMac)) {
-                    $errors++;
-                    autoLinkLog("ERROR: Failed to mark first_used_at for voucher {$voucherCode}");
-                    continue;
-                }
-
-                $firstUseDetected++;
-                $pendingManual++;
-                
-                if ($needsMacRetry) {
-                    autoLinkLog("RETRY: Voucher {$voucherCode} used by {$studentName}; MAC still not available after retry.");
-                } else {
-                    autoLinkLog("FIRST-USE: Voucher {$voucherCode} first used by {$studentName}; no MAC exposed by GWN.");
-                }
-
-                $message = "Voucher {$voucherCode} for {$studentName} was first used. GWN did not return a MAC address, so link the device manually from Student Details.";
-                foreach (getVoucherUseNotificationRecipients($conn, $accommodationId) as $recipientId) {
-                    createNotification($recipientId, $message, 'warning', 1);
-                }
-                logActivity($conn, 1, 'voucher_first_use_no_mac', "Voucher {$voucherCode} first used by {$studentName} without MAC from GWN", '127.0.0.1');
+            // No MAC from GWN API or database; uncertain cases go to manual review.
+            // Heuristic client-history lookup is intentionally disabled: picking an
+            // unlinked MAC from a ±24h time window cannot reliably identify the right
+            // device and must not be used for automatic linking.
+            if (!$hasFirstUsedAt) {
+                $skipped++;
+                autoLinkLog("SKIP: Voucher {$voucherCode} is used but no MAC is exposed by GWN; first-use migration required for manual workflow.");
                 continue;
             }
+
+            if ($dryRun) {
+                $firstUseDetected++;
+                $pendingManual++;
+                autoLinkLog("DRY-RUN: Voucher {$voucherCode} first used by {$studentName}; no MAC exposed by GWN. Would queue manual link review.");
+                continue;
+            }
+
+            if (!markVoucherFirstUseState($conn, $voucherLogId, null, false, $hasFirstUsedAt, $hasFirstUsedMac)) {
+                $errors++;
+                autoLinkLog("ERROR: Failed to mark first_used_at for voucher {$voucherCode}");
+                continue;
+            }
+
+            $firstUseDetected++;
+            $pendingManual++;
+
+            if ($needsMacRetry) {
+                autoLinkLog("RETRY: Voucher {$voucherCode} used by {$studentName}; MAC still not available after retry.");
+            } else {
+                autoLinkLog("FIRST-USE: Voucher {$voucherCode} first used by {$studentName}; no MAC exposed by GWN.");
+            }
+
+            $message = "Voucher {$voucherCode} for {$studentName} was first used. GWN did not return a MAC address, so link the device manually from Student Details.";
+            foreach (getVoucherUseNotificationRecipients($conn, $accommodationId) as $recipientId) {
+                createNotification($recipientId, $message, 'warning', 1);
+            }
+            logActivity($conn, 1, 'voucher_first_use_no_mac', "Voucher {$voucherCode} first used by {$studentName} without MAC from GWN", '127.0.0.1');
+            continue;
         }
     }
 
@@ -476,7 +505,10 @@ foreach ($mappings as $map) {
             $skipped++;
             $conflicts++;
 
-            if (markVoucherFirstUseState($conn, $voucherLogId, $mac, $dryRun, $hasFirstUsedAt, $hasFirstUsedMac)) {
+            // Conflict: MAC belongs to a different student.
+            // Do NOT stamp the conflicting MAC into first_used_mac so the
+            // manual-review / retry path remains open. Record first_used_at only.
+            if (markVoucherFirstUseState($conn, $voucherLogId, null, $dryRun, $hasFirstUsedAt, $hasFirstUsedMac)) {
                 $firstUseDetected++;
             } else {
                 $errors++;
