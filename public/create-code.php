@@ -332,7 +332,7 @@ require_once '../includes/components/header.php';
                                     <div class="mb-3">
                                         <label class="form-label">Student Photo (Optional)</label>
                                         <div class="text-center mb-3">
-                                            <video id="camera" width="100%" height="auto" autoplay style="display:none; max-width: 400px; border-radius: 8px; border: 2px solid #dee2e6;"></video>
+                                            <video id="camera" width="100%" height="auto" autoplay playsinline style="display:none; max-width: 400px; border-radius: 8px; border: 2px solid #dee2e6;"></video>
                                             <canvas id="canvas" style="display:none;"></canvas>
                                             <div id="photo-preview" style="display:none; position: relative;">
                                                 <img id="captured-photo" alt="Captured photo" style="max-width: 100%; max-height: 300px; border-radius: 8px; border: 2px solid #198754;" />
@@ -579,16 +579,22 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         capturePhotoBtn.addEventListener('click', function() {
+            // Guard: video metadata must be available before capturing
+            if (!video.videoWidth || !video.videoHeight) {
+                alert('Camera is not ready yet. Please wait a moment and try again.');
+                return;
+            }
+
             // Scale proportionally so longest side is max 640px
-            const srcW = video.videoWidth || 640;
-            const srcH = video.videoHeight || 480;
+            const srcW = video.videoWidth;
+            const srcH = video.videoHeight;
             const scale = Math.min(1, 640 / Math.max(srcW, srcH));
             canvas.width  = Math.round(srcW * scale);
             canvas.height = Math.round(srcH * scale);
 
-            // Draw video frame to canvas
+            // Draw full source frame explicitly to preserve aspect ratio
             const context = canvas.getContext('2d');
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            context.drawImage(video, 0, 0, srcW, srcH, 0, 0, canvas.width, canvas.height);
             
             // Convert to base64
             const photoData = canvas.toDataURL('image/jpeg', 0.7);

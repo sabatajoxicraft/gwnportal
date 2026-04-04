@@ -87,7 +87,7 @@ class PasswordResetService
 
         $tokenPlain = bin2hex(random_bytes(32));
         $tokenHash  = hash('sha256', $tokenPlain);
-        $expiresAt  = date('Y-m-d H:i:s', time() + self::TOKEN_TTL_SECONDS);
+        $expiresAt  = self::utcNow(self::TOKEN_TTL_SECONDS);
 
         $conn->begin_transaction();
 
@@ -149,7 +149,7 @@ class PasswordResetService
         }
 
         $tokenHash = hash('sha256', $tokenPlain);
-        $now = date('Y-m-d H:i:s');
+        $now = self::utcNow();
 
         $stmt = safeQueryPrepare(
             $conn,
@@ -208,7 +208,7 @@ class PasswordResetService
         }
 
         $tokenHash = hash('sha256', $tokenPlain);
-        $now       = date('Y-m-d H:i:s');
+        $now       = self::utcNow();
         $usedAt    = $now;
         $newHash   = password_hash($newPassword, PASSWORD_DEFAULT);
 
@@ -319,7 +319,7 @@ class PasswordResetService
     public static function isThrottled($conn, $userId, $requestIp)
     {
         // Per-user window
-        $userWindowStart = date('Y-m-d H:i:s', time() - self::THROTTLE_USER_WINDOW_SECONDS);
+        $userWindowStart = self::utcNow(-self::THROTTLE_USER_WINDOW_SECONDS);
         $stmt = safeQueryPrepare(
             $conn,
             'SELECT COUNT(*) AS cnt FROM password_reset_tokens
@@ -338,7 +338,7 @@ class PasswordResetService
 
         // Per-IP window
         if (!empty($requestIp)) {
-            $ipWindowStart = date('Y-m-d H:i:s', time() - 3600);
+            $ipWindowStart = self::utcNow(-3600);
             $stmt2 = safeQueryPrepare(
                 $conn,
                 'SELECT COUNT(*) AS cnt FROM password_reset_tokens
@@ -362,6 +362,15 @@ class PasswordResetService
     // -------------------------------------------------------------------------
     // Private helpers
     // -------------------------------------------------------------------------
+
+    /**
+     * Returns the current UTC datetime string (MySQL-compatible format),
+     * optionally shifted by $offsetSeconds.
+     */
+    private static function utcNow(int $offsetSeconds = 0): string
+    {
+        return gmdate('Y-m-d H:i:s', time() + $offsetSeconds);
+    }
 
     /**
      * Fetch a single active user row by email address.

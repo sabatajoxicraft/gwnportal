@@ -36,7 +36,11 @@ function getDbConnection() {
     
     // Set character set to UTF-8
     $conn->set_charset("utf8mb4");
-    
+
+    // Pin the MySQL session clock to UTC so PHP and MySQL share the same
+    // timezone reference for all datetime comparisons (e.g. token expiry).
+    $conn->query("SET time_zone = '+00:00'");
+
     return $conn;
 }
 
