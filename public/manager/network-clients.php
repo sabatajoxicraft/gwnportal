@@ -2,7 +2,6 @@
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/python_interface.php';
-require_once '../../includes/services/ProfileChecklistService.php';
 
 requireRole(['manager', 'admin']);
 
@@ -76,8 +75,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $updStmt->execute();
         $updStmt->close();
         
-        // Auto-complete student checklist: connect_device
-        ProfileChecklistService::markComplete($conn, $studentUserId, 'student.connect_device');
     } else {
         $insStmt = safeQueryPrepare($conn, "INSERT INTO user_devices (user_id, device_type, mac_address, linked_via) VALUES (?, ?, ?, 'manual')", false);
         if (!$insStmt) {
@@ -90,8 +87,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $insStmt->execute();
         $insStmt->close();
         
-        // Auto-complete student checklist: connect_device
-        ProfileChecklistService::markComplete($conn, $studentUserId, 'student.connect_device');
     }
 
     // Attempt to rename client on GWN Cloud

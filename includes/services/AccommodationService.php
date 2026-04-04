@@ -47,11 +47,6 @@ class AccommodationService {
         $accommodationId = $stmt->insert_id;
         $stmt->close();
 
-        // Auto-complete owner checklist: create_accommodation
-        if (class_exists('ProfileChecklistService')) {
-            ProfileChecklistService::markComplete($conn, $ownerId, 'owner.create_accommodation');
-        }
-
         return [
             'success' => true,
             'accommodation_id' => $accommodationId,
@@ -187,24 +182,6 @@ class AccommodationService {
         }
 
         $stmt->close();
-
-        // Auto-complete manager checklist: view_accommodation
-        if (class_exists('ProfileChecklistService')) {
-            ProfileChecklistService::markComplete($conn, $managerId, 'manager.view_accommodation');
-        }
-
-        // Auto-complete owner checklist: assign_manager
-        // Get owner_id from accommodation
-        $ownerStmt = safeQueryPrepare($conn, "SELECT owner_id FROM accommodations WHERE id = ?");
-        if ($ownerStmt) {
-            $ownerStmt->bind_param("i", $accommodationId);
-            $ownerStmt->execute();
-            $result = $ownerStmt->get_result();
-            if ($row = $result->fetch_assoc()) {
-                ProfileChecklistService::markComplete($conn, $row['owner_id'], 'owner.assign_manager');
-            }
-            $ownerStmt->close();
-        }
 
         return true;
     }

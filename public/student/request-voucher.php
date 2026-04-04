@@ -3,7 +3,6 @@ require_once '../../includes/config.php';
 require_once '../../includes/db.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/python_interface.php';
-require_once '../../includes/services/ProfileChecklistService.php';
 require_once '../../includes/helpers/VoucherMonthHelper.php';
 
 $pageTitle = "Request WiFi Voucher";
@@ -70,9 +69,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isEligible) {
         if ($sent) {
             $justRequested = true;
             $isEligible = false;
-
-            // Auto-complete student checklist: request_voucher
-            ProfileChecklistService::markComplete($conn, $userId, 'student.request_voucher');
 
             // Use return value from service if it's an array, otherwise re-fetch
             if (is_array($sent) && isset($sent['voucher_code'])) {

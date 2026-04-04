@@ -2,7 +2,6 @@
 require_once '../includes/config.php';
 require_once '../includes/db.php';
 require_once '../includes/functions.php';
-require_once '../includes/services/ProfileChecklistService.php';
 
 $pageTitle = "Account Onboarding";
 $step = $_GET['step'] ?? 1;
@@ -204,9 +203,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         throw new Exception("Failed to create student record: " . $conn->error);
                     }
                     $studentTableId = $stmt->insert_id;
-                    
-                    // Auto-complete student checklist: complete_onboarding
-                    ProfileChecklistService::markComplete($conn, $userId, 'student.complete_onboarding');
                 }
                 
                 // Only mark code as used when a code exists (not in self-register mode)

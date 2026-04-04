@@ -142,7 +142,7 @@ require_once '../includes/components/header.php';
         <?php include __DIR__ . '/../includes/components/accommodation-switcher-bar.php'; ?>
         
         <div class="row">
-            <div class="col-md-6">
+            <div class="col-md-12">
                 <div class="card mb-4">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">Personal Information</h5>
@@ -218,88 +218,6 @@ require_once '../includes/components/header.php';
                 </div>
             </div>
             
-            <!-- Profile Completion Checklist -->
-            <div class="col-md-6">
-                <div class="card mb-4 border-info">
-                    <div class="card-header bg-info text-white">
-                        <h5 class="mb-0">
-                            <i class="fas fa-tasks me-2"></i>Profile Completion Status
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <?php
-                        require_once '../includes/services/ProfileChecklistService.php';
-                        $studentChecklist = ProfileChecklistService::getChecklistForUser($conn, $student['user_id']);
-                        $studentPercentage = ProfileChecklistService::getCompletionPercentage($conn, $student['user_id']);
-                        $studentIncompleteCount = ProfileChecklistService::getIncompleteCount($conn, $student['user_id']);
-                        ?>
-                        
-                        <div class="mb-3">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <span class="fw-bold">Overall Progress</span>
-                                <span class="text-muted"><?= number_format($studentPercentage, 0) ?>%</span>
-                            </div>
-                            <div class="progress" style="height: 25px;">
-                                <div class="progress-bar <?= $studentPercentage >= 100 ? 'bg-success' : 'bg-info' ?>" 
-                                     role="progressbar" 
-                                     style="width: <?= $studentPercentage ?>%;" 
-                                     aria-valuenow="<?= $studentPercentage ?>" 
-                                     aria-valuemin="0" 
-                                     aria-valuemax="100">
-                                    <?= number_format($studentPercentage, 0) ?>%
-                                </div>
-                            </div>
-                        </div>
-
-                        <?php if ($studentPercentage >= 100): ?>
-                            <div class="alert alert-success">
-                                <i class="fas fa-check-circle me-2"></i>
-                                <strong>Profile Complete!</strong>
-                            </div>
-                        <?php else: ?>
-                            <p class="mb-3">
-                                <i class="fas fa-info-circle me-2 text-warning"></i>
-                                <strong><?= $studentIncompleteCount ?></strong> required task<?= $studentIncompleteCount != 1 ? 's' : '' ?> remaining
-                            </p>
-                        <?php endif; ?>
-
-                        <div class="checklist-compact">
-                            <h6 class="fw-bold mb-2">Task Status:</h6>
-                            <ul class="list-group list-group-flush">
-                                <?php foreach ($studentChecklist as $item): ?>
-                                    <li class="list-group-item px-0 py-2 d-flex justify-content-between align-items-center">
-                                        <div>
-                                            <?php if ($item['completed']): ?>
-                                                <i class="fas fa-check-circle text-success me-2"></i>
-                                            <?php else: ?>
-                                                <i class="fas fa-circle-notch text-warning me-2"></i>
-                                            <?php endif; ?>
-                                            <span class="<?= $item['completed'] ? 'text-decoration-line-through text-muted' : '' ?>">
-                                                <?= htmlspecialchars($item['label']) ?>
-                                            </span>
-                                            <?php if ($item['optional']): ?>
-                                                <span class="badge bg-secondary ms-2">Optional</span>
-                                            <?php endif; ?>
-                                        </div>
-                                        <?php if ($item['completed'] && $item['completed_at']): ?>
-                                            <small class="text-muted">
-                                                <?= date('M j', strtotime($item['completed_at'])) ?>
-                                            </small>
-                                        <?php endif; ?>
-                                    </li>
-                                <?php endforeach; ?>
-                            </ul>
-                        </div>
-
-                        <div class="mt-3 pt-3 border-top text-center">
-                            <small class="text-muted">
-                                <i class="fas fa-info-circle me-1"></i>
-                                Read-only view for managers. Student completes tasks in their own profile.
-                            </small>
-                        </div>
-                    </div>
-                </div>
-            </div>
             
             <div class="col-md-12">
                 <div class="card mb-4">

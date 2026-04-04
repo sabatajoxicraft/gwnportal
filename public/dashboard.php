@@ -377,11 +377,7 @@ require_once '../includes/components/header.php';
 ?>
 
 <div class="container mt-4">
-    <?php 
-    // Show profile completion checklist widget
-    require_once '../includes/services/ProfileChecklistService.php';
-    include '../includes/components/profile-checklist-widget.php'; 
-    ?>
+
     
     <?php if ($currentRole === 'manager'): ?>
         <!-- Manager Dashboard -->
