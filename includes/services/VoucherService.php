@@ -151,10 +151,28 @@ class VoucherService extends GwnService {
             return false;
         }
 
+        // Begin transaction and acquire per-user lock to prevent concurrent voucher issuance
+        $conn->begin_transaction();
+        // Lock the user row to serialize voucher requests for the same student.
+        // This prevents race conditions where two concurrent requests both pass the
+        // duplicate check and create vouchers.
+        $lockStmt = safeQueryPrepare($conn, 'SELECT id FROM users WHERE id = ? FOR UPDATE');
+        if (!$lockStmt) {
+            error_log('VoucherService::sendStudentVoucher - user lock prepare failed: ' . $conn->error);
+            $conn->rollback();
+            return false;
+        }
+        $lockStmt->bind_param('i', $student['user_id']);
+        $lockStmt->execute();
+        $lockStmt->get_result();
+        $lockStmt->close();
+
         // Duplicate send prevention: block if voucher already sent this month
+        // Check again under lock to prevent race conditions
         if (!$forceResend) {
             $existing = $this->getExistingVoucher($conn, $student['user_id'], $month);
             if ($existing) {
+                $conn->rollback();
                 error_log("VoucherService::sendStudentVoucher: Duplicate blocked - student $student_id already has voucher for $month");
                 return [
                     'voucher_month' => $existing['voucher_month'],
@@ -173,10 +191,11 @@ class VoucherService extends GwnService {
             ? ($student['whatsapp_number'] ?: $student['phone_number'])
             : ($student['phone_number'] ?: $student['whatsapp_number']);
         
-        // Step 1: Create and retrieve voucher
+        // Step 1: Create and retrieve voucher (remote GWN call outside DB's rollback control)
         $result = $this->createAndRetrieveVoucher($student_id, $accommodationName, $studentName, $month);
         
         if (!$result) {
+            $conn->rollback();
             error_log("VoucherService::sendStudentVoucher: Failed to create voucher for student $student_id");
             return false;
         }
@@ -184,6 +203,7 @@ class VoucherService extends GwnService {
         $voucher_code = $result['code'];
         $groupId = $result['groupId'];
         $deviceNum = $result['deviceNum'];
+        $groupName = $result['groupName'] ?? '';
         
         // Step 2: Send voucher code to student via preferred method (SMS OR WhatsApp, not both)
         $messageSent = false;
@@ -235,14 +255,7 @@ class VoucherService extends GwnService {
             error_log("VoucherService::sendStudentVoucher: Voucher $voucher_code created but message delivery failed for student $student_id ($sendMethod to $phoneNumber)");
         }
         
-        // Step 3: Create in-app notification
-        createNotification(
-            $student['user_id'],
-            "Your WiFi voucher for $month has been generated. Code: $voucher_code (sent via $loggedSendMethod).",
-            'voucher'
-        );
-        
-        // Step 4: Log to voucher_logs
+        // Step 3: Log to voucher_logs (inside transaction)
         $sqlFull   = "INSERT INTO voucher_logs (user_id, voucher_code, voucher_month, sent_via, status, sent_at, gwn_voucher_id, gwn_group_id) 
                       VALUES (?, ?, ?, ?, 'sent', NOW(), ?, ?)";
         $sqlLegacy = "INSERT INTO voucher_logs (user_id, voucher_code, voucher_month, sent_via, status, sent_at) 
@@ -253,6 +266,7 @@ class VoucherService extends GwnService {
             $stmt = safeQueryPrepare($conn, $sqlLegacy, false);
         }
 
+        $voucherLogsOk = false;
         if ($this->isUsableStmt($stmt)) {
             if ($useLegacy) {
                 $stmt->bind_param("isss", $student['user_id'], $voucher_code, $month, $loggedSendMethod);
@@ -260,36 +274,65 @@ class VoucherService extends GwnService {
                 $gwn_voucher_id = 0;
                 $stmt->bind_param("isssii", $student['user_id'], $voucher_code, $month, $loggedSendMethod, $gwn_voucher_id, $groupId);
             }
-            $ok = $stmt->execute();
-            if (!$ok) {
+            $voucherLogsOk = $stmt->execute();
+            if (!$voucherLogsOk) {
                 error_log("VoucherService::sendStudentVoucher: voucher_logs execute() failed: " . $stmt->error);
             }
         } else {
             error_log("VoucherService::sendStudentVoucher: voucher_logs insert prepare failed - " . $conn->error);
         }
 
-        // Step 5: Record the GWN voucher group for tracking
+        // Step 4: Record the GWN voucher group for tracking (inside transaction)
+        $gwnGroupsOk = false;
         $networkId = defined('GWN_NETWORK_ID') ? GWN_NETWORK_ID : '';
         $sqlGroup  = "INSERT INTO gwn_voucher_groups (gwn_group_id, group_name, accommodation_id, voucher_month, network_id, voucher_count, created_at)
                      VALUES (?, ?, ?, ?, ?, 1, NOW())";
         $stmtGroup = safeQueryPrepare($conn, $sqlGroup, false);
         if ($this->isUsableStmt($stmtGroup)) {
-            $groupName = $result['groupName'] ?? '';
             $stmtGroup->bind_param("isiss", $groupId, $groupName, $student['accommodation_id'], $month, $networkId);
-            $ok = $stmtGroup->execute();
-            if (!$ok) {
+            $gwnGroupsOk = $stmtGroup->execute();
+            if (!$gwnGroupsOk) {
                 error_log("VoucherService::sendStudentVoucher: gwn_voucher_groups execute() failed: " . $stmtGroup->error);
             }
         } else {
             error_log("VoucherService::sendStudentVoucher: gwn_voucher_groups insert prepare failed - " . $conn->error);
         }
-        
-        return [
-            'voucher_month' => $month,
-            'voucher_code' => $voucher_code,
-            'sent_via' => $loggedSendMethod,
-            'sent_at' => date('Y-m-d H:i:s')
-        ];
+
+        // Check if both DB operations succeeded
+        if ($voucherLogsOk && $gwnGroupsOk) {
+            // Success: commit transaction
+            $conn->commit();
+            // Step 5: Create in-app notification (after successful DB commit)
+            createNotification(
+                $student['user_id'],
+                "Your WiFi voucher for $month has been generated. Code: $voucher_code (sent via $loggedSendMethod).",
+                'voucher'
+            );
+
+            return [
+                'voucher_month' => $month,
+                'voucher_code' => $voucher_code,
+                'sent_via' => $loggedSendMethod,
+                'sent_at' => date('Y-m-d H:i:s')
+            ];
+        } else {
+            // DB operations failed: rollback transaction and cleanup remote GWN group
+            $conn->rollback();
+            // Best-effort cleanup of the GWN group that was successfully created
+            try {
+                $deleteResult = $this->deleteVoucherGroup([$groupId]);
+                if (!$this->responseSuccessful($deleteResult)) {
+                    error_log("VoucherService::sendStudentVoucher: Failed to cleanup GWN group $groupId after DB failure: " . json_encode($deleteResult));
+                } else {
+                    error_log("VoucherService::sendStudentVoucher: Successfully cleaned up GWN group $groupId after DB failure");
+                }
+            } catch (Exception $e) {
+                error_log("VoucherService::sendStudentVoucher: Exception during GWN group cleanup for group $groupId: " . $e->getMessage());
+            }
+
+            error_log("VoucherService::sendStudentVoucher: DB operations failed for student $student_id, voucher creation rolled back");
+            return false;
+        }
     }
 
     public function createAndRetrieveVoucher($student_id, $accommodationName, $studentName, $month) {
@@ -349,10 +392,15 @@ class VoucherService extends GwnService {
             return false;
         }
         
-        usleep(750000); 
+        usleep(750000);
         
         $searchResult = $this->listVoucherGroups(null, 1, 20, $groupName);
-        if (!$this->responseSuccessful($searchResult)) return false;
+        if (!$this->responseSuccessful($searchResult)) {
+            error_log("VoucherService::createAndRetrieveVoucher: Failed to search for created group '$groupName' for student $student_id");
+            // Cannot get group ID for cleanup, but group was created - log this orphan risk
+            error_log("VoucherService::createAndRetrieveVoucher: WARNING - GWN group '$groupName' may be orphaned (search failed)");
+            return false;
+        }
         
         $groupId = 0;
         $groups = $this->collectRows($searchResult);
@@ -363,10 +411,19 @@ class VoucherService extends GwnService {
             }
         }
         
-        if ($groupId <= 0) return false;
+        if ($groupId <= 0) {
+            error_log("VoucherService::createAndRetrieveVoucher: Created group '$groupName' not found in search results for student $student_id");
+            // Cannot get group ID for cleanup, but group was created - log this orphan risk
+            error_log("VoucherService::createAndRetrieveVoucher: WARNING - GWN group '$groupName' may be orphaned (not found in search)");
+            return false;
+        }
         
         $listResult = $this->listVouchersInGroup($groupId);
-        if (!$this->responseSuccessful($listResult)) return false;
+        if (!$this->responseSuccessful($listResult)) {
+            error_log("VoucherService::createAndRetrieveVoucher: Failed to list vouchers in group $groupId for student $student_id");
+            $this->cleanupOrphanedGroup($groupId, $groupName, "voucher list failed");
+            return false;
+        }
         
         $voucher_code = '';
         $rows = $this->collectRows($listResult);
@@ -379,7 +436,11 @@ class VoucherService extends GwnService {
             }
         }
         
-        if (empty($voucher_code)) return false;
+        if (empty($voucher_code)) {
+            error_log("VoucherService::createAndRetrieveVoucher: No voucher code found in group $groupId for student $student_id");
+            $this->cleanupOrphanedGroup($groupId, $groupName, "no voucher code found");
+            return false;
+        }
         
         return [
             'code'     => $voucher_code,
@@ -387,6 +448,26 @@ class VoucherService extends GwnService {
             'deviceNum' => $deviceNum,
             'groupName' => $groupName
         ];
+    }
+
+    /**
+     * Best-effort cleanup of a GWN group that was created but cannot be used
+     * @param int $groupId The GWN group ID to delete
+     * @param string $groupName The group name for logging
+     * @param string $reason Why the cleanup is needed
+     */
+    private function cleanupOrphanedGroup($groupId, $groupName, $reason) {
+        try {
+            error_log("VoucherService::cleanupOrphanedGroup: Attempting cleanup of group $groupId ('$groupName') - reason: $reason");
+            $deleteResult = $this->deleteVoucherGroup([$groupId]);
+            if (!$this->responseSuccessful($deleteResult)) {
+                error_log("VoucherService::cleanupOrphanedGroup: Failed to delete orphaned GWN group $groupId: " . json_encode($deleteResult));
+            } else {
+                error_log("VoucherService::cleanupOrphanedGroup: Successfully deleted orphaned GWN group $groupId ('$groupName')");
+            }
+        } catch (Exception $e) {
+            error_log("VoucherService::cleanupOrphanedGroup: Exception while deleting orphaned GWN group $groupId: " . $e->getMessage());
+        }
     }
 
     /**
