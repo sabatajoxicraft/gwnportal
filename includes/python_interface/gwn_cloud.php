@@ -1066,6 +1066,25 @@ if (!function_exists('autoDetectDeviceType')) {
     }
 }
 
+if (!function_exists('gwnExtractVoucherIdFromRow')) {
+    function gwnExtractVoucherIdFromRow($row) {
+        if (!is_array($row)) {
+            return null;
+        }
+        
+        foreach (['voucherId', 'voucher_id', 'id'] as $field) {
+            if (isset($row[$field])) {
+                $value = trim((string)$row[$field]);
+                if ($value !== '' && is_numeric($value)) {
+                    return (int)$value;
+                }
+            }
+        }
+        
+        return null;
+    }
+}
+
 if (!function_exists('getVoucherDeviceMappings')) {
     function getVoucherDeviceMappings($month) {
         $month = trim((string)$month);
@@ -1195,8 +1214,10 @@ if (!function_exists('getVoucherDeviceMappings')) {
 
                     $lookup = strtoupper($voucherCode);
                     if (!isset($voucherUsage[$lookup])) {
+                        $voucherId = gwnExtractVoucherIdFromRow($row);
                         $voucherUsage[$lookup] = array(
                             'voucher_code' => $voucherCode,
+                            'voucher_id' => $voucherId,
                             'mac' => '',
                         );
                     }
@@ -1204,12 +1225,25 @@ if (!function_exists('getVoucherDeviceMappings')) {
                     if ($mac !== '' && $voucherUsage[$lookup]['mac'] === '') {
                         $voucherUsage[$lookup]['mac'] = $mac;
                     }
+                    
+                    if (!isset($voucherUsage[$lookup]['voucher_id'])) {
+                        $voucherId = gwnExtractVoucherIdFromRow($row);
+                        if ($voucherId !== null) {
+                            $voucherUsage[$lookup]['voucher_id'] = $voucherId;
+                        }
+                    }
                 }
 
-                $totalPages = isset($data['totalPage']) ? (int)$data['totalPage'] : 1;
-                if ($totalPages < 1) {
+                // Handle both top-level totalPage and nested data.totalPage structures  
+                if (isset($data['totalPage'])) {
+                    $totalPages = (int)$data['totalPage'];
+                } elseif (isset($data['data']['totalPage'])) {
+                    $totalPages = (int)$data['data']['totalPage'];
+                } else {
                     $totalPages = 1;
                 }
+                
+                $totalPages = max(1, $totalPages);
                 $pageNum++;
             } while ($pageNum <= $totalPages && $pageNum <= 10);
         }
@@ -1232,6 +1266,7 @@ if (!function_exists('getVoucherDeviceMappings')) {
             }
 
             $mac = trim((string)($voucherUsage[$lookup]['mac'] ?? ''));
+            $voucherId = isset($voucherUsage[$lookup]['voucher_id']) ? $voucherUsage[$lookup]['voucher_id'] : null;
             $key = $lookup . '|' . ($mac !== '' ? $mac : 'NO_MAC');
             if (isset($seen[$key])) {
                 continue;
@@ -1240,6 +1275,7 @@ if (!function_exists('getVoucherDeviceMappings')) {
 
             $mappings[] = array(
                 'voucher_code' => $voucherCode,
+                'voucher_id' => $voucherId,
                 'mac' => $mac !== '' ? $mac : null,
             );
         }

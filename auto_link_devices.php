@@ -25,6 +25,7 @@ require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/python_interface.php';
 require_once __DIR__ . '/includes/helpers/VoucherMonthHelper.php';
 require_once __DIR__ . '/includes/services/VoucherService.php';
+require_once __DIR__ . '/includes/services/CaptivePortalService.php';
 
 function autoLinkLog($message) {
     echo '[' . date('Y-m-d H:i:s') . '] ' . $message . PHP_EOL;
@@ -358,6 +359,31 @@ foreach ($mappings as $mappingsEntry) {
     }
 }
 
+// Build voucher ID lookup for missing-MAC fallback using portal monitor
+$mappingsWithoutMac = [];
+foreach ($mappings as $mappingsEntry) {
+    if (empty($mappingsEntry['mac']) && !empty($mappingsEntry['voucher_id'])) {
+        $mappingsWithoutMac[] = $mappingsEntry;
+    }
+}
+
+$guestsByVoucherId = [];
+if (!empty($mappingsWithoutMac)) {
+    autoLinkLog('Found ' . count($mappingsWithoutMac) . ' mappings without MAC, querying portal monitor...');
+    try {
+        $captivePortalService = new CaptivePortalService();
+        $guestsByVoucherId = $captivePortalService->getOnlineGuestsByVoucherId();
+        autoLinkLog('Portal monitor lookup returned ' . count($guestsByVoucherId) . ' online guests with voucher IDs');
+        if ($debug && !empty($guestsByVoucherId)) {
+            $sampleGuests = array_slice($guestsByVoucherId, 0, 3, true);
+            autoLinkDebug('Sample portal guests: ' . json_encode($sampleGuests), $debug);
+        }
+    } catch (Exception $e) {
+        autoLinkLog('WARN: Portal monitor lookup failed: ' . $e->getMessage());
+        $guestsByVoucherId = [];
+    }
+}
+
 // Process the full filtered set every run — all vouchers GWN currently reports
 // with at least one used-device signal, intersected with active current-month
 // entries in voucher_logs.  No rotation or offset is applied.
@@ -467,44 +493,68 @@ foreach ($processingList as $map) {
             autoLinkDebug('Using historical MAC from first_used_mac: ' . $mac, $debug);
             // Continue processing with the historical MAC
         } else {
-            // No MAC from GWN API or database; uncertain cases go to manual review.
-            // Heuristic client-history lookup is intentionally disabled: picking an
-            // unlinked MAC from a ±24h time window cannot reliably identify the right
-            // device and must not be used for automatic linking.
-            if (!$hasFirstUsedAt) {
-                $skipped++;
-                autoLinkLog("SKIP: Voucher {$voucherCode} is used but no MAC is exposed by GWN; first-use migration required for manual workflow.");
-                continue;
+            // Try portal monitor lookup by voucher ID before manual review
+            $portalGuestMac = null;
+            $portalGuestName = '';
+            $currentMapping = $mappingsByCode[strtoupper($voucherCode)] ?? null;
+            $voucherId = $currentMapping['voucher_id'] ?? null;
+            
+            if ($voucherId && isset($guestsByVoucherId[$voucherId])) {
+                $portalGuest = $guestsByVoucherId[$voucherId];
+                $clientMac = trim((string)($portalGuest['client_id'] ?? ''));
+                if ($clientMac !== '' && preg_match('/^[0-9a-fA-F:.-]{12,17}$/', $clientMac)) {
+                    $portalGuestMac = formatMacAddress($clientMac);
+                    $portalGuestName = trim((string)($portalGuest['name'] ?? ''));
+                    autoLinkDebug("Found portal monitor session for voucher ID {$voucherId}: MAC={$portalGuestMac}, name={$portalGuestName}", $debug);
+                } else {
+                    autoLinkDebug("Portal monitor session for voucher ID {$voucherId} has invalid client MAC: '{$clientMac}'", $debug);
+                }
             }
+            
+            if ($portalGuestMac) {
+                $mac = $portalGuestMac;
+                autoLinkDebug("Using MAC from portal monitor: {$mac}", $debug);
+                // Continue processing with the portal-resolved MAC
+            } else {
+                // No MAC from GWN API, database, or portal monitor; uncertain cases go to manual review.
+                // Heuristic client-history lookup is intentionally disabled: picking an
+                // unlinked MAC from a ±24h time window cannot reliably identify the right
+                // device and must not be used for automatic linking.
+                if (!$hasFirstUsedAt) {
+                    $skipped++;
+                    autoLinkLog("SKIP: Voucher {$voucherCode} is used but no MAC is exposed by GWN; first-use migration required for manual workflow.");
+                    continue;
+                }
 
-            if ($dryRun) {
+                if ($dryRun) {
+                    $firstUseDetected++;
+                    $pendingManual++;
+                    autoLinkLog("DRY-RUN: Voucher {$voucherCode} first used by {$studentName}; no MAC found via GWN or portal monitor. Would queue manual link review.");
+                    continue;
+                }
+
+                if (!markVoucherFirstUseState($conn, $voucherLogId, null, false, $hasFirstUsedAt, $hasFirstUsedMac)) {
+                    $errors++;
+                    autoLinkLog("ERROR: Failed to mark first_used_at for voucher {$voucherCode}");
+                    continue;
+                }
+
                 $firstUseDetected++;
                 $pendingManual++;
-                autoLinkLog("DRY-RUN: Voucher {$voucherCode} first used by {$studentName}; no MAC exposed by GWN. Would queue manual link review.");
+
+                if ($needsMacRetry) {
+                    autoLinkLog("RETRY: Voucher {$voucherCode} used by {$studentName}; MAC still not available after retry (checked GWN, database, and portal monitor).");
+                } else {
+                    autoLinkLog("FIRST-USE: Voucher {$voucherCode} first used by {$studentName}; no MAC found via GWN or portal monitor.");
+                }
+
+                $message = "Voucher {$voucherCode} for {$studentName} was first used. No MAC address found via GWN or portal monitor, so link the device manually from Student Details.";
+                foreach (getVoucherUseNotificationRecipients($conn, $accommodationId) as $recipientId) {
+                    createNotification($recipientId, $message, 'warning', 1);
+                }
+                logActivity($conn, 1, 'voucher_first_use_no_mac', "Voucher {$voucherCode} first used by {$studentName} without MAC from GWN or portal monitor", '127.0.0.1');
                 continue;
             }
-
-            if (!markVoucherFirstUseState($conn, $voucherLogId, null, false, $hasFirstUsedAt, $hasFirstUsedMac)) {
-                $errors++;
-                autoLinkLog("ERROR: Failed to mark first_used_at for voucher {$voucherCode}");
-                continue;
-            }
-
-            $firstUseDetected++;
-            $pendingManual++;
-
-            if ($needsMacRetry) {
-                autoLinkLog("RETRY: Voucher {$voucherCode} used by {$studentName}; MAC still not available after retry.");
-            } else {
-                autoLinkLog("FIRST-USE: Voucher {$voucherCode} first used by {$studentName}; no MAC exposed by GWN.");
-            }
-
-            $message = "Voucher {$voucherCode} for {$studentName} was first used. GWN did not return a MAC address, so link the device manually from Student Details.";
-            foreach (getVoucherUseNotificationRecipients($conn, $accommodationId) as $recipientId) {
-                createNotification($recipientId, $message, 'warning', 1);
-            }
-            logActivity($conn, 1, 'voucher_first_use_no_mac', "Voucher {$voucherCode} first used by {$studentName} without MAC from GWN", '127.0.0.1');
-            continue;
         }
     }
 
@@ -566,6 +616,18 @@ foreach ($processingList as $map) {
             $deviceName = 'Auto-linked device';
         }
         autoLinkDebug('Client info for ' . $mac . ' -> type ' . $deviceType . ', name ' . $deviceName, $debug);
+    } else {
+        // If GWN client info is unavailable, try using portal guest name as fallback
+        $currentMapping = $mappingsByCode[strtoupper($voucherCode)] ?? null;
+        $voucherId = $currentMapping['voucher_id'] ?? null;
+        if ($voucherId && isset($guestsByVoucherId[$voucherId])) {
+            $portalGuest = $guestsByVoucherId[$voucherId];
+            $portalGuestName = trim((string)($portalGuest['name'] ?? ''));
+            if ($portalGuestName !== '' && $portalGuestName !== $deviceName) {
+                $deviceName = $portalGuestName;
+                autoLinkDebug('Using portal guest name as device name: ' . $deviceName, $debug);
+            }
+        }
     }
 
     if ($dryRun) {
