@@ -497,7 +497,10 @@ require_once '../includes/components/header.php';
                                             <strong><?= htmlspecialchars($activity['first_name'] . ' ' . $activity['last_name'], ENT_QUOTES, 'UTF-8') ?? 'Unknown' ?></strong>
                                         </small>
                                         <br>
-                                        <small><?= htmlspecialchars($activity['action'] ?? 'N/A', ENT_QUOTES, 'UTF-8') ?></small>
+                                        <small><?= ActivityLogHelper::normalizeActionLabel((string)($activity['action'] ?? ''), (string)($activity['details'] ?? '')) ?></small>
+                                        <?php $_detail_snip = ActivityLogHelper::formatDetails((string)($activity['action'] ?? ''), (string)($activity['details'] ?? '')); if ($_detail_snip !== '<span class="text-muted">—</span>'): ?>
+                                        <br><small class="text-muted"><?= $_detail_snip ?></small>
+                                        <?php endif; ?>
                                         <br>
                                         <small class="text-muted"><?= ActivityLogHelper::formatTimestamp((string)($activity['timestamp'] ?? '')) ?></small>
                                     </li>
