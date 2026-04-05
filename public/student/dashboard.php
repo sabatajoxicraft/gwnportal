@@ -2,6 +2,7 @@
 require_once '../../includes/config.php';
 require_once '../../includes/db.php';
 require_once '../../includes/functions.php';
+require_once '../../includes/helpers/ActivityLogHelper.php';
 
 $pageTitle = "Student Dashboard";
 $activePage = "student-dashboard";
@@ -207,7 +208,7 @@ include '../../includes/components/header.php';
                                                             Active
                                                         </span>
                                                     </td>
-                                                    <td><?= htmlEscape(date('Y-m-d H:i', strtotime($device['created_at']))) ?></td>
+                                                    <td><?= ActivityLogHelper::formatTimestamp($device['created_at']) ?></td>
                                                 </tr>
                                             <?php endforeach; ?>
                                         </tbody>
@@ -262,7 +263,7 @@ include '../../includes/components/header.php';
                                                             <?= htmlEscape(ucfirst($voucher['status'])) ?>
                                                         </span>
                                                     </td>
-                                                    <td><?= htmlEscape(date('Y-m-d H:i', strtotime($voucher['sent_at']))) ?></td>
+                                                    <td><?= ActivityLogHelper::formatTimestamp($voucher['sent_at']) ?></td>
                                                 </tr>
                                             <?php endforeach; ?>
                                         </tbody>

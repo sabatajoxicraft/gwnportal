@@ -1,6 +1,7 @@
 <?php
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
+require_once '../../includes/helpers/ActivityLogHelper.php';
 
 requireManagerLogin();
 
@@ -330,7 +331,7 @@ require_once '../../includes/components/header.php';
                                     </td>
                                     <td>
                                         <?php if ($voucher['sent_at']): ?>
-                                            <?= date('M j, Y H:i', strtotime($voucher['sent_at'])) ?>
+                                            <?= ActivityLogHelper::formatTimestamp($voucher['sent_at']) ?>
                                         <?php else: ?>
                                             <span class="text-muted">Not sent</span>
                                         <?php endif; ?>

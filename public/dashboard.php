@@ -398,39 +398,42 @@ require_once '../includes/components/header.php';
         <!-- Statistics Cards -->
         <div class="row mb-4">
             <div class="col-md-3 mb-3">
-                <div class="card text-center">
+                <div class="card bg-primary text-white stat-card">
                     <div class="card-body">
-                        <h5 class="card-title text-muted">Active Students</h5>
-                        <h2 class="text-primary"><?= $dashboardData['students']['active'] ?></h2>
-                        <small class="text-muted">/<?= $dashboardData['students']['total'] ?> total</small>
+                        <h5 class="card-title"><?= $dashboardData['students']['active'] ?></h5>
+                        <p class="mb-0">Active Students</p>
+                        <small class="text-light">/<?= $dashboardData['students']['total'] ?> total</small>
+                        <div class="icon"><i class="bi bi-person-check"></i></div>
                     </div>
                 </div>
             </div>
             <div class="col-md-3 mb-3">
-                <div class="card text-center">
+                <div class="card bg-warning text-white stat-card">
                     <div class="card-body">
-                        <h5 class="card-title text-muted">Pending Students</h5>
-                        <h2 class="text-warning"><?= $dashboardData['students']['pending'] ?></h2>
-                        <small class="text-muted">Awaiting activation</small>
+                        <h5 class="card-title"><?= $dashboardData['students']['pending'] ?></h5>
+                        <p class="mb-0">Pending Students</p>
+                        <small class="text-light">Awaiting activation</small>
+                        <div class="icon"><i class="bi bi-person-exclamation"></i></div>
                     </div>
                 </div>
             </div>
             <div class="col-md-3 mb-3">
-                <div class="card text-center">
+                <div class="card bg-success text-white stat-card">
                     <div class="card-body">
-                        <h5 class="card-title text-muted">Codes Available</h5>
-                        <h2 class="text-success"><?= $dashboardData['codes']['unused'] ?></h2>
-                        <small class="text-muted">/<?= $dashboardData['codes']['total'] ?> total</small>
+                        <h5 class="card-title"><?= $dashboardData['codes']['unused'] ?></h5>
+                        <p class="mb-0">Codes Available</p>
+                        <small class="text-light">/<?= $dashboardData['codes']['total'] ?> total</small>
+                        <div class="icon"><i class="bi bi-qr-code"></i></div>
                     </div>
                 </div>
             </div>
             <div class="col-md-3 mb-3">
-                <div class="card text-center">
+                <div class="card bg-info text-white stat-card">
                     <div class="card-body">
-                        <h5 class="card-title text-muted">
-                            <a href="accommodations.php" class="text-decoration-none">Manage</a>
-                        </h5>
-                        <small><a href="students.php" class="btn btn-sm btn-outline-primary">View Students</a></small>
+                        <h5 class="card-title">Manage</h5>
+                        <p class="mb-0">Quick Actions</p>
+                        <small><a href="students.php" class="btn btn-sm btn-light">View Students</a></small>
+                        <div class="icon"><i class="bi bi-gear"></i></div>
                     </div>
                 </div>
             </div>
@@ -440,8 +443,8 @@ require_once '../includes/components/header.php';
         <div class="row mb-4">
             <div class="col-12">
                 <div class="card">
-                    <div class="card-header bg-light">
-                        <h5 class="mb-0"><i class="bi bi-people"></i> Recent Students</h5>
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="bi bi-people me-2"></i>Recent Students</h5>
                     </div>
                     <div class="card-body p-0">
                         <table class="table table-hover mb-0">
@@ -485,29 +488,38 @@ require_once '../includes/components/header.php';
         <div class="row">
             <div class="col-12">
                 <div class="card">
-                    <div class="card-header bg-light">
-                        <h5 class="mb-0"><i class="bi bi-clock-history"></i> Recent Activity</h5>
+                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Recent Activity</h5>
                     </div>
-                    <div class="card-body">
+                    <div class="list-group list-group-flush">
                         <?php if (!empty($dashboardData['recentActivity'])): ?>
-                            <ul class="list-group list-group-flush">
-                                <?php foreach (array_slice($dashboardData['recentActivity'], 0, 10) as $activity): ?>
-                                    <li class="list-group-item">
-                                        <small class="text-muted">
-                                            <strong><?= htmlspecialchars($activity['first_name'] . ' ' . $activity['last_name'], ENT_QUOTES, 'UTF-8') ?? 'Unknown' ?></strong>
-                                        </small>
-                                        <br>
-                                        <small><?= ActivityLogHelper::normalizeActionLabel((string)($activity['action'] ?? ''), (string)($activity['details'] ?? '')) ?></small>
-                                        <?php $_detail_snip = ActivityLogHelper::formatDetails((string)($activity['action'] ?? ''), (string)($activity['details'] ?? '')); if ($_detail_snip !== '<span class="text-muted">—</span>'): ?>
-                                        <br><small class="text-muted"><?= $_detail_snip ?></small>
+                            <?php foreach (array_slice($dashboardData['recentActivity'], 0, 10) as $activity): ?>
+                                <?php
+                                $actAction  = (string)($activity['action'] ?? '');
+                                $actDetails = (string)($activity['details'] ?? '');
+                                $actTs      = (string)($activity['timestamp'] ?? '');
+                                ?>
+                                <div class="list-group-item">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h6 class="mb-1"><?= ActivityLogHelper::normalizeActionLabel($actAction, $actDetails) ?></h6>
+                                        <small><?= ActivityLogHelper::formatTimestamp($actTs) ?></small>
+                                    </div>
+                                    <?php $_detail_snip = ActivityLogHelper::formatDetails($actAction, $actDetails); ?>
+                                    <?php if ($_detail_snip !== '<span class="text-muted">—</span>'): ?>
+                                        <p class="mb-1 small text-muted"><?= $_detail_snip ?></p>
+                                    <?php endif; ?>
+                                    <small>
+                                        By:
+                                        <?php if (!empty($activity['first_name']) || !empty($activity['last_name'])): ?>
+                                            <?= htmlspecialchars(trim(($activity['first_name'] ?? '') . ' ' . ($activity['last_name'] ?? '')), ENT_QUOTES, 'UTF-8') ?>
+                                        <?php else: ?>
+                                            <span class="text-muted">System</span>
                                         <?php endif; ?>
-                                        <br>
-                                        <small class="text-muted"><?= ActivityLogHelper::formatTimestamp((string)($activity['timestamp'] ?? '')) ?></small>
-                                    </li>
-                                <?php endforeach; ?>
-                            </ul>
+                                    </small>
+                                </div>
+                            <?php endforeach; ?>
                         <?php else: ?>
-                            <p class="text-muted">No recent activity</p>
+                            <div class="list-group-item">No recent activity found</div>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -525,34 +537,38 @@ require_once '../includes/components/header.php';
         <!-- Overview Stats -->
         <div class="row mb-4">
             <div class="col-md-3 mb-3">
-                <div class="card text-center">
+                <div class="card bg-primary text-white stat-card">
                     <div class="card-body">
-                        <h5 class="card-title text-muted">Accommodations</h5>
-                        <h2 class="text-primary"><?= $dashboardData['stats']['accommodations'] ?></h2>
+                        <h5 class="card-title"><?= $dashboardData['stats']['accommodations'] ?></h5>
+                        <p class="mb-0">Accommodations</p>
+                        <div class="icon"><i class="bi bi-building"></i></div>
                     </div>
                 </div>
             </div>
             <div class="col-md-3 mb-3">
-                <div class="card text-center">
+                <div class="card bg-success text-white stat-card">
                     <div class="card-body">
-                        <h5 class="card-title text-muted">Total Students</h5>
-                        <h2 class="text-success"><?= $dashboardData['stats']['students'] ?></h2>
+                        <h5 class="card-title"><?= $dashboardData['stats']['students'] ?></h5>
+                        <p class="mb-0">Total Students</p>
+                        <div class="icon"><i class="bi bi-people"></i></div>
                     </div>
                 </div>
             </div>
             <div class="col-md-3 mb-3">
-                <div class="card text-center">
+                <div class="card bg-info text-white stat-card">
                     <div class="card-body">
-                        <h5 class="card-title text-muted">Managers</h5>
-                        <h2 class="text-info"><?= $dashboardData['stats']['managers'] ?></h2>
+                        <h5 class="card-title"><?= $dashboardData['stats']['managers'] ?></h5>
+                        <p class="mb-0">Managers</p>
+                        <div class="icon"><i class="bi bi-person-badge"></i></div>
                     </div>
                 </div>
             </div>
             <div class="col-md-3 mb-3">
-                <div class="card text-center">
+                <div class="card bg-warning text-white stat-card">
                     <div class="card-body">
-                        <h5 class="card-title text-muted">Devices</h5>
-                        <h2 class="text-warning"><?= $dashboardData['stats']['devices'] ?></h2>
+                        <h5 class="card-title"><?= $dashboardData['stats']['devices'] ?></h5>
+                        <p class="mb-0">Devices</p>
+                        <div class="icon"><i class="bi bi-router"></i></div>
                     </div>
                 </div>
             </div>
@@ -562,9 +578,9 @@ require_once '../includes/components/header.php';
         <div class="row">
             <div class="col-12">
                 <div class="card">
-                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0"><i class="bi bi-list"></i> Your Accommodations</h5>
-                        <a href="create-accommodation.php" class="btn btn-sm btn-primary">
+                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="bi bi-list me-2"></i>Your Accommodations</h5>
+                        <a href="create-accommodation.php" class="btn btn-sm btn-light">
                             <i class="bi bi-plus"></i> New Accommodation
                         </a>
                     </div>

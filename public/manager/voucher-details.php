@@ -1,6 +1,7 @@
 <?php
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
+require_once '../../includes/helpers/ActivityLogHelper.php';
 
 requireManagerLogin();
 
@@ -155,7 +156,7 @@ require_once '../../includes/components/header.php';
                         <div class="col-sm-4 fw-bold">Sent Date:</div>
                         <div class="col-sm-8">
                             <?php if ($voucher['sent_at']): ?>
-                                <?= date('l, F j, Y \a\t g:i A', strtotime($voucher['sent_at'])) ?>
+                                <?= ActivityLogHelper::formatTimestamp($voucher['sent_at']) ?>
                             <?php else: ?>
                                 <span class="text-muted">Not sent</span>
                             <?php endif; ?>
@@ -172,7 +173,7 @@ require_once '../../includes/components/header.php';
                     </div>
                     <div class="row mb-3">
                         <div class="col-sm-4 fw-bold">Created At:</div>
-                        <div class="col-sm-8"><?= date('F j, Y g:i A', strtotime($voucher['created_at'])) ?></div>
+                        <div class="col-sm-8"><?= ActivityLogHelper::formatTimestamp($voucher['created_at']) ?></div>
                     </div>
                     
                     <?php if (!empty($voucher['first_used_at'])): ?>
@@ -181,7 +182,7 @@ require_once '../../includes/components/header.php';
                             <h6 class="alert-heading"><i class="bi bi-check-circle"></i> Voucher Usage Detected</h6>
                             <div class="row mb-2">
                                 <div class="col-sm-4 fw-bold">First Used:</div>
-                                <div class="col-sm-8"><?= date('F j, Y g:i A', strtotime($voucher['first_used_at'])) ?></div>
+                                <div class="col-sm-8"><?= ActivityLogHelper::formatTimestamp($voucher['first_used_at']) ?></div>
                             </div>
                             <?php if (!empty($voucher['first_used_mac'])): ?>
                                 <div class="row mb-2">
@@ -218,7 +219,7 @@ require_once '../../includes/components/header.php';
                             <h5 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> Voucher Revoked</h5>
                             <div class="row mb-2">
                                 <div class="col-sm-4 fw-bold">Revoked At:</div>
-                                <div class="col-sm-8"><?= date('F j, Y g:i A', strtotime($voucher['revoked_at'])) ?></div>
+                                <div class="col-sm-8"><?= ActivityLogHelper::formatTimestamp($voucher['revoked_at']) ?></div>
                             </div>
                             <div class="row mb-2">
                                 <div class="col-sm-4 fw-bold">Revoked By:</div>
@@ -307,7 +308,7 @@ require_once '../../includes/components/header.php';
                             <div class="timeline-content">
                                 <h6 class="mb-1">Created</h6>
                                 <small class="text-muted">
-                                    <?= date('M j, Y g:i A', strtotime($voucher['created_at'])) ?>
+                                    <?= ActivityLogHelper::formatTimestamp($voucher['created_at']) ?>
                                 </small>
                             </div>
                         </div>
@@ -318,7 +319,7 @@ require_once '../../includes/components/header.php';
                                 <div class="timeline-content">
                                     <h6 class="mb-1">Sent via <?= $voucher['sent_via'] ?></h6>
                                     <small class="text-muted">
-                                        <?= date('M j, Y g:i A', strtotime($voucher['sent_at'])) ?>
+                                        <?= ActivityLogHelper::formatTimestamp($voucher['sent_at']) ?>
                                     </small>
                                 </div>
                             </div>
@@ -330,7 +331,7 @@ require_once '../../includes/components/header.php';
                                 <div class="timeline-content">
                                     <h6 class="mb-1">First Used</h6>
                                     <small class="text-muted">
-                                        <?= date('M j, Y g:i A', strtotime($voucher['first_used_at'])) ?>
+                                        <?= ActivityLogHelper::formatTimestamp($voucher['first_used_at']) ?>
                                     </small>
                                     <?php if (!empty($voucher['first_used_mac'])): ?>
                                         <div class="mt-1">
@@ -347,7 +348,7 @@ require_once '../../includes/components/header.php';
                                 <div class="timeline-content">
                                     <h6 class="mb-1">Device Linked</h6>
                                     <small class="text-muted">
-                                        <?= date('M j, Y g:i A', strtotime($linked_device['created_at'])) ?>
+                                        <?= ActivityLogHelper::formatTimestamp($linked_device['created_at']) ?>
                                     </small>
                                     <div class="mt-1">
                                         <small><?= htmlspecialchars($linked_device['device_name'] ?: 'Unnamed Device') ?></small>
@@ -362,7 +363,7 @@ require_once '../../includes/components/header.php';
                                 <div class="timeline-content">
                                     <h6 class="mb-1">Revoked</h6>
                                     <small class="text-muted">
-                                        <?= date('M j, Y g:i A', strtotime($voucher['revoked_at'])) ?>
+                                        <?= ActivityLogHelper::formatTimestamp($voucher['revoked_at']) ?>
                                     </small>
                                 </div>
                             </div>
