@@ -37,6 +37,22 @@ function autoLinkDebug($message, $enabled) {
     }
 }
 
+function getPortalMonitorLookupKeysForMapping($mapping) {
+    $keys = [];
+
+    $voucherCode = trim((string)($mapping['voucher_code'] ?? ''));
+    if ($voucherCode !== '' && ctype_digit($voucherCode)) {
+        $keys[] = (int)$voucherCode;
+    }
+
+    $voucherId = $mapping['voucher_id'] ?? null;
+    if ($voucherId !== null && $voucherId !== '' && is_numeric($voucherId)) {
+        $keys[] = (int)$voucherId;
+    }
+
+    return array_values(array_unique($keys));
+}
+
 function markVoucherFirstUseState($conn, $voucherLogId, $mac, $dryRun, $hasFirstUsedAt, $hasFirstUsedMac) {
     if ($dryRun || !$hasFirstUsedAt) {
         return true;
@@ -362,7 +378,7 @@ foreach ($mappings as $mappingsEntry) {
 // Build voucher ID lookup for missing-MAC fallback using portal monitor
 $mappingsWithoutMac = [];
 foreach ($mappings as $mappingsEntry) {
-    if (empty($mappingsEntry['mac']) && !empty($mappingsEntry['voucher_id'])) {
+    if (empty($mappingsEntry['mac']) && !empty(getPortalMonitorLookupKeysForMapping($mappingsEntry))) {
         $mappingsWithoutMac[] = $mappingsEntry;
     }
 }
@@ -493,27 +509,34 @@ foreach ($processingList as $map) {
             autoLinkDebug('Using historical MAC from first_used_mac: ' . $mac, $debug);
             // Continue processing with the historical MAC
         } else {
-            // Try portal monitor lookup by voucher ID before manual review
+            // Try portal monitor lookup by voucher identifier before manual review
             $portalGuestMac = null;
             $portalGuestName = '';
             $currentMapping = $mappingsByCode[strtoupper($voucherCode)] ?? null;
-            $voucherId = $currentMapping['voucher_id'] ?? null;
-            
-            if ($voucherId && isset($guestsByVoucherId[$voucherId])) {
-                $portalGuest = $guestsByVoucherId[$voucherId];
+            $portalLookupKeys = $currentMapping ? getPortalMonitorLookupKeysForMapping($currentMapping) : [];
+            $matchedPortalKey = null;
+
+            foreach ($portalLookupKeys as $portalLookupKey) {
+                if (!isset($guestsByVoucherId[$portalLookupKey])) {
+                    continue;
+                }
+
+                $matchedPortalKey = $portalLookupKey;
+                $portalGuest = $guestsByVoucherId[$portalLookupKey];
                 $clientMac = trim((string)($portalGuest['client_id'] ?? ''));
                 if ($clientMac !== '' && preg_match('/^[0-9a-fA-F:.-]{12,17}$/', $clientMac)) {
                     $portalGuestMac = formatMacAddress($clientMac);
                     $portalGuestName = trim((string)($portalGuest['name'] ?? ''));
-                    autoLinkDebug("Found portal monitor session for voucher ID {$voucherId}: MAC={$portalGuestMac}, name={$portalGuestName}", $debug);
+                    autoLinkDebug("Found portal monitor session for voucher {$voucherCode} using key {$matchedPortalKey}: MAC={$portalGuestMac}, name={$portalGuestName}", $debug);
+                    break;
                 } else {
-                    autoLinkDebug("Portal monitor session for voucher ID {$voucherId} has invalid client MAC: '{$clientMac}'", $debug);
+                    autoLinkDebug("Portal monitor session for voucher {$voucherCode} using key {$matchedPortalKey} has invalid client MAC: '{$clientMac}'", $debug);
                 }
             }
             
             if ($portalGuestMac) {
                 $mac = $portalGuestMac;
-                autoLinkDebug("Using MAC from portal monitor: {$mac}", $debug);
+                autoLinkDebug("Using MAC from portal monitor for voucher {$voucherCode}: {$mac}", $debug);
                 // Continue processing with the portal-resolved MAC
             } else {
                 // No MAC from GWN API, database, or portal monitor; uncertain cases go to manual review.
@@ -619,14 +642,19 @@ foreach ($processingList as $map) {
     } else {
         // If GWN client info is unavailable, try using portal guest name as fallback
         $currentMapping = $mappingsByCode[strtoupper($voucherCode)] ?? null;
-        $voucherId = $currentMapping['voucher_id'] ?? null;
-        if ($voucherId && isset($guestsByVoucherId[$voucherId])) {
-            $portalGuest = $guestsByVoucherId[$voucherId];
+        $portalLookupKeys = $currentMapping ? getPortalMonitorLookupKeysForMapping($currentMapping) : [];
+        foreach ($portalLookupKeys as $portalLookupKey) {
+            if (!isset($guestsByVoucherId[$portalLookupKey])) {
+                continue;
+            }
+
+            $portalGuest = $guestsByVoucherId[$portalLookupKey];
             $portalGuestName = trim((string)($portalGuest['name'] ?? ''));
             if ($portalGuestName !== '' && $portalGuestName !== $deviceName) {
                 $deviceName = $portalGuestName;
                 autoLinkDebug('Using portal guest name as device name: ' . $deviceName, $debug);
             }
+            break;
         }
     }
 
