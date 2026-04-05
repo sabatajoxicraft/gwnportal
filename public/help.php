@@ -44,12 +44,28 @@ $extraCss  = '<style>
 $headerType = isLoggedIn() ? 'app' : 'public';
 $footerType = $headerType;
 
+// Determine which role-specific sections to show
+$viewerRole  = isLoggedIn() ? getUserRole() : null;
+$showStudent = ($viewerRole === ROLE_STUDENT);
+$showManager = ($viewerRole === ROLE_MANAGER);
+$showAdmin   = ($viewerRole === ROLE_ADMIN);
+$showOwner   = ($viewerRole === ROLE_OWNER);  // owner has no dedicated section yet
+
+// Dynamic hero subtitle
+$heroSubtitle = match(true) {
+    $showStudent => 'Step-by-step guides for your student account',
+    $showManager => 'Step-by-step guides for accommodation managers',
+    $showAdmin   => 'Step-by-step guides for portal administrators',
+    $showOwner   => 'Help guides and contact support',
+    default      => 'Help guides and frequently asked questions',
+};
+
 require_once '../includes/components/header.php';
 ?>
 
 <div class="help-hero text-center">
     <h1 class="mb-2"><i class="bi bi-question-circle me-2"></i>Help Center</h1>
-    <p class="lead mb-0 opacity-75">Step-by-step guides for students, managers, and admins</p>
+    <p class="lead mb-0 opacity-75"><?= htmlspecialchars($heroSubtitle) ?></p>
 </div>
 
 <div class="container py-4">
@@ -65,14 +81,20 @@ require_once '../includes/components/header.php';
                     <div class="card-body p-2">
                         <nav class="nav flex-column small">
                             <a class="toc-link py-1 px-2 rounded" href="#getting-started"><i class="bi bi-play-circle me-2 text-primary"></i>Getting Started</a>
+                            <?php if ($showStudent): ?>
                             <a class="toc-link py-1 px-2 rounded" href="#student-voucher"><i class="bi bi-wifi me-2 text-info"></i>Request a Voucher</a>
                             <a class="toc-link py-1 px-2 rounded" href="#student-use-voucher"><i class="bi bi-router me-2 text-info"></i>Use Your Voucher</a>
                             <a class="toc-link py-1 px-2 rounded" href="#student-devices"><i class="bi bi-laptop me-2 text-info"></i>Register a Device</a>
                             <a class="toc-link py-1 px-2 rounded" href="#student-device-status"><i class="bi bi-activity me-2 text-info"></i>Device Status</a>
+                            <?php endif; ?>
+                            <?php if ($showManager): ?>
                             <a class="toc-link py-1 px-2 rounded" href="#manager-send"><i class="bi bi-send me-2" style="color:#6610f2"></i>Send Vouchers</a>
                             <a class="toc-link py-1 px-2 rounded" href="#manager-students"><i class="bi bi-people me-2" style="color:#6610f2"></i>Student Details</a>
                             <a class="toc-link py-1 px-2 rounded" href="#manager-access"><i class="bi bi-shield-lock me-2" style="color:#6610f2"></i>Block / Restore Access</a>
+                            <?php endif; ?>
+                            <?php if ($showAdmin): ?>
                             <a class="toc-link py-1 px-2 rounded" href="#admin-overview"><i class="bi bi-gear me-2 text-danger"></i>Admin Overview</a>
+                            <?php endif; ?>
                             <a class="toc-link py-1 px-2 rounded" href="#troubleshooting"><i class="bi bi-tools me-2 text-warning"></i>Troubleshooting</a>
                             <a class="toc-link py-1 px-2 rounded" href="#contact"><i class="bi bi-envelope me-2 text-secondary"></i>Contact Support</a>
                         </nav>
@@ -93,20 +115,33 @@ require_once '../includes/components/header.php';
                     <div class="card card-body p-2">
                         <nav class="nav flex-column small">
                             <a class="toc-link py-1 px-2" href="#getting-started">Getting Started</a>
+                            <?php if ($showStudent): ?>
                             <a class="toc-link py-1 px-2" href="#student-voucher">Request a Voucher</a>
                             <a class="toc-link py-1 px-2" href="#student-use-voucher">Use Your Voucher</a>
                             <a class="toc-link py-1 px-2" href="#student-devices">Register a Device</a>
                             <a class="toc-link py-1 px-2" href="#student-device-status">Device Status</a>
+                            <?php endif; ?>
+                            <?php if ($showManager): ?>
                             <a class="toc-link py-1 px-2" href="#manager-send">Send Vouchers</a>
                             <a class="toc-link py-1 px-2" href="#manager-students">Student Details</a>
                             <a class="toc-link py-1 px-2" href="#manager-access">Block / Restore Access</a>
+                            <?php endif; ?>
+                            <?php if ($showAdmin): ?>
                             <a class="toc-link py-1 px-2" href="#admin-overview">Admin Overview</a>
+                            <?php endif; ?>
                             <a class="toc-link py-1 px-2" href="#troubleshooting">Troubleshooting</a>
                             <a class="toc-link py-1 px-2" href="#contact">Contact Support</a>
                         </nav>
                     </div>
                 </div>
             </div>
+
+            <?php if ($showOwner): ?>
+            <div class="alert alert-info d-flex gap-2 mb-4">
+                <i class="bi bi-info-circle-fill flex-shrink-0 mt-1"></i>
+                <div>The shared help sections below are available to everyone. Role-specific guidance for owners will be added in a future update.</div>
+            </div>
+            <?php endif; ?>
 
             <!-- GETTING STARTED -->
             <section id="getting-started" class="help-section mb-5">
@@ -140,6 +175,7 @@ require_once '../includes/components/header.php';
                 </div>
             </section>
 
+            <?php if ($showStudent): ?>
             <!-- STUDENT: REQUEST A VOUCHER -->
             <section id="student-voucher" class="help-section mb-5">
                 <div class="d-flex align-items-center mb-3 gap-3">
@@ -283,7 +319,9 @@ require_once '../includes/components/header.php';
                     </div>
                 </div>
             </section>
+            <?php endif; // showStudent ?>
 
+            <?php if ($showManager): ?>
             <!-- MANAGER: SEND VOUCHERS -->
             <section id="manager-send" class="help-section mb-5">
                 <div class="d-flex align-items-center mb-3 gap-3">
@@ -377,7 +415,9 @@ require_once '../includes/components/header.php';
                     </div>
                 </div>
             </section>
+            <?php endif; // showManager ?>
 
+            <?php if ($showAdmin): ?>
             <!-- ADMIN OVERVIEW -->
             <section id="admin-overview" class="help-section mb-5">
                 <div class="d-flex align-items-center mb-3 gap-3">
@@ -416,6 +456,7 @@ require_once '../includes/components/header.php';
                     <div><strong>Admin actions are irreversible in some cases.</strong> Always review before confirming destructive actions. All changes are recorded in the Activity Log.</div>
                 </div>
             </section>
+            <?php endif; // showAdmin ?>
 
             <!-- TROUBLESHOOTING -->
             <section id="troubleshooting" class="help-section mb-5">
