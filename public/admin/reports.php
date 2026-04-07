@@ -1,273 +1,326 @@
 <?php
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
+require_once '../../includes/services/ReportService.php';
+require_once '../../includes/helpers/ActivityLogHelper.php';
 
-// Ensure session is started
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Require admin role
 requireRole('admin');
-
-// Handle report generation
-$report_data = [];
-$report_type = $_GET['type'] ?? '';
-$start_date = $_GET['start_date'] ?? date('Y-m-01'); // First day of current month
-$end_date = $_GET['end_date'] ?? date('Y-m-t');      // Last day of current month
-$accommodation_id = $_GET['accommodation_id'] ?? 'all';
 
 $conn = getDbConnection();
 
-// Prepare report based on type
-if ($report_type) {
+// ----- Read filters -------------------------------------------------------
+$report_type      = $_GET['type'] ?? '';
+$start_date       = $_GET['start_date'] ?? date('Y-m-01');
+$end_date         = $_GET['end_date'] ?? date('Y-m-t');
+$accommodation_id = $_GET['accommodation_id'] ?? 'all';
+$action_filter    = $_GET['action_filter'] ?? 'all';
+$export           = $_GET['export'] ?? '';
+
+// All known report types (M2-T8 first, then legacy)
+$report_types = [
+    'monthly_voucher_usage',
+    'student_enrollment',
+    'device_authorization',
+    'manager_activity',
+    'system_audit_log',
+    'user_activity',
+    'accommodation_usage',
+    'onboarding_codes',
+];
+
+// ----- Fetch report data --------------------------------------------------
+$report_data = [];
+if ($report_type && in_array($report_type, $report_types, true)) {
     switch ($report_type) {
+        case 'monthly_voucher_usage':
+            $report_data = ReportService::getMonthlyVoucherUsage($conn, $start_date, $end_date, $accommodation_id);
+            break;
+        case 'student_enrollment':
+            $report_data = ReportService::getStudentEnrollmentByAccommodation($conn, $start_date, $end_date, $accommodation_id);
+            break;
+        case 'device_authorization':
+            $report_data = ReportService::getDeviceAuthorizationSummary($conn, $start_date, $end_date, $accommodation_id);
+            break;
+        case 'manager_activity':
+            $report_data = ReportService::getManagerActivity($conn, $start_date, $end_date, $accommodation_id);
+            break;
+        case 'system_audit_log':
+            $limit = ($export === 'csv') ? 0 : 2000;
+            $report_data = ReportService::getSystemAuditLog($conn, $start_date, $end_date, $action_filter, 0, $limit);
+            break;
         case 'user_activity':
-            $sql = "SELECT u.first_name, u.last_name, u.email, r.name as role_name, u.created_at, u.status
-                   FROM users u
-                   JOIN roles r ON u.role_id = r.id
-                   WHERE u.created_at BETWEEN ? AND ?
-                   ORDER BY u.created_at DESC";
-            
-            $stmt = safeQueryPrepare($conn, $sql);
-            $stmt->bind_param("ss", $start_date, $end_date);
-            $stmt->execute();
-            $report_data = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $report_data = ReportService::getUserActivity($conn, $start_date, $end_date);
             break;
-            
         case 'accommodation_usage':
-            $where = $accommodation_id !== 'all' ? "AND a.id = ?" : "";
-            
-            $sql = "SELECT 
-                   a.name as accommodation_name,
-                   (COALESCE(s.student_count, 0) + COALESCE(m.manager_count, 0)) as total_users,
-                   COALESCE(s.student_count, 0) as student_count,
-                   COALESCE(m.manager_count, 0) as manager_count
-                   FROM accommodations a
-                   LEFT JOIN (
-                       SELECT 
-                           s.accommodation_id,
-                           COUNT(DISTINCT s.user_id) as student_count
-                       FROM students s
-                       JOIN users u ON u.id = s.user_id
-                       JOIN roles r ON r.id = u.role_id
-                       WHERE s.status = 'active'
-                         AND u.status = 'active'
-                         AND r.name = 'student'
-                       GROUP BY s.accommodation_id
-                   ) s ON s.accommodation_id = a.id
-                   LEFT JOIN (
-                       SELECT
-                           ua.accommodation_id,
-                           COUNT(DISTINCT ua.user_id) as manager_count
-                       FROM user_accommodation ua
-                       JOIN users u ON u.id = ua.user_id
-                       JOIN roles r ON r.id = u.role_id
-                       WHERE u.status = 'active'
-                         AND r.name = 'manager'
-                       GROUP BY ua.accommodation_id
-                   ) m ON m.accommodation_id = a.id
-                   WHERE 1=1 $where
-                   ORDER BY a.name";
-            
-            $stmt = safeQueryPrepare($conn, $sql);
-            if ($accommodation_id !== 'all') {
-                $stmt->bind_param("i", $accommodation_id);
-            }
-            $stmt->execute();
-            $report_data = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $report_data = ReportService::getAccommodationUsage($conn, $accommodation_id);
             break;
-            
         case 'onboarding_codes':
-            $where = $accommodation_id !== 'all' ? "AND oc.accommodation_id = ?" : "";
-            
-            $sql = "SELECT 
-                   a.name as accommodation_name,
-                   COUNT(oc.id) as total_codes,
-                   SUM(CASE WHEN oc.status = 'unused' THEN 1 ELSE 0 END) as unused_codes,
-                   SUM(CASE WHEN oc.status = 'used' THEN 1 ELSE 0 END) as used_codes,
-                   SUM(CASE WHEN oc.status = 'expired' THEN 1 ELSE 0 END) as expired_codes,
-                   MIN(oc.created_at) as first_code_date,
-                   MAX(oc.created_at) as last_code_date
-                   FROM onboarding_codes oc
-                   JOIN accommodations a ON oc.accommodation_id = a.id
-                   WHERE oc.created_at BETWEEN ? AND ? $where
-                   GROUP BY a.id
-                   ORDER BY a.name";
-            
-            $stmt = safeQueryPrepare($conn, $sql);
-            if ($accommodation_id !== 'all') {
-                $stmt->bind_param("ssi", $start_date, $end_date, $accommodation_id);
-            } else {
-                $stmt->bind_param("ss", $start_date, $end_date);
-            }
-            $stmt->execute();
-            $report_data = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $report_data = ReportService::getOnboardingCodes($conn, $start_date, $end_date, $accommodation_id);
             break;
     }
 }
 
-// Get accommodations for filter
+// ----- Server-side CSV export ---------------------------------------------
+if ($export === 'csv' && $report_type && in_array($report_type, $report_types, true)) {
+    $columns  = ReportService::getReportColumns($report_type);
+    $filename = 'report_' . $report_type . '_' . date('Y-m-d_His') . '.csv';
+
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+
+    $output = fopen('php://output', 'w');
+    // UTF-8 BOM for Excel
+    fprintf($output, chr(0xEF) . chr(0xBB) . chr(0xBF));
+
+    // Header row
+    fputcsv($output, array_column($columns, 'label'));
+
+    // Timezone converter for audit/activity timestamps displayed as UTC
+    $storageTz = defined('ACTIVITY_LOG_STORAGE_TIMEZONE') ? ACTIVITY_LOG_STORAGE_TIMEZONE : 'UTC';
+    $displayTz = defined('APP_TIMEZONE') ? APP_TIMEZONE : 'Africa/Johannesburg';
+    $tzObj     = new DateTimeZone($displayTz);
+    $plainTs   = function (string $raw) use ($storageTz, $tzObj): string {
+        if (empty($raw) || strpos($raw, '0000-00-00') === 0) return '';
+        try {
+            $dt = new DateTimeImmutable($raw, new DateTimeZone($storageTz));
+            return $dt->getTimestamp() > 0 ? $dt->setTimezone($tzObj)->format('Y-m-d H:i:s') : '';
+        } catch (\Exception $e) { return ''; }
+    };
+    $stripHtml = fn(string $html): string => html_entity_decode(strip_tags($html), ENT_QUOTES, 'UTF-8');
+
+    foreach ($report_data as $row) {
+        $csvRow = [];
+        foreach ($columns as $col) {
+            $val = $row[$col['key']] ?? '';
+
+            // Special formatting for certain columns
+            if ($col['key'] === 'timestamp' && in_array($report_type, ['system_audit_log', 'manager_activity'])) {
+                $val = $plainTs((string)$val);
+            } elseif (in_array($col['key'], ['first_activity', 'last_activity'])) {
+                $val = $plainTs((string)$val);
+            } elseif ($col['key'] === 'action' && $report_type === 'system_audit_log') {
+                $val = $stripHtml(ActivityLogHelper::normalizeActionLabel((string)($row['action'] ?? ''), (string)($row['details'] ?? '')));
+            } elseif ($col['key'] === 'details' && $report_type === 'system_audit_log') {
+                $val = $stripHtml(ActivityLogHelper::formatDetails((string)($row['action'] ?? ''), (string)($row['details'] ?? '')));
+            } elseif ($col['key'] === 'ip_address' && $report_type === 'system_audit_log') {
+                $ip = (string)($row['ip_address'] ?? '');
+                if ($ip === '') {
+                    $decoded = json_decode((string)($row['details'] ?? ''), true);
+                    if (is_array($decoded) && !empty($decoded['ip_address'])) {
+                        $ip = (string)$decoded['ip_address'];
+                    }
+                }
+                $val = $ip;
+            } elseif ($col['key'] === 'role_name') {
+                $val = ucfirst((string)$val);
+            } elseif ($col['key'] === 'status') {
+                $val = ucfirst((string)$val);
+            }
+
+            $csvRow[] = (string)$val;
+        }
+        fputcsv($output, $csvRow);
+    }
+
+    fclose($output);
+    exit;
+}
+
+// ----- Data for filter dropdowns ------------------------------------------
+$accommodations = [];
 $accom_stmt = safeQueryPrepare($conn, "SELECT id, name FROM accommodations ORDER BY name");
-$accom_stmt->execute();
-$accommodations = $accom_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+if ($accom_stmt) {
+    $accom_stmt->execute();
+    $accommodations = $accom_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $accom_stmt->close();
+}
 
-// Set page title
-$pageTitle = "Generate Reports";
+// Distinct actions for system_audit_log filter
+$distinct_actions = [];
+if ($report_type === 'system_audit_log') {
+    $actionsStmt = safeQueryPrepare($conn, "SELECT DISTINCT action FROM activity_log ORDER BY action");
+    if ($actionsStmt) {
+        $actionsStmt->execute();
+        $distinct_actions = $actionsStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $actionsStmt->close();
+    }
+}
+
+// Columns for current report
+$columns = $report_type ? ReportService::getReportColumns($report_type) : [];
+
+// Build CSV export URL preserving current filters
+$csvExportUrl = '';
+if ($report_type && count($report_data) > 0) {
+    $csvParams = $_GET;
+    $csvParams['export'] = 'csv';
+    $csvExportUrl = 'reports.php?' . http_build_query($csvParams);
+}
+
+$pageTitle  = "Generate Reports";
 $activePage = "reports";
-
-// Include header
 require_once '../../includes/components/header.php';
-
 ?>
 
 <div class="container mt-4">
     <?php require_once '../../includes/components/messages.php'; ?>
-    
+
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2>Generate Reports</h2>
     </div>
-    
+
     <div class="row">
+        <!-- Sidebar: report type list -->
         <div class="col-md-3 mb-4">
             <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Report Types</h5>
-                </div>
+                <div class="card-header"><h5 class="mb-0">Report Types</h5></div>
                 <div class="list-group list-group-flush">
-                    <a href="?type=user_activity" class="list-group-item list-group-item-action <?= $report_type === 'user_activity' ? 'active' : '' ?>">
-                        <i class="bi bi-people me-2"></i> User Activity
-                    </a>
-                    <a href="?type=accommodation_usage" class="list-group-item list-group-item-action <?= $report_type === 'accommodation_usage' ? 'active' : '' ?>">
-                        <i class="bi bi-building me-2"></i> Accommodation Usage
-                    </a>
-                    <a href="?type=onboarding_codes" class="list-group-item list-group-item-action <?= $report_type === 'onboarding_codes' ? 'active' : '' ?>">
-                        <i class="bi bi-ticket-perforated me-2"></i> Onboarding Codes
-                    </a>
+                    <?php foreach ($report_types as $rt): ?>
+                        <a href="?type=<?= $rt ?>"
+                           class="list-group-item list-group-item-action <?= $report_type === $rt ? 'active' : '' ?>">
+                            <i class="bi <?= ReportService::getReportIcon($rt) ?> me-2"></i>
+                            <?= htmlspecialchars(ReportService::getReportTitle($rt)) ?>
+                        </a>
+                    <?php endforeach; ?>
                 </div>
             </div>
         </div>
-        
+
+        <!-- Main content -->
         <div class="col-md-9">
-            <?php if ($report_type): ?>
+            <?php if ($report_type && in_array($report_type, $report_types, true)): ?>
                 <div class="card mb-4">
                     <div class="card-header">
                         <h5 class="mb-0">
-                            <?php
-                            switch ($report_type) {
-                                case 'user_activity':
-                                    echo '<i class="bi bi-people me-2"></i> User Activity Report';
-                                    break;
-                                case 'accommodation_usage':
-                                    echo '<i class="bi bi-building me-2"></i> Accommodation Usage Report';
-                                    break;
-                                case 'onboarding_codes':
-                                    echo '<i class="bi bi-ticket-perforated me-2"></i> Onboarding Codes Report';
-                                    break;
-                            }
-                            ?>
+                            <i class="bi <?= ReportService::getReportIcon($report_type) ?> me-2"></i>
+                            <?= htmlspecialchars(ReportService::getReportTitle($report_type)) ?> Report
                         </h5>
                     </div>
                     <div class="card-body">
+                        <!-- Filter form -->
                         <form method="get" class="row g-3 mb-4">
-                            <input type="hidden" name="type" value="<?= $report_type ?>">
-                            
-                            <?php if ($report_type === 'user_activity' || $report_type === 'onboarding_codes'): ?>
-                                <div class="col-md-4">
+                            <input type="hidden" name="type" value="<?= htmlspecialchars($report_type) ?>">
+
+                            <?php if (ReportService::hasDateFilter($report_type)): ?>
+                                <div class="col-md-3">
                                     <label for="start_date" class="form-label">Start Date</label>
-                                    <input type="date" class="form-control" id="start_date" name="start_date" value="<?= $start_date ?>">
+                                    <input type="date" class="form-control" id="start_date" name="start_date"
+                                           value="<?= htmlspecialchars($start_date) ?>">
                                 </div>
-                                
-                                <div class="col-md-4">
+                                <div class="col-md-3">
                                     <label for="end_date" class="form-label">End Date</label>
-                                    <input type="date" class="form-control" id="end_date" name="end_date" value="<?= $end_date ?>">
+                                    <input type="date" class="form-control" id="end_date" name="end_date"
+                                           value="<?= htmlspecialchars($end_date) ?>">
                                 </div>
                             <?php endif; ?>
-                            
-                            <?php if ($report_type === 'accommodation_usage' || $report_type === 'onboarding_codes'): ?>
-                                <div class="col-md-4">
+
+                            <?php if (ReportService::hasAccommodationFilter($report_type)): ?>
+                                <div class="col-md-3">
                                     <label for="accommodation_id" class="form-label">Accommodation</label>
                                     <select class="form-select" id="accommodation_id" name="accommodation_id">
                                         <option value="all" <?= $accommodation_id === 'all' ? 'selected' : '' ?>>All Accommodations</option>
-                                        <?php foreach ($accommodations as $accommodation): ?>
-                                            <option value="<?= $accommodation['id'] ?>" <?= $accommodation_id == $accommodation['id'] ? 'selected' : '' ?>>
-                                                <?= htmlspecialchars($accommodation['name']) ?>
+                                        <?php foreach ($accommodations as $acc): ?>
+                                            <option value="<?= (int)$acc['id'] ?>" <?= $accommodation_id == $acc['id'] ? 'selected' : '' ?>>
+                                                <?= htmlspecialchars($acc['name']) ?>
                                             </option>
                                         <?php endforeach; ?>
                                     </select>
                                 </div>
                             <?php endif; ?>
-                            
+
+                            <?php if ($report_type === 'system_audit_log'): ?>
+                                <div class="col-md-3">
+                                    <label for="action_filter" class="form-label">Action</label>
+                                    <select class="form-select" id="action_filter" name="action_filter">
+                                        <option value="all" <?= $action_filter === 'all' ? 'selected' : '' ?>>All Actions</option>
+                                        <?php foreach ($distinct_actions as $act):
+                                            $aVal = $act['action'] ?? '';
+                                            if ($aVal === '') continue;
+                                        ?>
+                                            <option value="<?= htmlspecialchars($aVal) ?>" <?= $action_filter === $aVal ? 'selected' : '' ?>>
+                                                <?= htmlspecialchars(ActivityLogHelper::getFriendlyActionLabel($aVal)) ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                            <?php endif; ?>
+
                             <div class="col-12">
-                                <button type="submit" class="btn btn-primary">Generate Report</button>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-funnel me-1"></i> Generate Report
+                                </button>
                                 <a href="reports.php" class="btn btn-secondary ms-2">Reset</a>
                             </div>
                         </form>
-                        
+
                         <?php if (count($report_data) > 0): ?>
+                            <!-- Result count & export -->
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <span class="text-muted"><?= number_format(count($report_data)) ?> row(s) returned</span>
+                                <a href="<?= htmlspecialchars($csvExportUrl) ?>" class="btn btn-success btn-sm">
+                                    <i class="bi bi-file-earmark-spreadsheet me-1"></i> Export CSV
+                                </a>
+                            </div>
+
+                            <!-- Data table -->
                             <div class="table-responsive">
-                                <table class="table table-hover">
-                                    <thead>
+                                <table class="table table-hover table-sm">
+                                    <thead class="table-light">
                                         <tr>
-                                            <?php
-                                            // Output table headers based on report type
-                                            switch ($report_type) {
-                                                case 'user_activity':
-                                                    echo '<th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Created</th>';
-                                                    break;
-                                                case 'accommodation_usage':
-                                                    echo '<th>Accommodation</th><th>Total Users</th><th>Students</th><th>Managers</th>';
-                                                    break;
-                                                case 'onboarding_codes':
-                                                    echo '<th>Accommodation</th><th>Total Codes</th><th>Unused</th><th>Used</th><th>Expired</th><th>First Code</th><th>Last Code</th>';
-                                                    break;
-                                            }
-                                            ?>
+                                            <?php foreach ($columns as $col): ?>
+                                                <th><?= htmlspecialchars($col['label']) ?></th>
+                                            <?php endforeach; ?>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <?php foreach ($report_data as $row): ?>
                                             <tr>
-                                                <?php
-                                                // Output table rows based on report type
-                                                switch ($report_type) {
-                                                    case 'user_activity':
-                                                        echo '<td>' . $row['first_name'] . ' ' . $row['last_name'] . '</td>';
-                                                        echo '<td>' . $row['email'] . '</td>';
-                                                        echo '<td>' . ucfirst($row['role_name']) . '</td>';
-                                                        echo '<td>' . ucfirst($row['status']) . '</td>';
-                                                        echo '<td>' . date('Y-m-d H:i', strtotime($row['created_at'])) . '</td>';
-                                                        break;
-                                                    case 'accommodation_usage':
-                                                        echo '<td>' . $row['accommodation_name'] . '</td>';
-                                                        echo '<td>' . $row['total_users'] . '</td>';
-                                                        echo '<td>' . $row['student_count'] . '</td>';
-                                                        echo '<td>' . $row['manager_count'] . '</td>';
-                                                        break;
-                                                    case 'onboarding_codes':
-                                                        echo '<td>' . $row['accommodation_name'] . '</td>';
-                                                        echo '<td>' . $row['total_codes'] . '</td>';
-                                                        echo '<td>' . $row['unused_codes'] . '</td>';
-                                                        echo '<td>' . $row['used_codes'] . '</td>';
-                                                        echo '<td>' . $row['expired_codes'] . '</td>';
-                                                        echo '<td>' . date('Y-m-d', strtotime($row['first_code_date'])) . '</td>';
-                                                        echo '<td>' . date('Y-m-d', strtotime($row['last_code_date'])) . '</td>';
-                                                        break;
-                                                }
-                                                ?>
+                                                <?php foreach ($columns as $col):
+                                                    $val = $row[$col['key']] ?? '';
+
+                                                    // Format specific columns for HTML display
+                                                    if ($col['key'] === 'timestamp' && in_array($report_type, ['system_audit_log', 'manager_activity'])) {
+                                                        echo '<td>' . ActivityLogHelper::formatTimestamp((string)$val) . '</td>';
+                                                    } elseif (in_array($col['key'], ['first_activity', 'last_activity'])) {
+                                                        echo '<td>' . ActivityLogHelper::formatTimestamp((string)$val) . '</td>';
+                                                    } elseif ($col['key'] === 'action' && $report_type === 'system_audit_log') {
+                                                        echo '<td>' . ActivityLogHelper::normalizeActionLabel((string)($row['action'] ?? ''), (string)($row['details'] ?? '')) . '</td>';
+                                                    } elseif ($col['key'] === 'details' && $report_type === 'system_audit_log') {
+                                                        $formatted = ActivityLogHelper::formatDetails((string)($row['action'] ?? ''), (string)($row['details'] ?? ''));
+                                                        echo '<td class="text-truncate" style="max-width:300px;" title="' . htmlspecialchars(strip_tags($formatted)) . '">' . $formatted . '</td>';
+                                                    } elseif ($col['key'] === 'ip_address' && $report_type === 'system_audit_log') {
+                                                        $ip = (string)($row['ip_address'] ?? '');
+                                                        if ($ip === '') {
+                                                            $decoded = json_decode((string)($row['details'] ?? ''), true);
+                                                            if (is_array($decoded) && !empty($decoded['ip_address'])) {
+                                                                $ip = (string)$decoded['ip_address'];
+                                                            }
+                                                        }
+                                                        echo '<td>' . htmlspecialchars($ip) . '</td>';
+                                                    } elseif ($col['key'] === 'role_name') {
+                                                        echo '<td>' . htmlspecialchars(ucfirst((string)$val)) . '</td>';
+                                                    } elseif ($col['key'] === 'status') {
+                                                        echo '<td>' . htmlspecialchars(ucfirst((string)$val)) . '</td>';
+                                                    } elseif (in_array($col['key'], ['created_at', 'first_enrollment', 'last_enrollment', 'first_code_date', 'last_code_date'])) {
+                                                        echo '<td>' . (!empty($val) ? htmlspecialchars(date('Y-m-d', strtotime($val))) : '<span class="text-muted">—</span>') . '</td>';
+                                                    } else {
+                                                        echo '<td>' . htmlspecialchars((string)$val) . '</td>';
+                                                    }
+                                                endforeach; ?>
                                             </tr>
                                         <?php endforeach; ?>
                                     </tbody>
                                 </table>
                             </div>
-                            
-                            <div class="mt-3">
-                                <button class="btn btn-success" onclick="exportTableToCSV('report_<?= $report_type ?>_<?= date('Y-m-d') ?>.csv')">
-                                    <i class="bi bi-file-earmark-spreadsheet"></i> Export to CSV
-                                </button>
-                            </div>
                         <?php else: ?>
-                            <div class="alert alert-info">
+                            <div class="alert alert-info mb-0">
+                                <i class="bi bi-info-circle me-2"></i>
                                 No data found for the selected report criteria.
                             </div>
                         <?php endif; ?>
@@ -285,42 +338,5 @@ require_once '../../includes/components/header.php';
         </div>
     </div>
 </div>
-
-<script>
-function exportTableToCSV(filename) {
-    const table = document.querySelector('table');
-    const rows = table.querySelectorAll('tr');
-    let csv = [];
-    
-    for (let i = 0; i < rows.length; i++) {
-        const row = [], cols = rows[i].querySelectorAll('td, th');
-        
-        for (let j = 0; j < cols.length; j++) {
-            // Replace HTML entities and escape quotes
-            let data = cols[j].innerText.replace(/(\r\n|\n|\r)/gm, '').replace(/"/g, '""');
-            row.push('"' + data + '"');
-        }
-        
-        csv.push(row.join(','));
-    }
-    
-    // Download CSV file
-    downloadCSV(csv.join('\n'), filename);
-}
-
-function downloadCSV(csv, filename) {
-    const csvFile = new Blob([csv], {type: 'text/csv'});
-    const downloadLink = document.createElement('a');
-    
-    // File download
-    downloadLink.download = filename;
-    downloadLink.href = window.URL.createObjectURL(csvFile);
-    downloadLink.style.display = 'none';
-    
-    document.body.appendChild(downloadLink);
-    downloadLink.click();
-    document.body.removeChild(downloadLink);
-}
-</script>
 
 <?php require_once '../../includes/components/footer.php'; ?>
