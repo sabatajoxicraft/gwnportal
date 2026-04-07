@@ -19,7 +19,7 @@ class ReportService {
         mysqli $conn,
         string $start_date,
         string $end_date,
-        string $accommodation_id = 'all'
+        string|int $accommodation_id = 'all'
     ): array {
         $start = $start_date . ' 00:00:00';
         $end   = $end_date   . ' 23:59:59';
@@ -28,9 +28,9 @@ class ReportService {
         $sql = "SELECT
                     DATE_FORMAT(vl.sent_at, '%Y-%m') AS voucher_month,
                     a.name AS accommodation_name,
-                    COUNT(*) AS total_sent,
-                    SUM(CASE WHEN vl.status IN ('sent','used') AND IFNULL(vl.is_active, 1) = 1 THEN 1 ELSE 0 END) AS active_count,
-                    SUM(CASE WHEN vl.status = 'used' THEN 1 ELSE 0 END) AS used_count,
+                    SUM(CASE WHEN vl.status = 'sent' THEN 1 ELSE 0 END) AS total_sent,
+                    SUM(CASE WHEN vl.status = 'sent' AND IFNULL(vl.is_active, 1) = 1 THEN 1 ELSE 0 END) AS active_count,
+                    SUM(CASE WHEN vl.status = 'sent' AND vl.first_used_at IS NOT NULL THEN 1 ELSE 0 END) AS used_count,
                     SUM(CASE WHEN IFNULL(vl.is_active, 1) = 0 THEN 1 ELSE 0 END) AS revoked_count
                 FROM voucher_logs vl
                 JOIN users u ON vl.user_id = u.id
@@ -43,7 +43,8 @@ class ReportService {
         $stmt = safeQueryPrepare($conn, $sql);
         if (!$stmt) return [];
         if ($accommodation_id !== 'all') {
-            $stmt->bind_param("ssi", $start, $end, $accommodation_id);
+            $accom_int = (int)$accommodation_id;
+            $stmt->bind_param("ssi", $start, $end, $accom_int);
         } else {
             $stmt->bind_param("ss", $start, $end);
         }
@@ -58,7 +59,7 @@ class ReportService {
         mysqli $conn,
         string $start_date,
         string $end_date,
-        string $accommodation_id = 'all'
+        string|int $accommodation_id = 'all'
     ): array {
         $start = $start_date . ' 00:00:00';
         $end   = $end_date   . ' 23:59:59';
@@ -82,7 +83,8 @@ class ReportService {
         $stmt = safeQueryPrepare($conn, $sql);
         if (!$stmt) return [];
         if ($accommodation_id !== 'all') {
-            $stmt->bind_param("ssi", $start, $end, $accommodation_id);
+            $accom_int = (int)$accommodation_id;
+            $stmt->bind_param("ssi", $start, $end, $accom_int);
         } else {
             $stmt->bind_param("ss", $start, $end);
         }
@@ -97,7 +99,7 @@ class ReportService {
         mysqli $conn,
         string $start_date,
         string $end_date,
-        string $accommodation_id = 'all'
+        string|int $accommodation_id = 'all'
     ): array {
         $start = $start_date . ' 00:00:00';
         $end   = $end_date   . ' 23:59:59';
@@ -109,9 +111,9 @@ class ReportService {
                     SUM(CASE WHEN IFNULL(ud.is_blocked, 0) = 0 THEN 1 ELSE 0 END) AS active_devices,
                     SUM(CASE WHEN IFNULL(ud.is_blocked, 0) = 1 THEN 1 ELSE 0 END) AS blocked_devices,
                     COUNT(DISTINCT ud.user_id) AS users_with_devices,
-                    SUM(CASE WHEN ud.device_type = 'laptop' THEN 1 ELSE 0 END) AS laptops,
-                    SUM(CASE WHEN ud.device_type = 'phone' THEN 1 ELSE 0 END) AS phones,
-                    SUM(CASE WHEN ud.device_type NOT IN ('laptop', 'phone') THEN 1 ELSE 0 END) AS other_devices
+                    SUM(CASE WHEN ud.linked_via = 'manual' THEN 1 ELSE 0 END) AS linked_manual,
+                    SUM(CASE WHEN ud.linked_via = 'auto' THEN 1 ELSE 0 END) AS linked_auto,
+                    SUM(CASE WHEN ud.linked_via = 'request' THEN 1 ELSE 0 END) AS linked_request
                 FROM user_devices ud
                 JOIN users u ON u.id = ud.user_id
                 LEFT JOIN students s ON s.user_id = ud.user_id
@@ -123,7 +125,8 @@ class ReportService {
         $stmt = safeQueryPrepare($conn, $sql);
         if (!$stmt) return [];
         if ($accommodation_id !== 'all') {
-            $stmt->bind_param("ssi", $start, $end, $accommodation_id);
+            $accom_int = (int)$accommodation_id;
+            $stmt->bind_param("ssi", $start, $end, $accom_int);
         } else {
             $stmt->bind_param("ss", $start, $end);
         }
@@ -139,7 +142,7 @@ class ReportService {
         mysqli $conn,
         string $start_date,
         string $end_date,
-        string $accommodation_id = 'all'
+        string|int $accommodation_id = 'all'
     ): array {
         require_once __DIR__ . '/../helpers/ActivityLogHelper.php';
         $utcRange = ActivityLogHelper::localDateRangeToUtc($start_date, $end_date);
@@ -173,7 +176,8 @@ class ReportService {
         $stmt = safeQueryPrepare($conn, $sql);
         if (!$stmt) return [];
         if ($accommodation_id !== 'all') {
-            $stmt->bind_param("ssi", $utc_from, $utc_to, $accommodation_id);
+            $accom_int = (int)$accommodation_id;
+            $stmt->bind_param("ssi", $utc_from, $utc_to, $accom_int);
         } else {
             $stmt->bind_param("ss", $utc_from, $utc_to);
         }
@@ -253,6 +257,8 @@ class ReportService {
         string $start_date,
         string $end_date
     ): array {
+        $start = $start_date . ' 00:00:00';
+        $end   = $end_date   . ' 23:59:59';
         $sql = "SELECT
                     CONCAT(u.first_name, ' ', u.last_name) AS full_name,
                     u.email,
@@ -265,7 +271,7 @@ class ReportService {
                 ORDER BY u.created_at DESC";
         $stmt = safeQueryPrepare($conn, $sql);
         if (!$stmt) return [];
-        $stmt->bind_param("ss", $start_date, $end_date);
+        $stmt->bind_param("ss", $start, $end);
         $stmt->execute();
         return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     }
@@ -275,7 +281,7 @@ class ReportService {
      */
     public static function getAccommodationUsage(
         mysqli $conn,
-        string $accommodation_id = 'all'
+        string|int $accommodation_id = 'all'
     ): array {
         $where = $accommodation_id !== 'all' ? "AND a.id = ?" : "";
 
@@ -307,7 +313,8 @@ class ReportService {
         $stmt = safeQueryPrepare($conn, $sql);
         if (!$stmt) return [];
         if ($accommodation_id !== 'all') {
-            $stmt->bind_param("i", $accommodation_id);
+            $accom_int = (int)$accommodation_id;
+            $stmt->bind_param("i", $accom_int);
         }
         $stmt->execute();
         return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -320,9 +327,12 @@ class ReportService {
         mysqli $conn,
         string $start_date,
         string $end_date,
-        string $accommodation_id = 'all'
+        string|int $accommodation_id = 'all'
     ): array {
         $where = $accommodation_id !== 'all' ? "AND oc.accommodation_id = ?" : "";
+
+        $start = $start_date . ' 00:00:00';
+        $end   = $end_date   . ' 23:59:59';
 
         $sql = "SELECT
                     a.name AS accommodation_name,
@@ -341,9 +351,10 @@ class ReportService {
         $stmt = safeQueryPrepare($conn, $sql);
         if (!$stmt) return [];
         if ($accommodation_id !== 'all') {
-            $stmt->bind_param("ssi", $start_date, $end_date, $accommodation_id);
+            $accom_int = (int)$accommodation_id;
+            $stmt->bind_param("ssi", $start, $end, $accom_int);
         } else {
-            $stmt->bind_param("ss", $start_date, $end_date);
+            $stmt->bind_param("ss", $start, $end);
         }
         $stmt->execute();
         return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -384,9 +395,9 @@ class ReportService {
                     ['label' => 'Active',           'key' => 'active_devices'],
                     ['label' => 'Blocked',          'key' => 'blocked_devices'],
                     ['label' => 'Users w/ Devices', 'key' => 'users_with_devices'],
-                    ['label' => 'Laptops',          'key' => 'laptops'],
-                    ['label' => 'Phones',           'key' => 'phones'],
-                    ['label' => 'Other',            'key' => 'other_devices'],
+                    ['label' => 'Manual',           'key' => 'linked_manual'],
+                    ['label' => 'Auto-linked',      'key' => 'linked_auto'],
+                    ['label' => 'By Request',       'key' => 'linked_request'],
                 ];
             case 'manager_activity':
                 return [

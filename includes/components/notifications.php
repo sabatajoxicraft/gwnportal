@@ -47,17 +47,29 @@ $recentNotifications = getRecentNotifications($userId, 10);
                         <div class="d-flex">
                             <div class="notification-icon me-3">
                                 <?php
-                                // Icon based on type
+                                // Icon based on type/category
                                 $iconClass = 'bi-info-circle text-info';
-                                switch ($notification['type']) {
+                                $notifType = $notification['type'] ?? '';
+                                switch ($notifType) {
                                     case 'success':
+                                    case 'device_approval':
                                         $iconClass = 'bi-check-circle text-success';
                                         break;
                                     case 'warning':
                                         $iconClass = 'bi-exclamation-triangle text-warning';
                                         break;
                                     case 'danger':
+                                    case 'device_rejection':
                                         $iconClass = 'bi-x-circle text-danger';
+                                        break;
+                                    case 'device_request':
+                                        $iconClass = 'bi-laptop text-primary';
+                                        break;
+                                    case 'voucher':
+                                        $iconClass = 'bi-wifi text-success';
+                                        break;
+                                    case 'new_student':
+                                        $iconClass = 'bi-person-plus text-info';
                                         break;
                                 }
                                 ?>
@@ -147,5 +159,6 @@ $recentNotifications = getRecentNotifications($userId, 10);
 
 <script>
 window.GWN_BASE_URL = <?= json_encode((string)BASE_URL, JSON_UNESCAPED_SLASHES) ?>;
+window.GWN_CSRF_TOKEN = <?= json_encode(getCsrfToken()) ?>;
 </script>
 <script src="<?= BASE_URL ?>/assets/js/notifications.js"></script>

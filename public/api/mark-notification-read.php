@@ -23,6 +23,14 @@ if (!isLoggedIn()) {
     exit;
 }
 
+// CSRF validation for all POST requests to this endpoint
+$csrfToken = $_POST['csrf_token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
+if (!validateCsrfToken($csrfToken)) {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'error' => 'Invalid security token']);
+    exit;
+}
+
 $userId = $_SESSION['user_id'] ?? 0;
 
 // Check if marking all as read

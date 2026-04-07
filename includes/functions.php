@@ -857,11 +857,13 @@ function revokeVoucher($voucher_id, $reason, $revoked_by_user_id) {
  * 
  * @param int $recipient_id User ID to notify
  * @param string $message Notification message
- * @param string $type Type: info, success, warning, danger
+ * @param string $type Type: info, success, warning, danger, device_request, device_approval, device_rejection, voucher, new_student
  * @param int|null $sender_id Sender user ID (defaults to current user or system)
+ * @param string|null $category Routing category (maps to type if omitted)
+ * @param int|null $related_id Optional related entity ID for click-through routing
  * @return bool True on success, false on failure
  */
-function createNotification($recipient_id, $message, $type = 'info', $sender_id = null) {
+function createNotification($recipient_id, $message, $type = 'info', $sender_id = null, $category = null, $related_id = null) {
     $conn = getDbConnection();
     
     if (!$conn) {
@@ -907,14 +909,41 @@ function createNotification($recipient_id, $message, $type = 'info', $sender_id 
     if ($sender_id === null) {
         $sender_id = $_SESSION['user_id'] ?? 1;
     }
-    
-    // Insert notification - schema has: recipient_id, sender_id, message, type, read_status
-    $stmt = safeQueryPrepare($conn, 
-        "INSERT INTO notifications (recipient_id, sender_id, message, type, read_status) 
-         VALUES (?, ?, ?, ?, 0)");
-    $stmt->bind_param("iiss", $recipient_id, $sender_id, $message, $type);
 
-    $success = $stmt->execute();
+    // Normalise category: use type as fallback so click-through routing always has a value
+    if ($category === null) {
+        $category = $type;
+    }
+
+    // Attempt INSERT with optional columns first; fall back to basic schema if columns absent
+    $success = false;
+    if ($related_id !== null) {
+        $stmt = safeQueryPrepare($conn,
+            "INSERT INTO notifications (recipient_id, sender_id, message, type, category, related_id, read_status)
+             VALUES (?, ?, ?, ?, ?, ?, 0)", false);
+        if ($stmt && !($stmt instanceof DummyStatement)) {
+            $stmt->bind_param("iisssi", $recipient_id, $sender_id, $message, $type, $category, $related_id);
+            $success = $stmt->execute();
+        }
+    } else {
+        $stmt = safeQueryPrepare($conn,
+            "INSERT INTO notifications (recipient_id, sender_id, message, type, category, read_status)
+             VALUES (?, ?, ?, ?, ?, 0)", false);
+        if ($stmt && !($stmt instanceof DummyStatement)) {
+            $stmt->bind_param("iisss", $recipient_id, $sender_id, $message, $type, $category);
+            $success = $stmt->execute();
+        }
+    }
+
+    // Fallback to basic schema (no category/related_id columns yet)
+    if (!$success) {
+        $stmt = safeQueryPrepare($conn,
+            "INSERT INTO notifications (recipient_id, sender_id, message, type, read_status)
+             VALUES (?, ?, ?, ?, 0)");
+        $stmt->bind_param("iiss", $recipient_id, $sender_id, $message, $type);
+        $success = $stmt->execute();
+    }
+
     CommunicationLogger::logInApp((int)$recipient_id, (string)$type, (string)$message, $success, (int)$sender_id ?: null);
     return $success;
 }
@@ -980,8 +1009,19 @@ function markNotificationAsRead($notification_id, $user_id) {
     if (!$conn) {
         return false;
     }
-    
-    $stmt = safeQueryPrepare($conn, 
+
+    // Try with read_at first; fall back silently if column absent
+    $stmt = safeQueryPrepare($conn,
+        "UPDATE notifications
+         SET read_status = 1, read_at = IFNULL(read_at, NOW())
+         WHERE id = ? AND recipient_id = ? AND read_status = 0", false);
+
+    if ($stmt && !($stmt instanceof DummyStatement)) {
+        $stmt->bind_param("ii", $notification_id, $user_id);
+        return $stmt->execute();
+    }
+
+    $stmt = safeQueryPrepare($conn,
         "UPDATE notifications 
          SET read_status = 1 
          WHERE id = ? AND recipient_id = ? AND read_status = 0");
@@ -1002,7 +1042,18 @@ function markAllNotificationsAsRead($user_id) {
     if (!$conn) {
         return false;
     }
-    
+
+    // Try with read_at; fall back if column absent
+    $stmt = safeQueryPrepare($conn,
+        "UPDATE notifications
+         SET read_status = 1, read_at = IFNULL(read_at, NOW())
+         WHERE recipient_id = ? AND read_status = 0", false);
+
+    if ($stmt && !($stmt instanceof DummyStatement)) {
+        $stmt->bind_param("i", $user_id);
+        return $stmt->execute();
+    }
+
     $stmt = safeQueryPrepare($conn, 
         "UPDATE notifications 
          SET read_status = 1 
@@ -1010,6 +1061,106 @@ function markAllNotificationsAsRead($user_id) {
     $stmt->bind_param("i", $user_id);
     
     return $stmt->execute();
+}
+
+/**
+ * Return IDs of all users who should receive notifications for an accommodation:
+ * the accommodation's managers, its owner, and all active admins.
+ *
+ * @param int $accommodationId
+ * @param int $excludeUserId  Optional: exclude this user (e.g. the acting student)
+ * @return int[]
+ */
+function getAccommodationNotifyRecipients($accommodationId, $excludeUserId = 0) {
+    $conn = getDbConnection();
+    if (!$conn) {
+        return [];
+    }
+
+    $ids = [];
+
+    // Managers linked to this accommodation
+    $stmt = safeQueryPrepare($conn,
+        "SELECT ua.user_id FROM user_accommodation ua WHERE ua.accommodation_id = ?");
+    $stmt->bind_param("i", $accommodationId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($row = $res->fetch_assoc()) {
+        $ids[] = (int)$row['user_id'];
+    }
+    $stmt->close();
+
+    // Accommodation owner
+    $stmt = safeQueryPrepare($conn, "SELECT owner_id FROM accommodations WHERE id = ?");
+    $stmt->bind_param("i", $accommodationId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    if ($owner = $res->fetch_assoc()) {
+        $ids[] = (int)$owner['owner_id'];
+    }
+    $stmt->close();
+
+    // All active admins
+    $stmt = safeQueryPrepare($conn,
+        "SELECT u.id FROM users u
+         JOIN roles r ON u.role_id = r.id
+         WHERE r.name = 'admin' AND u.status = 'active'");
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($row = $res->fetch_assoc()) {
+        $ids[] = (int)$row['id'];
+    }
+    $stmt->close();
+
+    $ids = array_unique(array_filter($ids));
+    if ($excludeUserId > 0) {
+        $ids = array_values(array_filter($ids, fn($id) => $id !== (int)$excludeUserId));
+    }
+    return $ids;
+}
+
+/**
+ * Optionally send an email copy for a notification event.
+ * Only sends when the recipient has explicitly opted-in (email_notifications = 1).
+ * Does NOT bypass or replace sendAppEmail() for critical account emails.
+ *
+ * @param int $recipientId
+ * @param string $subject
+ * @param string $message Plain-text message body
+ * @return bool
+ */
+function sendNotificationEmail($recipientId, $subject, $message) {
+    $conn = getDbConnection();
+    if (!$conn) {
+        return false;
+    }
+
+    $stmt = safeQueryPrepare($conn,
+        "SELECT email_notifications FROM user_preferences WHERE user_id = ?");
+    $stmt->bind_param("i", $recipientId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $pref = $res->fetch_assoc();
+    $stmt->close();
+
+    // Default is off; only send if explicitly opted in
+    if (!$pref || empty($pref['email_notifications'])) {
+        return false;
+    }
+
+    $stmt = safeQueryPrepare($conn,
+        "SELECT email FROM users WHERE id = ? AND status = 'active' LIMIT 1");
+    $stmt->bind_param("i", $recipientId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $user = $res->fetch_assoc();
+    $stmt->close();
+
+    if (!$user || empty($user['email'])) {
+        return false;
+    }
+
+    return sendAppEmail($user['email'], $subject, $message, false, 'notification');
 }
 
 /**

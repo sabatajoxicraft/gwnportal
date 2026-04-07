@@ -97,6 +97,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         : ' (GWN rename skipped or unavailable.)';
 
     logActivity($conn, $userId, 'link_device', "Linked MAC {$macAddress} to user ID {$studentUserId}" . $renameNote, $_SERVER['REMOTE_ADDR'] ?? '');
+
+    // Notify the student that their device has been linked/approved
+    $approvalMsg = "Your device ({$deviceType}) has been approved and linked to your account.";
+    createNotification($studentUserId, $approvalMsg, 'device_approval', $userId, 'device_approval', null);
+    sendNotificationEmail($studentUserId, 'Device Approved', $approvalMsg);
+
     redirect(BASE_URL . '/manager/network-clients.php', 'Device linked to ' . htmlspecialchars($studentInfo['first_name'] . ' ' . $studentInfo['last_name']) . '.' . $renameNote, 'success');
 }
 
@@ -378,28 +384,28 @@ require_once '../../includes/components/header.php';
     <!-- Stats Cards -->
     <div class="card mb-4">
         <div class="card-body">
-            <div class="row text-center">
-                <div class="col">
+            <div class="row text-center responsive-stats-grid">
+                <div class="col-6 col-md">
                     <h5>Total Clients</h5>
                     <h2><?= $totalClients ?></h2>
                 </div>
-                <div class="col">
+                <div class="col-6 col-md">
                     <h5>Online</h5>
                     <h2 class="text-success"><?= $onlineCount ?></h2>
                 </div>
-                <div class="col">
+                <div class="col-6 col-md">
                     <h5>Offline</h5>
                     <h2 class="text-secondary"><?= $offlineCount ?></h2>
                 </div>
-                <div class="col">
+                <div class="col-6 col-md">
                     <h5>Matched</h5>
                     <h2 class="text-primary"><?= $matchedCount ?></h2>
                 </div>
-                <div class="col">
+                <div class="col-6 col-md">
                     <h5>Unmatched</h5>
                     <h2 class="text-warning"><?= $unmatchedCount ?></h2>
                 </div>
-                <div class="col">
+                <div class="col-6 col-md">
                     <h5>Blocked</h5>
                     <h2 class="text-danger"><?= $blockedCount ?></h2>
                 </div>
@@ -409,7 +415,7 @@ require_once '../../includes/components/header.php';
 
     <!-- Filter Tabs + Search -->
     <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div class="card-header card-header-responsive d-flex justify-content-between align-items-center flex-wrap gap-2">
             <ul class="nav nav-tabs card-header-tabs me-auto">
                 <li class="nav-item">
                     <a class="nav-link <?= $filter === 'all' ? 'active' : '' ?>" href="?filter=all">All</a>
@@ -430,14 +436,14 @@ require_once '../../includes/components/header.php';
                     <a class="nav-link <?= $filter === 'blocked' ? 'active' : '' ?>" href="?filter=blocked">Blocked</a>
                 </li>
             </ul>
-            <div style="min-width: 250px;">
+            <div class="search-container">
                 <input type="text" id="searchBox" class="form-control form-control-sm" placeholder="Search name or MAC...">
             </div>
         </div>
         <div class="card-body">
             <?php if ($totalClients > 0): ?>
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle" id="clientsTable">
+                    <table class="table table-hover align-middle responsive-table" id="clientsTable">
                         <thead>
                             <tr>
                                 <th>Student</th>

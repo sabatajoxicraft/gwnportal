@@ -158,7 +158,7 @@ require_once '../../includes/components/header.php';
     </div>
     
     <div class="row">
-        <div class="col-md-3 mb-4">
+        <div class="col-md-3 mb-3 mb-md-4">
             <div class="list-group">
                 <a href="#app-settings" class="list-group-item list-group-item-action active" data-bs-toggle="list">Application Settings</a>
                 <a href="#database-settings" class="list-group-item list-group-item-action" data-bs-toggle="list">Database Management</a>

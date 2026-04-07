@@ -358,6 +358,160 @@ class QueryService {
     }
 
     /**
+     * Build the WHERE clause, params, and types for student list queries.
+     * Used internally by getStudentList() and countStudentList().
+     *
+     * Supported criteria keys:
+     *   accommodation_id (int)   – filter to a single accommodation
+     *   status  (string)         – 'all'|'active'|'pending'|'inactive'|'archived'
+     *   search  (string)         – name / email / id_number / student record ID
+     *   device_status (string)   – 'all'|'has_devices'|'needs_approval'
+     *
+     * @param array $criteria
+     * @return array [string $whereClause, array $params, string $types]
+     */
+    private static function buildStudentWhere(array $criteria): array {
+        $conditions = ['1=1'];
+        $params     = [];
+        $types      = '';
+
+        if (!empty($criteria['accommodation_id'])) {
+            $conditions[] = 's.accommodation_id = ?';
+            $params[]     = (int)$criteria['accommodation_id'];
+            $types       .= 'i';
+        }
+
+        $status = $criteria['status'] ?? 'all';
+        if ($status === 'active') {
+            $conditions[] = "s.status = 'active'";
+        } elseif ($status === 'pending') {
+            $conditions[] = "s.status = 'pending'";
+        } elseif ($status === 'inactive') {
+            $conditions[] = "s.status = 'inactive'";
+        } elseif ($status === 'archived') {
+            $conditions[] = "s.status = 'archived'";
+        } else {
+            // 'all' = everything except archived
+            $conditions[] = "s.status != 'archived'";
+        }
+
+        if (!empty($criteria['search'])) {
+            $searchTerm   = '%' . $criteria['search'] . '%';
+            $conditions[] = "(u.first_name LIKE ? OR u.last_name LIKE ? OR CONCAT(u.first_name,' ',u.last_name) LIKE ? OR u.email LIKE ? OR u.id_number LIKE ? OR CAST(s.id AS CHAR) LIKE ?)";
+            for ($i = 0; $i < 6; $i++) {
+                $params[] = $searchTerm;
+                $types   .= 's';
+            }
+        }
+
+        $deviceStatus = $criteria['device_status'] ?? 'all';
+        if ($deviceStatus === 'has_devices') {
+            $conditions[] = '(SELECT COUNT(*) FROM user_devices ud_f WHERE ud_f.user_id = u.id) > 0';
+        } elseif ($deviceStatus === 'needs_approval') {
+            // Devices submitted via student self-service request (linked_via = 'request')
+            $conditions[] = "(SELECT COUNT(*) FROM user_devices ud_f WHERE ud_f.user_id = u.id AND ud_f.linked_via = 'request') > 0";
+        }
+
+        return ['WHERE ' . implode(' AND ', $conditions), $params, $types];
+    }
+
+    /**
+     * Get a paginated, filtered, sorted student list.
+     *
+     * Supported criteria keys (in addition to buildStudentWhere keys):
+     *   sort          (string) – 'newest'|'oldest'|'name_asc'|'name_desc'
+     *   current_month (string) – e.g. "March 2026" for per-month voucher sub-count
+     *
+     * @param mysqli $conn
+     * @param array  $criteria
+     * @param int    $limit
+     * @param int    $offset
+     * @return array
+     */
+    public static function getStudentList($conn, array $criteria = [], int $limit = 50, int $offset = 0): array {
+        $allowedSorts = [
+            'newest'    => 's.created_at DESC',
+            'oldest'    => 's.created_at ASC',
+            'name_asc'  => 'u.first_name ASC, u.last_name ASC',
+            'name_desc' => 'u.first_name DESC, u.last_name DESC',
+        ];
+
+        $sortKey = (isset($criteria['sort']) && array_key_exists($criteria['sort'], $allowedSorts))
+            ? $criteria['sort'] : 'newest';
+        $orderBy = $allowedSorts[$sortKey];
+
+        $currentMonth = $criteria['current_month'] ?? '';
+
+        [$whereClause, $filterParams, $filterTypes] = self::buildStudentWhere($criteria);
+
+        $sql = "SELECT s.id, s.status, s.created_at, u.id AS user_id,
+                    u.first_name, u.last_name, u.email, u.phone_number,
+                    u.whatsapp_number, u.preferred_communication, u.id_number,
+                    a.id AS accommodation_id, a.name AS accommodation_name,
+                    COUNT(DISTINCT ud.id) AS device_count,
+                    (SELECT COUNT(*) FROM voucher_logs vl
+                        WHERE vl.user_id = u.id AND vl.is_active = 1 AND vl.voucher_month = ?) AS active_vouchers_this_month,
+                    (SELECT COUNT(*) FROM voucher_logs vl2 WHERE vl2.user_id = u.id) AS total_voucher_count
+                FROM students s
+                JOIN users u ON s.user_id = u.id
+                JOIN accommodations a ON s.accommodation_id = a.id
+                LEFT JOIN user_devices ud ON ud.user_id = u.id
+                $whereClause
+                GROUP BY s.id, s.status, s.created_at, u.id, u.first_name, u.last_name,
+                         u.email, u.phone_number, u.whatsapp_number, u.preferred_communication,
+                         u.id_number, a.id, a.name
+                ORDER BY $orderBy
+                LIMIT ? OFFSET ?";
+
+        $stmt = safeQueryPrepare($conn, $sql);
+        if (!$stmt) {
+            error_log('QueryService::getStudentList - Prepare error: ' . $conn->error);
+            return [];
+        }
+
+        $allParams = array_merge([$currentMonth], $filterParams, [$limit, $offset]);
+        $allTypes  = 's' . $filterTypes . 'ii';
+        $stmt->bind_param($allTypes, ...$allParams);
+        $stmt->execute();
+        $students = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+
+        return $students;
+    }
+
+    /**
+     * Count students matching the given criteria (mirrors getStudentList filters).
+     *
+     * @param mysqli $conn
+     * @param array  $criteria  Same keys as buildStudentWhere
+     * @return int
+     */
+    public static function countStudentList($conn, array $criteria = []): int {
+        [$whereClause, $filterParams, $filterTypes] = self::buildStudentWhere($criteria);
+
+        $sql = "SELECT COUNT(*) AS total
+                FROM students s
+                JOIN users u ON s.user_id = u.id
+                JOIN accommodations a ON s.accommodation_id = a.id
+                $whereClause";
+
+        $stmt = safeQueryPrepare($conn, $sql);
+        if (!$stmt) {
+            error_log('QueryService::countStudentList - Prepare error: ' . $conn->error);
+            return 0;
+        }
+
+        if (!empty($filterParams)) {
+            $stmt->bind_param($filterTypes, ...$filterParams);
+        }
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        return (int)($row['total'] ?? 0);
+    }
+
+    /**
      * Search users by criteria
      * 
      * @param mysqli $conn Database connection

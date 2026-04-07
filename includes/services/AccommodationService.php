@@ -50,6 +50,7 @@ class AccommodationService {
         return [
             'success' => true,
             'accommodation_id' => $accommodationId,
+            'id' => $accommodationId,
             'name' => $name,
             'owner_id' => $ownerId
         ];
@@ -306,7 +307,7 @@ class AccommodationService {
         }
 
         $stmt = safeQueryPrepare($conn, "
-            SELECT id FROM user_accommodation
+            SELECT 1 FROM user_accommodation
             WHERE user_id = ? AND accommodation_id = ?
         ");
 

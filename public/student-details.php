@@ -109,6 +109,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'link_
         "Manually linked MAC {$macAddress} to user ID {$studentUserId} via student details page." . $renameNote,
         $_SERVER['REMOTE_ADDR'] ?? '');
 
+    // Notify the student that their device has been approved and linked
+    $approvalMsg = "Your device ({$deviceType}) has been approved and linked to your account.";
+    createNotification($studentUserId, $approvalMsg, 'device_approval', $currentUserId, 'device_approval', null);
+    sendNotificationEmail($studentUserId, 'Device Approved', $approvalMsg);
+
     redirect($redirectTarget,
         'Device ' . htmlspecialchars($macAddress) . ' linked to ' .
         htmlspecialchars($studentInfo['first_name'] . ' ' . $studentInfo['last_name']) . '.' . $renameNote,
@@ -393,10 +398,10 @@ require_once '../includes/components/header.php';
     <div class="container mt-4">
         <?php displayFlashMessage(); ?>
         
-        <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex justify-content-between align-items-start align-items-md-center mb-4 flex-wrap gap-2">
             <h2>Student Details</h2>
-            <div>
-                <a href="send-voucher.php?id=<?= $student_id ?>" class="btn btn-success me-2">
+            <div class="mobile-stack-actions d-flex flex-wrap gap-2">
+                <a href="send-voucher.php?id=<?= $student_id ?>" class="btn btn-success">
                     <i class="bi bi-send"></i> Send Voucher
                 </a>
                 <a href="students.php" class="btn btn-outline-secondary">
@@ -411,7 +416,7 @@ require_once '../includes/components/header.php';
         <div class="row">
             <div class="col-md-12">
                 <div class="card mb-4">
-                    <div class="card-header d-flex justify-content-between align-items-center">
+                    <div class="card-header card-header-responsive d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">Personal Information</h5>
                         <span class="badge <?php 
                             if ($student['status'] == 'active') echo 'bg-success';
@@ -463,7 +468,7 @@ require_once '../includes/components/header.php';
                         </div>
                     </div>
                     <div class="card-footer">
-                        <div class="btn-group">
+                        <div class="mobile-stack-actions d-flex flex-wrap gap-2">
                             <?php if ($student['status'] != 'active'): ?>
                                 <a href="students.php?action=activate&id=<?= $student_id ?>" class="btn btn-outline-success">
                                     <i class="bi bi-check-circle"></i> Activate

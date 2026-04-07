@@ -4,6 +4,10 @@
 **Started:** 2026-02-10  
 **Gate:** Core Features Complete + CI GREEN
 
+> **This file is the planned backlog for M2.** Each task here carries a canonical ID (M2-T1…).
+> Completed work and supplemental maintenance fixes that fall outside this backlog are recorded
+> separately in [`current-milestone.md`](current-milestone.md) and do not consume IDs from this list.
+
 ---
 
 ## Overview
@@ -165,96 +169,142 @@ Run `php db/migrations/apply_voucher_migration.php` to apply schema changes.
 
 ### M2-T5: Notification System 📧
 **Priority:** P2 - MEDIUM  
-**Scope:** In-app notifications
+**Scope:** In-app notifications  
+**Status:** ✅ COMPLETE
 
 **Requirements:**
-- [ ] Notification display component
+- [x] Notification display component
   - Bell icon in header with badge count
   - Dropdown showing recent notifications
   - Mark as read functionality
-- [ ] Notification types:
+- [x] Notification types:
   - Device request pending approval (to managers)
   - Device approved/rejected (to students)
   - Voucher generated (to students)
   - New student added (to managers)
-- [ ] Notification preferences page
+- [x] Notification preferences page
   - Enable/disable notification types
   - Email vs. in-app settings
 
-**Files to Create:**
-- `includes/components/notifications.php` - dropdown component
-- `public/notifications.php` - full notification list
-- `public/settings/notifications.php` - preferences
-- Enhance `includes/functions.php` with notification helpers
+**Files Created/Modified:**
+- `includes/components/notifications.php` - bell-icon dropdown component with badge count and mark-as-read
+- `public/notifications.php` - full notification list page
+- `public/settings/notifications.php` - per-type preferences backed by `user_preferences`
+- `includes/functions.php` - `sendNotificationEmail()` and notification helper functions
+- `includes/components/navigation.php` - bell icon wired into nav; dropdown discoverability improvements
+- `db/schema.sql` - schema alignment for notifications and user_preferences tables
+- New additive migration for notification system (safe cleanup + additions)
+- `tests/ServiceTestSuite_docker.php` - Docker auth fallback: uses `DB_ROOT_PASSWORD` env var or Docker default
+
+**Implementation Details:**
+- CSRF hardening applied to notification-settings form and mark-read API endpoint
+- `user_preferences` table used for per-user opt-in/opt-out of notification types
+- Opt-in email copies sent via `sendNotificationEmail()`
+- Event coverage: device request, device approval/rejection, voucher generated, new student registration
+- Navigation updated for improved dropdown discoverability
+
+**Validation Notes:**
+- Targeted lint and migration checks passed
+- Full Docker service suite: ✅ **51/51 passed** after post-M2-T5 follow-up fixes (test bootstrap, service `id` aliases, schema `profile_photo`, bind-type corrections, `isManager()` query, MAC normalizer, `PermissionHelper` role logic)
+- CI/CD pipeline: local validation green; CI not separately re-run this session
 
 ---
 
 ### M2-T6: Advanced Search & Filters 🔍
 **Priority:** P2 - MEDIUM  
-**Scope:** Admin & Manager pages
+**Scope:** Admin & Manager pages  
+**Status:** ✅ COMPLETE
 
 **Requirements:**
-- [ ] Student search & filter
-  - Search by name, email, student ID
-  - Filter by accommodation
-  - Filter by device status (has devices, needs approval)
-  - Sort by name, date added
-- [ ] Activity log filtering
-  - Filter by date range
-  - Filter by user
-  - Filter by action type
-  - Export filtered results to CSV
-- [ ] AJAX-based search (optional enhancement)
+- [x] Student search & filter
+  - Search by name, email, student ID, id_number
+  - Filter by accommodation (admin surface)
+  - Filter by device status (`all`, `has_devices`, `needs_approval`)
+  - Sort by `newest`, `oldest`, `name_asc`, `name_desc`
+  - 50-per-page pagination
+- [x] Activity log filtering
+  - Existing date range, user, and action-type filters preserved
+  - Export filtered results to CSV (`public/admin/export-activity-log.php`)
+- [ ] AJAX-based search (deferred — not in scope for this iteration)
 
-**Files to Modify:**
-- `public/admin/students.php` - add search/filter
-- `public/manager/students.php` - add search/filter
-- `public/admin/activity-log.php` - add filtering
+**Files Created/Modified:**
+- `public/students.php` — manager student surface: search, device-status filter, sort, pagination (tabs/actions/accommodation switcher preserved)
+- `public/admin/students.php` — NEW admin student page: accommodation filter, search, device-status filter, sort, pagination, admin actions
+- `includes/services/QueryService.php` — NEW shared student list/count query logic reused by both surfaces
+- `public/admin/export-activity-log.php` — NEW CSV export; all active filters from `activity-log.php` preserved over full filtered dataset
+- `db/schema.sql` — `user_devices` aligned: `linked_via` and related device-management columns now in base schema for fresh-environment compatibility
+
+> **Note:** `public/manager/students.php` does not exist; the real manager student surface is `public/students.php`.
+
+**Validation:**
+- Targeted PHP syntax checks: ✅ passed
+- Full Docker service suite: ✅ **51/51 passed** (`docker compose run --rm --no-deps gwn-app php tests\ServiceTestSuite_docker.php`)
 
 ---
 
 ### M2-T7: Responsive Mobile Optimization 📱
 **Priority:** P2 - MEDIUM  
-**Scope:** All pages
+**Scope:** All pages  
+**Status:** ✅ COMPLETE
 
 **Requirements:**
-- [ ] Audit all pages for mobile responsiveness
-- [ ] Fix table overflow issues
-  - Use responsive tables (Bootstrap classes)
-  - Add horizontal scroll where needed
-- [ ] Optimize forms for mobile
-  - Stack form fields vertically on small screens
-  - Larger touch targets (buttons, inputs)
-- [ ] Mobile navigation
-  - Collapsible sidebar or hamburger menu
-  - Touch-friendly dropdowns
+- [x] Audit all pages for mobile responsiveness
+- [x] Fix table overflow issues — Bootstrap horizontal scroll restored; `.scrollable-table` supports both axes
+- [x] Optimize forms for mobile — filter forms stack/collapse on small screens; touch-target sizing improved
+- [x] Mobile navigation — authenticated navbar and hamburger dropdown improved; dropdown escape is opt-in
 
-**Files to Audit:**
-- All `public/**/*.php` pages
-- `includes/components/header.php` - mobile nav
-- `public/assets/css/custom.css` - mobile styles
+**Files Modified:**
+- `public/assets/css/custom.css` — shared responsive/mobile shell: `.table-responsive` reverted to Bootstrap horizontal-scroll; dropdown escape opt-in; `.scrollable-table` dual-axis support
+- `public/students.php` — mobile filter form, responsive stats row, table wrapper
+- `public/admin/students.php` — mobile filter form, responsive card header, table wrapper
+- `public/admin/users.php` — mobile action buttons, responsive card header, table wrapper
+- `public/admin/activity-log.php` — mobile filter form, scrollable log table
+- `public/manager/network-clients.php` — mobile filter form, responsive stats, scrollable table
+- `public/student-details.php` — mobile action buttons, responsive card layout
+- `public/admin/settings.php` — responsive form sections, mobile-friendly inputs
+
+> `public/dashboard.php` inspected but unchanged — it is a router only.
+
+**Validation:**
+- Targeted PHP syntax checks: ✅ passed
+- Full Docker service suite: ✅ **51/51 passed** (`docker compose run --rm --no-deps gwn-app php tests\ServiceTestSuite_docker.php`)
 
 ---
 
 ### M2-T8: Reporting & Export System 📈
 **Priority:** P2 - MEDIUM  
 **Scope:** Admin & Owner dashboards
+**Status:** ✅ COMPLETE
 
 **Requirements:**
-- [ ] Report generation page (admin only)
-- [ ] Available reports:
+- [x] Report generation page (admin only) — implemented by extending the existing `public/admin/reports.php`
+- [x] Available reports:
   - Monthly voucher usage report
   - Student enrollment by accommodation
   - Device authorization summary
   - Manager activity report
   - System audit log (filtered)
-- [ ] Export formats: CSV, PDF (optional)
-- [ ] Date range selection
+- [x] Export formats: CSV implemented; PDF remains optional/deferred (no new dependency added)
+- [x] Date range selection
 
-**Files to Create:**
-- `public/admin/reports.php` - report selection
-- `public/admin/report-generator.php` - generate report
-- `includes/report-helpers.php` - report generation functions
+**Files Created/Modified:**
+- `public/admin/reports.php` — existing admin reports surface extended to 8 report types with conditional filters and column-driven rendering
+- `public/admin/export-reports.php` — NEW server-side CSV export endpoint preserving active filters and streaming the full filtered dataset
+- `includes/services/ReportService.php` — NEW shared report query/metadata service reused by the page and export endpoint
+- `db/schema.sql` — `voucher_logs` aligned with voucher lifecycle columns used by reporting and existing voucher/device flows
+
+> **Implementation note:** `public/admin/reports.php` already existed, so M2-T8 shipped by extending that surface instead of creating a separate `report-generator.php` page or `includes/report-helpers.php`.
+
+**Implementation Details:**
+- 5 new M2-T8 reports were added while preserving the 3 legacy report types (`user_activity`, `accommodation_usage`, `onboarding_codes`)
+- Monthly voucher usage now counts first use via `first_used_at` and revocations via voucher lifecycle fields instead of relying on an invalid `status = 'used'` value
+- Device authorization summary now reports authorization paths (`linked_via = manual|auto|request`) rather than device-type buckets
+- System audit reporting reuses `ActivityLogHelper::localDateRangeToUtc()` and existing action/detail formatting helpers
+- CSV export uses UTF-8 BOM and streams the full filtered dataset; the HTML audit table remains capped at 2,000 rows
+
+**Validation:**
+- Targeted PHP syntax checks: ✅ passed (`includes/services/ReportService.php`, `public/admin/reports.php`, `public/admin/export-reports.php`)
+- Full Docker service suite: ✅ **51/51 passed** (`docker compose run --rm --no-deps gwn-app php tests\ServiceTestSuite_docker.php`) after resetting only the dedicated `gwn_wifi_system_test` database to clear stale test data
 
 ---
 
@@ -316,4 +366,4 @@ Run `php db/migrations/apply_voucher_migration.php` to apply schema changes.
 - [ ] Documentation updated
 - [ ] CI/CD pipeline GREEN
 
-**Gate Status:** 🔴 Not Started
+**Gate Status:** 🟡 In Progress

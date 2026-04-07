@@ -13,27 +13,31 @@ $conn = getDbConnection();
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $notify_device_requests = isset($_POST['notify_device_requests']) ? 1 : 0;
-    $notify_device_status = isset($_POST['notify_device_status']) ? 1 : 0;
-    $notify_vouchers = isset($_POST['notify_vouchers']) ? 1 : 0;
-    $notify_new_students = isset($_POST['notify_new_students']) ? 1 : 0;
-    $email_notifications = isset($_POST['email_notifications']) ? 1 : 0;
-
-    $stmt = safeQueryPrepare($conn, "INSERT INTO user_preferences (user_id, notify_device_requests, notify_device_status, notify_vouchers, notify_new_students, email_notifications) 
-                                     VALUES (?, ?, ?, ?, ?, ?)
-                                     ON DUPLICATE KEY UPDATE 
-                                     notify_device_requests = VALUES(notify_device_requests),
-                                     notify_device_status = VALUES(notify_device_status),
-                                     notify_vouchers = VALUES(notify_vouchers),
-                                     notify_new_students = VALUES(notify_new_students),
-                                     email_notifications = VALUES(email_notifications)");
-    
-    $stmt->bind_param("iiiiii", $userId, $notify_device_requests, $notify_device_status, $notify_vouchers, $notify_new_students, $email_notifications);
-    
-    if ($stmt->execute()) {
-        $success = "Preferences updated successfully.";
+    if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
+        $error = "Invalid security token. Please try again.";
     } else {
-        $error = "Failed to update preferences.";
+        $notify_device_requests = isset($_POST['notify_device_requests']) ? 1 : 0;
+        $notify_device_status = isset($_POST['notify_device_status']) ? 1 : 0;
+        $notify_vouchers = isset($_POST['notify_vouchers']) ? 1 : 0;
+        $notify_new_students = isset($_POST['notify_new_students']) ? 1 : 0;
+        $email_notifications = isset($_POST['email_notifications']) ? 1 : 0;
+
+        $stmt = safeQueryPrepare($conn, "INSERT INTO user_preferences (user_id, notify_device_requests, notify_device_status, notify_vouchers, notify_new_students, email_notifications) 
+                                         VALUES (?, ?, ?, ?, ?, ?)
+                                         ON DUPLICATE KEY UPDATE 
+                                         notify_device_requests = VALUES(notify_device_requests),
+                                         notify_device_status = VALUES(notify_device_status),
+                                         notify_vouchers = VALUES(notify_vouchers),
+                                         notify_new_students = VALUES(notify_new_students),
+                                         email_notifications = VALUES(email_notifications)");
+        
+        $stmt->bind_param("iiiiii", $userId, $notify_device_requests, $notify_device_status, $notify_vouchers, $notify_new_students, $email_notifications);
+        
+        if ($stmt->execute()) {
+            $success = "Preferences updated successfully.";
+        } else {
+            $error = "Failed to update preferences.";
+        }
     }
 }
 
@@ -72,6 +76,7 @@ if (!$prefs) {
                     <?php endif; ?>
 
                     <form method="post" action="">
+                        <?= csrfField() ?>
                         <h5 class="mb-3">Email Notifications</h5>
                         <div class="form-check form-switch mb-3">
                             <input class="form-check-input" type="checkbox" id="email_notifications" name="email_notifications" <?= $prefs['email_notifications'] ? 'checked' : '' ?>>

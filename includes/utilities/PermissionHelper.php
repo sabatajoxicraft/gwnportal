@@ -95,9 +95,12 @@ class PermissionHelper {
         $userId = $userId ?? ($_SESSION['user_id'] ?? null);
         $userRole = $userId === ($_SESSION['user_id'] ?? null) ? ($_SESSION['user_role'] ?? null) : self::getUserRole($userId);
         
-        // Convert role name to ID if needed
-        if (is_string($minRole)) {
-            $minRole = getRoleId($minRole);
+        // Normalize both values to role names for isRoleHigherPrivilege()
+        if (is_int($userRole)) {
+            $userRole = getRoleName($userRole);
+        }
+        if (is_int($minRole)) {
+            $minRole = getRoleName($minRole);
         }
 
         return isRoleHigherPrivilege($userRole, $minRole);
@@ -279,7 +282,7 @@ class PermissionHelper {
             return null;
         }
 
-        $stmt = safeQueryPrepare($conn, "SELECT role_id FROM users WHERE id = ? LIMIT 1");
+        $stmt = safeQueryPrepare($conn, "SELECT r.name FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = ? LIMIT 1");
         if (!$stmt) {
             return null;
         }
@@ -290,7 +293,7 @@ class PermissionHelper {
         $user = $result->fetch_assoc();
         $stmt->close();
 
-        return $user ? $user['role_id'] : null;
+        return $user ? $user['name'] : null;
     }
 
     /**

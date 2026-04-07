@@ -63,6 +63,7 @@ class DeviceManagementService {
         return [
             'success' => true,
             'device_id' => $deviceId,
+            'id' => $deviceId,
             'user_id' => $userId,
             'device_type' => $deviceType,
             'mac_address' => $normalizedMac

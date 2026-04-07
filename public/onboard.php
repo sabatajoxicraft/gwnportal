@@ -231,6 +231,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 // Log activity
                 logActivity($conn, $userId, "User Onboarding", $_SESSION['onboarding']['user_role'] . " account created via onboarding code");
+
+                // Notify relevant staff when a student registers
+                if ($_SESSION['onboarding']['user_role'] === 'student') {
+                    $newAccomId = (int)$_SESSION['onboarding']['accommodation_id'];
+                    $studentName = trim(($_SESSION['onboarding']['first_name'] ?? '') . ' ' . ($_SESSION['onboarding']['last_name'] ?? ''));
+                    if (empty(trim($studentName))) {
+                        $studentName = $username;
+                    }
+                    $notifyMsg = "New student registered: $studentName";
+                    $staffRecipients = getAccommodationNotifyRecipients($newAccomId, $userId);
+                    foreach ($staffRecipients as $recipientId) {
+                        createNotification($recipientId, $notifyMsg, 'new_student', $userId, 'new_student', $userId);
+                        sendNotificationEmail($recipientId, 'New Student Registration', $notifyMsg);
+                    }
+                }
                 
                 // Set success message and redirect to final step
                 $_SESSION['onboarding_success'] = true;

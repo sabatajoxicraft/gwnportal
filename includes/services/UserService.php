@@ -55,7 +55,7 @@ class UserService {
         $passwordReset = $userData['password_reset_required'] ?? true ? 1 : 0;
 
         $stmt->bind_param(
-            "ssssssssssii",
+            "sssssssssisi",
             $userData['username'],
             $hashedPassword,
             $userData['email'],
@@ -82,6 +82,7 @@ class UserService {
         return [
             'success' => true,
             'user_id' => $userId,
+            'id' => $userId,
             'username' => $userData['username'],
             'email' => $userData['email']
         ];

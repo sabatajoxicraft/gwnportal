@@ -55,32 +55,47 @@ class ServiceTestSuite {
     }
 
     private static function initTestDatabase() {
-        // Use test database
-        self::$testConn = new mysqli('gwn-db', 'root', '', 'gwn_wifi_system_test');
-        
-        if (self::$testConn->connect_error) {
-            // Try to create test database from main
-            $mainConn = new mysqli('gwn-db', 'root', '', 'gwn_wifi_system');
-            if ($mainConn->connect_error) {
-                self::addError("Cannot connect to test database");
-                return;
-            }
-            
-            // Create test database
-            $mainConn->query("CREATE DATABASE IF NOT EXISTS gwn_wifi_system_test");
-            
-            // Load schema
-            $schema = file_get_contents(__DIR__ . '/../db/schema.sql');
-            $mainConn->multi_query($schema);
-            while ($mainConn->more_results()) {
-                $mainConn->next_result();
-            }
-            
-            self::$testConn = new mysqli('gwn-db', 'root', '', 'gwn_wifi_system_test');
+        $rootPassword = getenv('DB_ROOT_PASSWORD') ?: 'rootpassword';
+
+        // Ensure the test database exists before connecting to it
+        $setupConn = new mysqli('gwn-db', 'root', $rootPassword);
+        if ($setupConn->connect_error) {
+            self::addError("Cannot connect to MySQL server");
+            return;
         }
+        $setupConn->query("CREATE DATABASE IF NOT EXISTS gwn_wifi_system_test");
+        $setupConn->close();
+
+        self::$testConn = new mysqli('gwn-db', 'root', $rootPassword, 'gwn_wifi_system_test');
+        if (self::$testConn->connect_error) {
+            self::addError("Cannot connect to test database");
+            return;
+        }
+
+        // Rebuild schema if the DB exists but is missing required tables (e.g. first run
+        // or a previous bootstrap was interrupted and targeted the wrong database).
+        $tablesResult = self::$testConn->query("SHOW TABLES LIKE 'users'");
+        $needsSchema  = (!$tablesResult || $tablesResult->num_rows === 0);
+        if ($tablesResult) {
+            $tablesResult->free();
+        }
+
+        if ($needsSchema) {
+            $schema = file_get_contents(__DIR__ . '/../db/schema.sql');
+            // Replace any USE <db>; directive so the schema targets the test database
+            $schema = preg_replace('/^\s*USE\s+\w+\s*;/mi', 'USE gwn_wifi_system_test;', $schema);
+            self::$testConn->multi_query($schema);
+            while (self::$testConn->more_results()) {
+                self::$testConn->next_result();
+            }
+        }
+
+        // Point the global $conn used by PermissionHelper and other utilities at the test DB
+        global $conn;
+        $conn = self::$testConn;
     }
 
-    private static function testUserService() {
+    private static function testUserService(){
         echo "Testing UserService...\n";
         
         // Test: Create user
@@ -88,7 +103,9 @@ class ServiceTestSuite {
             'username' => 'testuser1',
             'email' => 'test1@example.com',
             'password' => 'TestPassword123!',
-            'role_id' => 4  // Student
+            'role_id' => 4,  // Student
+            'first_name' => 'Test',
+            'last_name' => 'User'
         ];
         
         $user = UserService::createUser(self::$testConn, $userData);
@@ -127,7 +144,9 @@ class ServiceTestSuite {
             'username' => 'owner1',
             'email' => 'owner1@example.com',
             'password' => 'TestPassword123!',
-            'role_id' => 2  // Owner
+            'role_id' => 2,  // Owner
+            'first_name' => 'Owner',
+            'last_name' => 'One'
         ]);
         
         // Test: Create accommodation
@@ -151,7 +170,9 @@ class ServiceTestSuite {
             'username' => 'manager1',
             'email' => 'manager1@example.com',
             'password' => 'TestPassword123!',
-            'role_id' => 3  // Manager
+            'role_id' => 3,  // Manager
+            'first_name' => 'Manager',
+            'last_name' => 'One'
         ]);
         
         // Test: Assign manager
@@ -175,7 +196,9 @@ class ServiceTestSuite {
             'username' => 'codeowner',
             'email' => 'codeowner@example.com',
             'password' => 'TestPassword123!',
-            'role_id' => 2
+            'role_id' => 2,
+            'first_name' => 'Code',
+            'last_name' => 'Owner'
         ]);
         
         $accom = AccommodationService::createAccommodation(self::$testConn, $owner['id'], 'Code Test');
@@ -199,7 +222,9 @@ class ServiceTestSuite {
             'username' => 'student1',
             'email' => 'student1@example.com',
             'password' => 'TestPassword123!',
-            'role_id' => 4
+            'role_id' => 4,
+            'first_name' => 'Student',
+            'last_name' => 'One'
         ]);
         
         $used = CodeService::validateAndUseCode(self::$testConn, $code['code'], $student['id']);
@@ -218,7 +243,9 @@ class ServiceTestSuite {
             'username' => 'studentowner',
             'email' => 'studentowner@example.com',
             'password' => 'TestPassword123!',
-            'role_id' => 2
+            'role_id' => 2,
+            'first_name' => 'Student',
+            'last_name' => 'Owner'
         ]);
         
         $accom = AccommodationService::createAccommodation(self::$testConn, $owner['id'], 'Student Test');
@@ -227,7 +254,9 @@ class ServiceTestSuite {
             'username' => 'student2',
             'email' => 'student2@example.com',
             'password' => 'TestPassword123!',
-            'role_id' => 4
+            'role_id' => 4,
+            'first_name' => 'Student',
+            'last_name' => 'Two'
         ]);
         
         // Test: Register student
@@ -264,7 +293,9 @@ class ServiceTestSuite {
             'username' => 'deviceuser',
             'email' => 'deviceuser@example.com',
             'password' => 'TestPassword123!',
-            'role_id' => 4
+            'role_id' => 4,
+            'first_name' => 'Device',
+            'last_name' => 'User'
         ]);
         
         // Test: Register device
@@ -343,7 +374,9 @@ class ServiceTestSuite {
             'username' => 'queryowner',
             'email' => 'queryowner@example.com',
             'password' => 'TestPassword123!',
-            'role_id' => 2
+            'role_id' => 2,
+            'first_name' => 'Query',
+            'last_name' => 'Owner'
         ]);
         
         $accom = AccommodationService::createAccommodation(self::$testConn, $owner['id'], 'Query Test');
@@ -373,7 +406,9 @@ class ServiceTestSuite {
             'username' => 'loguser',
             'email' => 'loguser@example.com',
             'password' => 'TestPassword123!',
-            'role_id' => 4
+            'role_id' => 4,
+            'first_name' => 'Log',
+            'last_name' => 'User'
         ]);
         
         // Mock session for logging
@@ -400,14 +435,18 @@ class ServiceTestSuite {
             'username' => 'permadmin',
             'email' => 'permadmin@example.com',
             'password' => 'TestPassword123!',
-            'role_id' => 1
+            'role_id' => 1,
+            'first_name' => 'Perm',
+            'last_name' => 'Admin'
         ]);
         
         $owner = UserService::createUser(self::$testConn, [
             'username' => 'permowner',
             'email' => 'permowner@example.com',
             'password' => 'TestPassword123!',
-            'role_id' => 2
+            'role_id' => 2,
+            'first_name' => 'Perm',
+            'last_name' => 'Owner'
         ]);
         
         // Test: Role checks
@@ -474,6 +513,7 @@ class ServiceTestSuite {
 // Run tests if executed directly
 if (php_sapi_name() === 'cli' && basename(__FILE__) === basename($_SERVER['argv'][0] ?? '')) {
     require_once __DIR__ . '/../includes/config.php';
+    require_once __DIR__ . '/../includes/functions.php';
     ServiceTestSuite::runAllTests();
 }
 

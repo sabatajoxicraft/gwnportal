@@ -1,24 +1,30 @@
--- Migration: Create notifications system tables
--- Date: 2025-02-05
--- Description: Creates notifications and user_preferences tables for M2-T4
+-- Migration: Create notifications system tables (SAFE/IDEMPOTENT version)
+-- Date: 2025-02-05 (revised M2-T5)
+-- Description: Creates notifications and user_preferences tables.
+--              NON-DESTRUCTIVE: does NOT drop the notifications table.
+--              Additive columns (category, related_id, read_at) are handled
+--              by migration 2026_07_20_100000_add_notification_extras.sql.
+--
+-- NOTE: This file is excluded from the automatic migration runner (see
+--       migration_manager.php $EXCLUDED_MIGRATIONS). Run manually only
+--       if setting up a fresh environment without db/schema.sql.
 
--- Drop existing notifications table if exists (old schema)
-DROP TABLE IF EXISTS notifications;
-
--- Create notifications table with comprehensive schema
-CREATE TABLE notifications (
+-- Ensure notifications table exists with the canonical live schema.
+-- If it already exists, CREATE TABLE IF NOT EXISTS is a no-op.
+CREATE TABLE IF NOT EXISTS notifications (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    title VARCHAR(255) NOT NULL,
+    recipient_id INT NOT NULL,
+    sender_id INT NOT NULL,
     message TEXT NOT NULL,
-    type ENUM('info', 'success', 'warning', 'danger') DEFAULT 'info',
-    category VARCHAR(50),
+    type VARCHAR(50) NOT NULL,
+    category VARCHAR(50) NULL,
     related_id INT NULL,
-    is_read BOOLEAN DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    read_status BOOLEAN NOT NULL DEFAULT 0,
     read_at TIMESTAMP NULL,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    INDEX idx_user_unread (user_id, is_read),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (recipient_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_recipient_unread (recipient_id, read_status),
     INDEX idx_created (created_at),
     INDEX idx_category (category)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -36,16 +42,9 @@ CREATE TABLE IF NOT EXISTS user_preferences (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- REMOVED: These columns do not match the schema in db/schema.sql
--- The user_devices table already has the correct structure:
--- - user_id (NOT student_id)
--- - device_type (NOT device_name)
--- - created_at (NOT added_at/updated_at)
--- - No status column in schema
-
 -- Initialize default preferences for existing users
 INSERT INTO user_preferences (user_id, notify_device_requests, notify_device_status, notify_vouchers, notify_new_students, email_notifications)
-SELECT id, 1, 1, 1, 1, 0 
-FROM users 
+SELECT id, 1, 1, 1, 1, 0
+FROM users
 WHERE id NOT IN (SELECT user_id FROM user_preferences)
 ON DUPLICATE KEY UPDATE user_id = user_id;

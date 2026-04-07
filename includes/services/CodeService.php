@@ -45,7 +45,7 @@ class CodeService {
             return false;
         }
 
-        $stmt->bind_param("ssiss", $code, $createdBy, $accommodationId, $roleId, $expirationDate);
+        $stmt->bind_param("siiis", $code, $createdBy, $accommodationId, $roleId, $expirationDate);
         
         if (!$stmt->execute()) {
             error_log("CodeService::generateCode - Execute error: " . $stmt->error);

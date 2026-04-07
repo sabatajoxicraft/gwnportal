@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS users (
     phone_number VARCHAR(20),
     whatsapp_number VARCHAR(20),
     preferred_communication ENUM('SMS', 'WhatsApp') DEFAULT 'SMS',
+    profile_photo VARCHAR(255) DEFAULT NULL,
     role_id INT NOT NULL,
     status ENUM('active', 'pending', 'inactive') NOT NULL DEFAULT 'pending',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -82,7 +83,17 @@ CREATE TABLE IF NOT EXISTS user_devices (
     user_id INT NOT NULL,
     device_type VARCHAR(50) NOT NULL,
     mac_address VARCHAR(17) NOT NULL,
+    linked_via ENUM('manual','auto','request') DEFAULT 'manual',
+    device_name VARCHAR(100),
+    last_seen DATETIME,
+    is_blocked TINYINT(1) DEFAULT 0,
+    blocked_at DATETIME,
+    blocked_by INT,
+    blocked_reason VARCHAR(255),
+    unblocked_at DATETIME,
+    unblocked_by INT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE INDEX uq_user_devices_mac_address (mac_address),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
@@ -109,12 +120,22 @@ CREATE TABLE IF NOT EXISTS voucher_logs (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
     voucher_code VARCHAR(50) NOT NULL,
+    gwn_voucher_id INT NULL,
+    gwn_group_id INT NULL,
     voucher_month VARCHAR(20) NOT NULL,
     sent_via ENUM('SMS', 'WhatsApp') NOT NULL,
     status ENUM('sent', 'failed', 'pending') NOT NULL DEFAULT 'pending',
     sent_at TIMESTAMP NULL,
+    first_used_at DATETIME NULL,
+    first_used_mac VARCHAR(17) NULL,
+    revoked_at TIMESTAMP NULL,
+    revoked_by INT NULL,
+    revoke_reason TEXT,
+    is_active BOOLEAN DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (revoked_by) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_voucher_first_used_at (first_used_at)
 );
 
 -- Activity log table
@@ -137,10 +158,16 @@ CREATE TABLE IF NOT EXISTS notifications (
     sender_id INT NOT NULL,
     message TEXT NOT NULL,
     type VARCHAR(50) NOT NULL,
+    category VARCHAR(50) NULL,
+    related_id INT NULL,
     read_status BOOLEAN NOT NULL DEFAULT 0,
+    read_at TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (recipient_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
+    FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_recipient_unread (recipient_id, read_status),
+    INDEX idx_created (created_at),
+    INDEX idx_category (category)
 );
 
 -- Students table
@@ -167,3 +194,16 @@ ON DUPLICATE KEY UPDATE name=name;
 
 -- TEST DATA REMOVED: Use db/fixtures/test-data.sql for development/testing
 -- Usage: mysql gwn_wifi_system < db/fixtures/test-data.sql
+
+-- User notification preferences table
+CREATE TABLE IF NOT EXISTS user_preferences (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL UNIQUE,
+    notify_device_requests BOOLEAN DEFAULT 1,
+    notify_device_status BOOLEAN DEFAULT 1,
+    notify_vouchers BOOLEAN DEFAULT 1,
+    notify_new_students BOOLEAN DEFAULT 1,
+    email_notifications BOOLEAN DEFAULT 0,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);

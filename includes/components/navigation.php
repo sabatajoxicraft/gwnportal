@@ -53,6 +53,11 @@ if (isLoggedIn()) {
                 'text' => 'Users',
                 'icon' => 'bi-people'
             ];
+            $navItems['students'] = [
+                'url' => BASE_URL . '/admin/students.php',
+                'text' => 'Students',
+                'icon' => 'bi-mortarboard'
+            ];
             $navItems['accommodations'] = [
                 'url' => BASE_URL . '/accommodations/',
                 'text' => 'Accommodations',
@@ -141,6 +146,8 @@ if (isLoggedIn()) {
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
                             <li><a class="dropdown-item" href="<?= BASE_URL ?>/profile.php"><i class="bi bi-person me-2"></i>User Profile (<?= htmlspecialchars(ucfirst($userRole)) ?>)</a></li>
+                            <li><a class="dropdown-item" href="<?= BASE_URL ?>/notifications.php"><i class="bi bi-bell me-2"></i>Notifications</a></li>
+                            <li><a class="dropdown-item" href="<?= BASE_URL ?>/settings/notifications.php"><i class="bi bi-bell-slash me-2"></i>Notification Settings</a></li>
                             
                             <?php if ($userRole === 'admin'): ?>
                                 <li><a class="dropdown-item" href="<?= BASE_URL ?>/codes/"><i class="bi bi-qr-code me-2"></i> Onboarding Codes</a></li>

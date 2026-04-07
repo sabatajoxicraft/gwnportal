@@ -92,12 +92,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Log activity
             logActivity($conn, $userId, 'Device Request', "Student requested device authorization: $deviceName ($macAddress)");
             
-            // Notify admins
-            $stmt_admin = safeQueryPrepare($conn, "SELECT id FROM users WHERE role_id = (SELECT id FROM roles WHERE name = 'admin')");
-            $stmt_admin->execute();
-            $res_admin = $stmt_admin->get_result();
-            while ($admin = $res_admin->fetch_assoc()) {
-                createNotification($admin['id'], "New device request from " . $_SESSION['username'] . ": $deviceName", 'device_request', $userId);
+            // Notify accommodation managers, owner, and all admins
+            $studentAccomId = 0;
+            $accomStmt = safeQueryPrepare($conn, "SELECT accommodation_id FROM students WHERE user_id = ? LIMIT 1");
+            $accomStmt->bind_param("i", $userId);
+            $accomStmt->execute();
+            $accomRow = $accomStmt->get_result()->fetch_assoc();
+            $accomStmt->close();
+            if ($accomRow) {
+                $studentAccomId = (int)$accomRow['accommodation_id'];
+            }
+
+            $notifyMsg = "New device request from " . ($_SESSION['username'] ?? 'a student') . ": $deviceName";
+            if ($studentAccomId > 0) {
+                $recipients = getAccommodationNotifyRecipients($studentAccomId, $userId);
+            } else {
+                // Fallback: notify admins only
+                $adminStmt = safeQueryPrepare($conn, "SELECT id FROM users WHERE role_id = (SELECT id FROM roles WHERE name = 'admin')");
+                $adminStmt->execute();
+                $adminRes = $adminStmt->get_result();
+                $recipients = [];
+                while ($admin = $adminRes->fetch_assoc()) {
+                    $recipients[] = (int)$admin['id'];
+                }
+            }
+            foreach ($recipients as $recipientId) {
+                createNotification($recipientId, $notifyMsg, 'device_request', $userId, 'device_request', $deviceId);
+                sendNotificationEmail($recipientId, 'New Device Request', $notifyMsg);
             }
 
             $_SESSION['success_message'] = "Device authorization request submitted successfully! An administrator will review your request shortly.";

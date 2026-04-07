@@ -108,13 +108,13 @@ require_once '../../includes/components/header.php';
 ?>
 
 <div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <h2>System Activity Log</h2>
-        <div>
-            <button class="btn btn-outline-secondary me-2" id="refresh-log">
+        <div class="mobile-stack-actions d-flex flex-wrap gap-2">
+            <button class="btn btn-outline-secondary" id="refresh-log">
                 <i class="bi bi-arrow-clockwise"></i> Refresh
             </button>
-            <a href="#" class="btn btn-outline-primary">
+            <a href="export-activity-log.php?<?= http_build_query(['user' => $filter_user, 'action' => $filter_action, 'date_from' => $filter_date_from, 'date_to' => $filter_date_to]) ?>" class="btn btn-outline-primary">
                 <i class="bi bi-download"></i> Export Log
             </a>
         </div>
@@ -125,8 +125,8 @@ require_once '../../includes/components/header.php';
             <h5 class="mb-0">Filter Activity Log</h5>
         </div>
         <div class="card-body">
-            <form class="row g-3" method="get">
-                <div class="col-md-3">
+            <form class="row g-3 responsive-filter-form" method="get">
+                <div class="col-12 col-sm-6 col-md-3">
                     <label for="user" class="form-label">User</label>
                     <select name="user" id="user" class="form-select">
                         <option value="0" <?= $filter_user === 0 ? 'selected' : '' ?>>All Users</option>
@@ -137,7 +137,7 @@ require_once '../../includes/components/header.php';
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <div class="col-md-3">
+                <div class="col-12 col-sm-6 col-md-3">
                     <label for="action" class="form-label">Action Type</label>
                     <select name="action" id="action" class="form-select">
                         <option value="all" <?= $filter_action === 'all' ? 'selected' : '' ?>>All Actions</option>
@@ -151,16 +151,16 @@ require_once '../../includes/components/header.php';
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <div class="col-md-3">
+                <div class="col-6 col-md-3">
                     <label for="date_from" class="form-label">Date From</label>
                     <input type="date" class="form-control" id="date_from" name="date_from" value="<?= $filter_date_from ?>">
                 </div>
-                <div class="col-md-3">
+                <div class="col-6 col-md-3">
                     <label for="date_to" class="form-label">Date To</label>
                     <input type="date" class="form-control" id="date_to" name="date_to" value="<?= $filter_date_to ?>">
                 </div>
-                <div class="col-12">
-                    <button type="submit" class="btn btn-primary me-2">Apply Filters</button>
+                <div class="col-12 responsive-filter-actions d-flex flex-wrap gap-2">
+                    <button type="submit" class="btn btn-primary">Apply Filters</button>
                     <a href="activity-log.php" class="btn btn-secondary">Reset Filters</a>
                 </div>
             </form>

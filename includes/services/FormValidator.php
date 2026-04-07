@@ -128,7 +128,7 @@ class FormValidator {
     }
 
     /**
-     * Normalize MAC address to standard format (lowercase with colons)
+     * Normalize MAC address to standard format (uppercase with colons)
      * 
      * @param string $mac MAC address to normalize
      * @return string Normalized MAC address
@@ -138,11 +138,11 @@ class FormValidator {
             return '';
         }
 
-        // Remove all separators
-        $clean = strtolower(preg_replace('/[:-.]/', '', $mac));
+        // Remove all separators (hyphen placed first to avoid range interpretation)
+        $clean = strtoupper(preg_replace('/[-:.]/', '', $mac));
 
         // Validate it's a valid 12-digit hex string
-        if (!preg_match('/^[0-9a-f]{12}$/', $clean)) {
+        if (!preg_match('/^[0-9A-F]{12}$/', $clean)) {
             return '';
         }
 

@@ -308,6 +308,12 @@ class VoucherService extends GwnService {
                 "Your WiFi voucher for $month has been generated. Code: $voucher_code (sent via $loggedSendMethod).",
                 'voucher'
             );
+            // Step 5b: Send opt-in notification email copy
+            sendNotificationEmail(
+                $student['user_id'],
+                "WiFi Voucher for $month",
+                "Your WiFi voucher for $month has been generated. Code: $voucher_code (sent via $loggedSendMethod)."
+            );
 
             return [
                 'voucher_month' => $month,

@@ -108,18 +108,16 @@ body {
 .card {
 	border: none;
 	border-radius: 10px;
-	/* Keep dropdown/action menus visible for table cards. */
+	/* Cards stay non-clipping so overlay menus can escape. */
 	overflow: visible;
 	box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
 	transition: all 0.3s ease;
 	margin-bottom: 1.5rem;
 }
 
-/* Do not clip dropdown/action menus inside table wrappers. */
-.table-responsive,
-.card .table-responsive {
-	overflow: visible !important;
-}
+/* .table-responsive uses Bootstrap's default overflow-x: auto (horizontal scroll).
+   Apply .no-clip-dropdown to any .table-responsive wrapper that contains
+   action/dropdown menus to opt-in to overflow: visible for that table only. */
 
 .card:hover {
 	transform: translateY(-5px);
@@ -683,4 +681,201 @@ footer {
 .d-flex.flex-column.min-vh-100 > main,
 .d-flex.flex-column.min-vh-100 > .container {
 	flex: 1;
+}
+
+/* ============================================================
+   RESPONSIVE MOBILE UTILITIES  (M2-T7)
+   Shared helpers consumed by page-level responsive patterns.
+   ============================================================ */
+
+/* ---- 1. Opt-in dropdown escape for table wrappers --------- */
+/* Restores overflow:visible on a specific .table-responsive when
+   action/dropdown menus must escape it. Loses horizontal scroll
+   on that table; use only where the table fits without scrolling. */
+.no-clip-dropdown {
+	overflow: visible !important;
+}
+
+/* ---- 2. Responsive filter form row ------------------------ */
+/* Usage: <div class="row g-2 g-md-3 responsive-filter-form">  */
+.responsive-filter-form {
+	align-items: flex-end;
+}
+@media (max-width: 575.98px) {
+	.responsive-filter-form {
+		--bs-gutter-x: 0.5rem;
+		--bs-gutter-y: 0.5rem;
+	}
+	.responsive-filter-form .form-label {
+		margin-bottom: 0.2rem;
+	}
+}
+
+/* ---- 3. Filter / toolbar action button groups ------------- */
+/* Usage: <div class="responsive-filter-actions">              */
+.responsive-filter-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	align-items: center;
+}
+@media (max-width: 575.98px) {
+	.responsive-filter-actions {
+		flex-direction: column;
+		align-items: stretch;
+	}
+	.responsive-filter-actions .btn {
+		width: 100%;
+		text-align: center;
+	}
+}
+
+/* ---- 4. Stats grid ---------------------------------------- */
+/* Usage (standalone): <div class="responsive-stats-grid">     */
+/* Usage (Bootstrap row): <div class="row g-3 responsive-stats-grid">
+   with col-6 col-md-3 children — Bootstrap flex handles layout,
+   class acts as semantic marker for targeted overrides.        */
+.responsive-stats-grid:not(.row) {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+	gap: 1rem;
+}
+
+/* ---- 5. Compact table helper ------------------------------ */
+/* Usage: <div class="table-responsive responsive-table">      */
+.responsive-table {
+	font-size: 0.875rem;
+}
+@media (max-width: 767.98px) {
+	.responsive-table th,
+	.responsive-table td {
+		padding: 0.4rem 0.5rem;
+		white-space: nowrap;
+	}
+}
+
+/* ---- 6. Scrollable activity / log area -------------------- */
+/* Fixed-height container for log/activity tables that need vertical
+   scrolling. Horizontal scroll is also enabled so wide log rows are
+   accessible rather than clipped.
+   Usage: <div class="scrollable-table">                       */
+.scrollable-table {
+	max-height: 420px;
+	overflow-y: auto;
+	overflow-x: auto;
+}
+
+/* ---- 7. Mobile-stacked action button groups --------------- */
+/* Usage: <div class="mobile-stack-actions">                   */
+.mobile-stack-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+}
+@media (max-width: 575.98px) {
+	.mobile-stack-actions {
+		flex-direction: column;
+		align-items: stretch;
+	}
+	.mobile-stack-actions .btn {
+		width: 100%;
+		text-align: center;
+	}
+}
+
+/* ---- 8. Responsive card header (title + actions row) ------ */
+/* Usage: <div class="card-header card-header-responsive">     */
+.card-header-responsive {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+}
+@media (max-width: 575.98px) {
+	.card-header-responsive {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 0.4rem;
+	}
+	.card-header-responsive > * {
+		width: 100%;
+	}
+}
+
+/* ---- 9. Wide search input container ----------------------- */
+/* Usage: <div class="search-container">
+            <input class="form-control form-control-responsive">
+          </div>                                                */
+.search-container {
+	position: relative;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+.form-control-responsive {
+	width: 100%;
+	min-width: 0;
+}
+@media (min-width: 576px) {
+	.form-control-responsive {
+		max-width: 320px;
+	}
+}
+
+/* ============================================================
+   MOBILE NAV SHELL  (M2-T7)
+   Authenticated navbar mobile/collapsed-state improvements.
+   Does not touch role-based gradient or JS logic.
+   ============================================================ */
+
+/* Larger touch targets in collapsed nav */
+@media (max-width: 991.98px) {
+	.navbar-collapse .navbar-nav .nav-link {
+		padding-top: 0.65rem;
+		padding-bottom: 0.65rem;
+	}
+
+	/* Inline dropdown menus in collapsed dark navbar */
+	.navbar-dark .navbar-collapse .dropdown-menu {
+		background-color: rgba(0, 0, 0, 0.2);
+		border-color: rgba(255, 255, 255, 0.1);
+		border-radius: 6px;
+		margin: 0.25rem 0;
+		box-shadow: none;
+	}
+	.navbar-dark .navbar-collapse .dropdown-menu .dropdown-item {
+		color: rgba(255, 255, 255, 0.85);
+		padding-left: 1.5rem;
+	}
+	.navbar-dark .navbar-collapse .dropdown-menu .dropdown-item:hover {
+		background-color: rgba(255, 255, 255, 0.1);
+		color: #fff;
+	}
+	.navbar-dark .navbar-collapse .dropdown-menu .dropdown-divider {
+		border-color: rgba(255, 255, 255, 0.15);
+	}
+
+	/* Keep notification dropdown inside viewport */
+	.notifications-dropdown {
+		right: 0;
+		left: auto;
+	}
+}
+
+/* Extra-narrow phones */
+@media (max-width: 575.98px) {
+	.navbar {
+		padding: 0.5rem 0.75rem;
+	}
+
+	/* Full-width notification dropdown on narrow screens */
+	.notifications-dropdown {
+		width: calc(100vw - 1rem) !important;
+		right: -0.5rem;
+	}
+
+	/* Taller notification list to use more of the screen */
+	.notifications-list {
+		max-height: 55vh !important;
+	}
 }

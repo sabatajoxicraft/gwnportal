@@ -176,19 +176,19 @@ require_once '../../includes/components/header.php';
             <h5 class="mb-0">Filter Users</h5>
         </div>
         <div class="card-body">
-            <form action="" method="get" class="row g-3">
-                <div class="col-md-4">
+            <form action="" method="get" class="row g-3 responsive-filter-form">
+                <div class="col-12 col-md-4">
                     <label for="q" class="form-label">Search User</label>
                     <input
                         type="text"
                         name="q"
                         id="q"
-                        class="form-control"
+                        class="form-control form-control-responsive"
                         value="<?= htmlspecialchars($search_query) ?>"
                         placeholder="Name, username, email, or phone"
                     >
                 </div>
-                <div class="col-md-4">
+                <div class="col-12 col-sm-6 col-md-4">
                     <label for="role" class="form-label">Role</label>
                     <select name="role" id="role" class="form-select">
                         <option value="all" <?= $role_filter === 'all' ? 'selected' : '' ?>>All Roles</option>
@@ -200,7 +200,7 @@ require_once '../../includes/components/header.php';
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <div class="col-md-2">
+                <div class="col-6 col-sm-3 col-md-2">
                     <label for="status" class="form-label">Status</label>
                     <select name="status" id="status" class="form-select">
                         <option value="all" <?= $status_filter === 'all' ? 'selected' : '' ?>>All Statuses</option>
@@ -209,7 +209,7 @@ require_once '../../includes/components/header.php';
                         <option value="inactive" <?= $status_filter === 'inactive' ? 'selected' : '' ?>>Inactive</option>
                     </select>
                 </div>
-                <div class="col-md-2">
+                <div class="col-6 col-sm-3 col-md-2">
                     <label for="sort" class="form-label">Sort</label>
                     <select name="sort" id="sort" class="form-select">
                         <option value="newest" <?= $sort_by === 'newest' ? 'selected' : '' ?>>Newest</option>
@@ -220,7 +220,7 @@ require_once '../../includes/components/header.php';
                         <option value="username_desc" <?= $sort_by === 'username_desc' ? 'selected' : '' ?>>Username (Z-A)</option>
                     </select>
                 </div>
-                <div class="col-12 d-flex align-items-end">
+                <div class="col-12 responsive-filter-actions d-flex align-items-end">
                     <button type="submit" class="btn btn-primary me-2">Filter</button>
                     <a href="users.php" class="btn btn-secondary">Reset</a>
                 </div>
@@ -242,7 +242,7 @@ require_once '../../includes/components/header.php';
         </div>
         <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-hover mb-0">
+                <table class="table table-hover mb-0 responsive-table">
                     <thead>
                         <tr>
                             <th>Name</th>

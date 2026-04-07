@@ -138,6 +138,7 @@
         e.preventDefault();
         e.stopPropagation();
         
+        const csrfToken = window.GWN_CSRF_TOKEN || '';
         fetch(BASE_URL + '/api/mark-notification-read.php', {
             method: 'POST',
             headers: {
@@ -145,7 +146,7 @@
                 'X-Requested-With': 'XMLHttpRequest'
             },
             credentials: 'same-origin',
-            body: 'mark_all=1'
+            body: 'mark_all=1&csrf_token=' + encodeURIComponent(csrfToken)
         })
         .then(response => response.json())
         .then(data => {
@@ -178,6 +179,7 @@
      * Mark notification as read via AJAX
      */
     function markAsRead(notificationId, callback) {
+        const csrfToken = window.GWN_CSRF_TOKEN || '';
         fetch(BASE_URL + '/api/mark-notification-read.php', {
             method: 'POST',
             headers: {
@@ -185,7 +187,7 @@
                 'X-Requested-With': 'XMLHttpRequest'
             },
             credentials: 'same-origin',
-            body: 'notification_id=' + encodeURIComponent(notificationId)
+            body: 'notification_id=' + encodeURIComponent(notificationId) + '&csrf_token=' + encodeURIComponent(csrfToken)
         })
         .then(response => response.json())
         .then(data => {
@@ -202,10 +204,11 @@
     }
 
     /**
-     * Navigate to related page based on category
+     * Navigate to related page based on category/type.
+     * Works even when relatedId is absent — uses category alone for routing.
      */
     function navigateToRelated(category, relatedId) {
-        if (!category || !relatedId) {
+        if (!category) {
             return;
         }
 
@@ -215,10 +218,10 @@
             case 'device_request':
             case 'device_approval':
             case 'device_rejection':
+            case 'device_status':
                 url = BASE_URL + '/student/devices.php';
                 break;
             case 'voucher':
-                // Could navigate to voucher history
                 url = BASE_URL + '/manager/voucher-history.php';
                 break;
             case 'new_student':
