@@ -85,6 +85,84 @@ function markVoucherFirstUseState($conn, $voucherLogId, $mac, $dryRun, $hasFirst
     return $ok;
 }
 
+function autoLinkBuildClientLabel($studentName, $deviceType) {
+    $studentName = trim((string)$studentName);
+    $deviceType = trim((string)$deviceType);
+    if ($deviceType === '') {
+        $deviceType = 'Other';
+    }
+
+    $label = trim(preg_replace('/\s+/', ' ', $studentName . ' - ' . $deviceType));
+    if ($label === '' || $label === '-') {
+        $label = 'Student Device';
+    }
+
+    if (function_exists('mb_substr')) {
+        return mb_substr($label, 0, 64);
+    }
+
+    return substr($label, 0, 64);
+}
+
+function autoLinkExtractClientPayload($clientInfo) {
+    if (!is_array($clientInfo)) {
+        return array();
+    }
+    if (isset($clientInfo['result']) && is_array($clientInfo['result'])) {
+        return $clientInfo['result'];
+    }
+    return $clientInfo;
+}
+
+function autoLinkGetClientPresence($mac) {
+    $clientInfo = gwnGetClientInfo($mac);
+    if (!is_array($clientInfo)) {
+        return array(
+            'known' => false,
+            'online' => null,
+            'payload' => array(),
+        );
+    }
+
+    $payload = autoLinkExtractClientPayload($clientInfo);
+    $online = null;
+
+    if (isset($payload['online'])) {
+        $online = ((int)$payload['online'] > 0);
+    } elseif (isset($payload['isOnline'])) {
+        $online = ((int)$payload['isOnline'] > 0);
+    } elseif (isset($payload['status']) && !is_array($payload['status'])) {
+        $status = strtolower(trim((string)$payload['status']));
+        if ($status !== '') {
+            $online = in_array($status, array('online', 'connected', 'active', '1', 'true'), true);
+        }
+    }
+
+    return array(
+        'known' => true,
+        'online' => $online,
+        'payload' => $payload,
+    );
+}
+
+function autoLinkAttemptClientRename($mac, $label, $dryRun, $debug, $context, &$renameSuccessCount, &$renameFailureCount) {
+    if ($dryRun) {
+        autoLinkDebug("DRY-RUN rename [{$context}]: {$mac} -> {$label}", $debug);
+        return true;
+    }
+
+    $renameResult = gwnEditClientName($mac, $label);
+    if ($renameResult && isset($renameResult['retCode']) && (int)$renameResult['retCode'] === 0) {
+        $renameSuccessCount++;
+        autoLinkDebug("Rename success [{$context}] for {$mac}", $debug);
+        return true;
+    }
+
+    $renameFailureCount++;
+    autoLinkLog("RENAME-WARN: Failed to rename {$mac} [{$context}]");
+    return false;
+}
+
 /**
  * Preflight checks — run before any Phase 1 or Phase 2 work.
  * Returns an array of fatal error messages; empty array means all clear.
@@ -200,6 +278,12 @@ $conflicts = 0;
 $skipped = 0;
 $errors = 0;
 $retriedMacs = 0;
+$onlineConfirmedLinks = 0;
+$trustedOfflineLinks = 0;
+$deferredOfflineLinks = 0;
+$renameSuccessCount = 0;
+$renameFailureCount = 0;
+$renameRetryAttempts = 0;
 
 autoLinkLog('Auto-Link Devices - Starting (mode: ' . ($dryRun ? 'DRY-RUN' : 'LIVE') . ')');
 autoLinkDebug('Month context: ' . $monthIso . ' / ' . $monthLabel . ', Retry window: ' . $retryWindowDays . ' days', $debug);
@@ -447,6 +531,7 @@ foreach ($processingList as $map) {
     $voucherCode = trim((string)($map['voucher_code'] ?? ''));
     $rawMac = trim((string)($map['mac'] ?? ''));
     $mac = $rawMac !== '' ? formatMacAddress($rawMac) : null;
+    $macSource = $mac ? 'voucher_mapping' : 'none';
 
     if ($voucherCode === '') {
         $skipped++;
@@ -487,10 +572,11 @@ foreach ($processingList as $map) {
     $firstUsedTime = ($hasFirstUsedAt && !empty($student['first_used_at'])) ? strtotime($student['first_used_at']) : 0;
     $retryDeadline = $firstUsedTime + ($retryWindowDays * 86400);
     $withinRetryWindow = $firstUsedTime > 0 && time() < $retryDeadline;
+    $needsRenameRetryWindow = ($hasFirstUsedAt && !$isFirstUse && $withinRetryWindow);
     $needsMacRetry = ($hasFirstUsedAt && $hasFirstUsedMac && !$isFirstUse 
         && empty($student['first_used_mac']) && $withinRetryWindow);
 
-    if ($hasFirstUsedAt && !$isFirstUse && !$needsMacRetry) {
+    if ($hasFirstUsedAt && !$isFirstUse && !$needsMacRetry && !$needsRenameRetryWindow) {
         $alreadyProcessed++;
         continue; // Skip only if we have MAC or retry window expired
     }
@@ -506,6 +592,9 @@ foreach ($processingList as $map) {
         $historicalMac = ($hasFirstUsedMac && !empty($student['first_used_mac'])) ? trim((string)$student['first_used_mac']) : '';
         if ($historicalMac !== '') {
             $mac = formatMacAddress($historicalMac);
+            if ($mac) {
+                $macSource = 'historical_first_used_mac';
+            }
             autoLinkDebug('Using historical MAC from first_used_mac: ' . $mac, $debug);
             // Continue processing with the historical MAC
         } else {
@@ -536,6 +625,7 @@ foreach ($processingList as $map) {
             
             if ($portalGuestMac) {
                 $mac = $portalGuestMac;
+                $macSource = 'portal_monitor';
                 autoLinkDebug("Using MAC from portal monitor for voucher {$voucherCode}: {$mac}", $debug);
                 // Continue processing with the portal-resolved MAC
             } else {
@@ -581,7 +671,16 @@ foreach ($processingList as $map) {
         }
     }
 
-    $existingStmt = safeQueryPrepare($conn, "SELECT id, user_id FROM user_devices WHERE mac_address = ? LIMIT 1");
+    $clientPresence = autoLinkGetClientPresence($mac);
+    $clientPayload = $clientPresence['payload'];
+    $onlineKnown = ($clientPresence['known'] && $clientPresence['online'] !== null);
+    $isOnlineNow = ($clientPresence['online'] === true);
+    autoLinkDebug(
+        "Candidate {$voucherCode} MAC {$mac} source={$macSource} onlineKnown=" . ($onlineKnown ? 'yes' : 'no') . " online=" . ($isOnlineNow ? 'yes' : 'no'),
+        $debug
+    );
+
+    $existingStmt = safeQueryPrepare($conn, "SELECT id, user_id, device_type FROM user_devices WHERE mac_address = ? LIMIT 1");
     if (!$existingStmt) {
         $errors++;
         autoLinkLog("ERROR: Failed to prepare existing device lookup for MAC {$mac}");
@@ -601,6 +700,31 @@ foreach ($processingList as $map) {
                 autoLinkLog("ERROR: Failed to update first-use state for voucher {$voucherCode}");
             } else {
                 $firstUseDetected++;
+            }
+
+            if ($isFirstUse || $withinRetryWindow) {
+                $existingDeviceType = trim((string)($existing['device_type'] ?? ''));
+                if ($existingDeviceType === '') {
+                    $existingDeviceType = 'Other';
+                }
+                $expectedLabel = autoLinkBuildClientLabel($studentName, $existingDeviceType);
+                $currentClientName = trim((string)($clientPayload['name'] ?? ''));
+                $needsRename = ($currentClientName === '' || strcasecmp($currentClientName, $expectedLabel) !== 0);
+
+                if ($needsRename) {
+                    if (!$isFirstUse) {
+                        $renameRetryAttempts++;
+                    }
+                    autoLinkAttemptClientRename(
+                        $mac,
+                        $expectedLabel,
+                        $dryRun,
+                        $debug,
+                        $isFirstUse ? 'existing-link-first-use' : 'existing-link-retry',
+                        $renameSuccessCount,
+                        $renameFailureCount
+                    );
+                }
             }
         } else {
             autoLinkLog("SKIP: MAC {$mac} already linked to another student (user ID " . (int)$existing['user_id'] . ')');
@@ -630,15 +754,13 @@ foreach ($processingList as $map) {
 
     $deviceType = 'Other';
     $deviceName = 'Auto-linked device';
-    $clientInfo = gwnGetClientInfo($mac);
-    if ($clientInfo !== false && is_array($clientInfo)) {
-        $clientPayload = (isset($clientInfo['result']) && is_array($clientInfo['result'])) ? $clientInfo['result'] : $clientInfo;
+    if (!empty($clientPayload)) {
         $deviceType = autoDetectDeviceType($clientPayload['dhcpOs'] ?? '');
         $deviceName = trim((string)($clientPayload['name'] ?? $deviceName));
         if ($deviceName === '') {
             $deviceName = 'Auto-linked device';
         }
-        autoLinkDebug('Client info for ' . $mac . ' -> type ' . $deviceType . ', name ' . $deviceName, $debug);
+        autoLinkDebug('Client payload for ' . $mac . ' -> type ' . $deviceType . ', name ' . $deviceName, $debug);
     } else {
         // If GWN client info is unavailable, try using portal guest name as fallback
         $currentMapping = $mappingsByCode[strtoupper($voucherCode)] ?? null;
@@ -658,8 +780,28 @@ foreach ($processingList as $map) {
         }
     }
 
+    $trustedOfflineSource = ($macSource === 'historical_first_used_mac');
+    $allowLinkCommit = $isOnlineNow || $trustedOfflineSource || $macSource === 'portal_monitor';
+    if (!$allowLinkCommit) {
+        if (!markVoucherFirstUseState($conn, $voucherLogId, null, $dryRun, $hasFirstUsedAt, $hasFirstUsedMac)) {
+            $errors++;
+            autoLinkLog("ERROR: Failed to defer low-confidence offline candidate for voucher {$voucherCode}");
+            continue;
+        }
+
+        $firstUseDetected++;
+        $deferredOfflineLinks++;
+        autoLinkLog("DEFER: Voucher {$voucherCode} resolved MAC {$mac} from {$macSource}, but online confidence is insufficient; deferring auto-link.");
+        continue;
+    }
+
     if ($dryRun) {
-        autoLinkLog("DRY-RUN: Would link MAC {$mac} -> {$studentName} ({$deviceType})");
+        if ($isOnlineNow) {
+            $onlineConfirmedLinks++;
+        } elseif ($trustedOfflineSource) {
+            $trustedOfflineLinks++;
+        }
+        autoLinkLog("DRY-RUN: Would link MAC {$mac} -> {$studentName} ({$deviceType}) source={$macSource}");
         $linked++;
         $firstUseDetected++;
         continue;
@@ -709,19 +851,24 @@ foreach ($processingList as $map) {
 
     $firstUseDetected++;
     $linked++;
-    autoLinkLog("LINKED: MAC {$mac} -> {$studentName} ({$deviceType}, auto-detected)");
+    if ($isOnlineNow) {
+        $onlineConfirmedLinks++;
+    } elseif ($trustedOfflineSource) {
+        $trustedOfflineLinks++;
+    }
+    autoLinkLog("LINKED: MAC {$mac} -> {$studentName} ({$deviceType}, auto-detected, source={$macSource})");
 
-    $clientLabel = substr($studentName . ' - ' . $deviceType, 0, 64);
-    gwnEditClientName($mac, $clientLabel);
+    $clientLabel = autoLinkBuildClientLabel($studentName, $deviceType);
+    autoLinkAttemptClientRename($mac, $clientLabel, false, $debug, 'initial-link', $renameSuccessCount, $renameFailureCount);
     logActivity($conn, 1, 'auto_link_device', "Auto-linked MAC {$mac} to {$studentName} (user ID {$studentUserId})", '127.0.0.1');
 }
 
 autoLinkLog('=== Summary ===');
 autoLinkLog("Rollover cleanup: Retired={$cleanupRetired} | GWN-failed/retry={$cleanupGwnFailed} | Skipped={$cleanupSkipped}");
-autoLinkLog("First-use detected: {$firstUseDetected} | Linked: {$linked} | MAC retries attempted: {$retriedMacs} | Manual review needed: {$pendingManual} | Already linked: {$alreadyLinked} | Already processed: {$alreadyProcessed} | Conflicts: {$conflicts} | Skipped: {$skipped} | Errors: {$errors}");
+autoLinkLog("First-use detected: {$firstUseDetected} | Linked: {$linked} | Online-confirmed links: {$onlineConfirmedLinks} | Trusted-offline links: {$trustedOfflineLinks} | Deferred-offline links: {$deferredOfflineLinks} | MAC retries attempted: {$retriedMacs} | Rename retries: {$renameRetryAttempts} | Rename success: {$renameSuccessCount} | Rename failures: {$renameFailureCount} | Manual review needed: {$pendingManual} | Already linked: {$alreadyLinked} | Already processed: {$alreadyProcessed} | Conflicts: {$conflicts} | Skipped: {$skipped} | Errors: {$errors}");
 
 if (!$dryRun) {
-    $summary = "Auto-link completed for {$monthIso}: cleanup retired={$cleanupRetired}, {$firstUseDetected} first-used, {$linked} linked, {$retriedMacs} MAC-retries, {$pendingManual} manual-review, {$alreadyLinked} already-linked, {$conflicts} conflicts, {$skipped} skipped, {$errors} errors.";
+    $summary = "Auto-link completed for {$monthIso}: cleanup retired={$cleanupRetired}, {$firstUseDetected} first-used, {$linked} linked ({$onlineConfirmedLinks} online-confirmed, {$trustedOfflineLinks} trusted-offline), {$deferredOfflineLinks} deferred-offline, {$retriedMacs} MAC-retries, rename retries={$renameRetryAttempts}, rename failures={$renameFailureCount}, {$pendingManual} manual-review, {$alreadyLinked} already-linked, {$conflicts} conflicts, {$skipped} skipped, {$errors} errors.";
     $adminStmt = safeQueryPrepare($conn, "SELECT u.id FROM users u JOIN roles r ON u.role_id = r.id WHERE r.name = 'admin'");
     if ($adminStmt) {
         $adminStmt->execute();

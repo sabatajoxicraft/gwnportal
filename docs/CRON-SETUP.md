@@ -255,6 +255,25 @@ $retryWindowDays = 7; // Increase to 14 for more aggressive retries
 
 If GWN stops reporting a device signal for the voucher before the MAC is captured, the case stays in manual-review status and will not be retried automatically.
 
+### Online-aware link policy
+
+The auto-linker now uses an explicit source-confidence policy before creating new `user_devices` links:
+
+- **Online-confirmed MAC** (GWN currently reports client online) → auto-link allowed.
+- **Trusted offline MAC** (`voucher_logs.first_used_mac` from prior verified capture) → auto-link allowed.
+- **Portal monitor MAC** (live portal monitor session) → auto-link allowed.
+- **Offline / low-confidence MAC from voucher mapping only** → **defer** (no auto-link yet; retried on next run).
+
+This reduces wrong matches while still allowing reliable historical recoveries.
+
+### Auto-naming retry behavior
+
+After a successful device link, the script attempts to rename the client on GWN using:
+
+`Student Full Name - DeviceType`
+
+If rename fails, the link remains valid in the database and rename will be retried on later runs for up to the same retry window (default 7 days) when that voucher is still in retry scope.
+
 ---
 
 ## Production Checklist
