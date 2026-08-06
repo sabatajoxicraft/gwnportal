@@ -125,7 +125,7 @@ class VoucherService extends GwnService {
         return $stmt->get_result()->fetch_assoc() ?: null;
     }
 
-    public function sendStudentVoucher($student_id, $month, $forceResend = false) {
+    public function sendStudentVoucher($student_id, $month, $forceResend = false, $preferredChannel = null) {
         $conn = getDbConnection();
         
         // Get student details
@@ -186,7 +186,12 @@ class VoucherService extends GwnService {
         
         $studentName = $student['first_name'] . ' ' . $student['last_name'];
         $accommodationName = $student['accommodation_name'];
-        $sendMethod = $student['preferred_communication'] ?: 'SMS';
+        // Use caller-supplied channel (e.g. preserved sent_via from a replacement) when
+        // valid; otherwise fall back to the student's current preferred_communication.
+        $allowedChannels = ['SMS', 'WhatsApp'];
+        $sendMethod = (isset($preferredChannel) && in_array($preferredChannel, $allowedChannels, true))
+            ? $preferredChannel
+            : ($student['preferred_communication'] ?: 'SMS');
         $phoneNumber = ($sendMethod === 'WhatsApp') 
             ? ($student['whatsapp_number'] ?: $student['phone_number'])
             : ($student['phone_number'] ?: $student['whatsapp_number']);
@@ -529,8 +534,8 @@ class VoucherService extends GwnService {
             $this->deleteVoucherGroup([(int)$oldVoucher['gwn_group_id']]);
         }
         
-        // Step 3: Create new voucher and send via the existing flow
-        $result = $this->sendStudentVoucher($oldVoucher['student_id'], $oldVoucher['voucher_month'], true);
+        // Step 3: Create new voucher and send, preserving the original delivery channel.
+        $result = $this->sendStudentVoucher($oldVoucher['student_id'], $oldVoucher['voucher_month'], true, $oldVoucher['sent_via'] ?? null);
         
         if (!$result || (isset($result['duplicate']) && $result['duplicate'])) {
             error_log("VoucherService::replaceVoucher: Failed to create replacement voucher for student " . $oldVoucher['student_id']);

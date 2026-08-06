@@ -2,6 +2,7 @@
 require_once '../../includes/config.php';
 require_once '../../includes/db.php';
 require_once '../../includes/functions.php';
+require_once '../../includes/services/StudentService.php';
 
 $pageTitle = "Edit User";
 
@@ -35,6 +36,7 @@ if ($user['role_id'] == 4) {
 
 $error = '';
 $success = false;
+$postUpdateNotice = '';
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -54,6 +56,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($email) || empty($firstName) || empty($lastName) || empty($roleId) || empty($status)) {
         $error = 'Email, name, role, and status are required.';
     } else {
+        $newRoleId = (int)$roleId;
+        $wasStudent = ((int)$user['role_id'] === 4);
+
         // Check for duplicate email (excluding current user)
         $dupStmt = safeQueryPrepare($conn, "SELECT id FROM users WHERE email = ? AND id != ?");
         $dupStmt->bind_param("si", $email, $userId);
@@ -76,7 +81,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 logActivity($conn, $_SESSION['user_id'], 'edit_user', "Updated user (ID {$userId})", $_SERVER['REMOTE_ADDR']);
                 $user = getUserDetails($userId);
                 $user = is_array($user) ? array_change_key_case($user, CASE_LOWER) : $user;
-                if ($student) {
+
+                if ($newRoleId === 4) {
+                    $targetAccommodationId = $student ? (int)($student['accommodation_id'] ?? 0) : 0;
+                    if ($targetAccommodationId <= 0) {
+                        $targetAccommodationId = (int)(StudentService::getPrimaryAccommodationIdForUser($conn, (int)$userId) ?? 0);
+                    }
+
+                    if ($targetAccommodationId > 0) {
+                        StudentService::ensureStudentRecord($conn, (int)$userId, $targetAccommodationId, 'active');
+                    } else {
+                        $postUpdateNotice = 'User role changed to Student, but no accommodation is assigned yet. Assign an accommodation to complete the student profile.';
+                    }
+                } elseif ($wasStudent && $newRoleId !== 4) {
+                    $postUpdateNotice = 'User role changed from Student. Existing student history is preserved.';
+                }
+
+                if ($newRoleId === 4 || $student) {
                     $studentStmt = safeQueryPrepare($conn, "SELECT s.*, a.name as accommodation_name FROM students s LEFT JOIN accommodations a ON s.accommodation_id = a.id WHERE s.user_id = ?");
                     $studentStmt->bind_param("i", $userId);
                     $studentStmt->execute();
@@ -104,6 +125,11 @@ require_once '../../includes/components/header.php';
                         <div class="alert alert-success">
                             <i class="bi bi-check-circle-fill me-2"></i>User updated successfully!
                         </div>
+                        <?php if (!empty($postUpdateNotice)): ?>
+                            <div class="alert alert-warning mt-3">
+                                <i class="bi bi-exclamation-circle me-2"></i><?= htmlspecialchars($postUpdateNotice) ?>
+                            </div>
+                        <?php endif; ?>
                     <?php elseif (!empty($error)): ?>
                         <div class="alert alert-danger">
                             <i class="bi bi-exclamation-triangle-fill me-2"></i><?= $error ?>

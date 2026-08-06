@@ -2,6 +2,7 @@
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/db.php';
+require_once '../../includes/services/StudentService.php';
 
 requireRole('admin');
 
@@ -49,8 +50,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $roleCheck->bind_param("i", $user_id);
             $roleCheck->execute();
             $roleRow = $roleCheck->get_result()->fetch_assoc();
-            if ($roleRow && $roleRow['name'] === 'student') {
-                safeQueryPrepare($conn, "UPDATE students SET accommodation_id = ? WHERE user_id = ?")->execute([$accommodation_id, $user_id]);
+            if ($roleRow && strtolower((string)$roleRow['name']) === 'student') {
+                StudentService::ensureStudentRecord($conn, $user_id, $accommodation_id, 'active');
             }
             logActivity($conn, $_SESSION['user_id'], 'assign_user', "Assigned user ID {$user_id} to accommodation '{$accommodation['name']}' (ID {$accommodation_id})", $_SERVER['REMOTE_ADDR']);
             redirect(BASE_URL . "/admin/assign-users.php?id={$accommodation_id}", 'User assigned successfully.', 'success');
@@ -185,4 +186,3 @@ require_once '../../includes/components/header.php';
 </div>
 
 <?php require_once '../../includes/components/footer.php'; ?>
-

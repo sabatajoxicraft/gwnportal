@@ -50,7 +50,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Send voucher to student
         require_once '../includes/services/VoucherService.php';
         $voucherService = new VoucherService();
-        $voucher_result = $voucherService->sendStudentVoucher($student_id, $month, $forceResend);
+        // When force-resending, preserve the original delivery channel so the
+        // student receives the new code the same way they received the first one.
+        $oldSentVia = null;
+        if ($forceResend) {
+            $existing = $voucherService->getExistingVoucher($conn, $student['user_id'], $month);
+            $oldSentVia = $existing['sent_via'] ?? null;
+        }
+        $voucher_result = $voucherService->sendStudentVoucher($student_id, $month, $forceResend, $oldSentVia);
         
         if ($voucher_result) {
             // Check if this was blocked as a duplicate

@@ -70,6 +70,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 if ($stmt->execute()) {
                     $user_id = $stmt->insert_id;
+                    $selectedRoleStmt = safeQueryPrepare($conn, "SELECT name FROM roles WHERE id = ?");
+                    $selectedRoleStmt->bind_param("i", $role_id);
+                    $selectedRoleStmt->execute();
+                    $selectedRoleRow = $selectedRoleStmt->get_result()->fetch_assoc();
+                    $selectedRoleName = strtolower((string)($selectedRoleRow['name'] ?? ''));
                     
                     logActivity($conn, $_SESSION['user_id'], 'create_user', "Created user '{$username}' (ID {$user_id}) with role ID {$role_id}", $_SERVER['REMOTE_ADDR']);
                     
@@ -115,6 +120,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         if ($generate_password) {
                             $success .= ". Generated password: <strong>$password</strong>";
                         }
+                    }
+
+                    if ($selectedRoleName === 'student') {
+                        $assignUrl = BASE_URL . "/admin/assign-accommodation.php?user_id={$user_id}";
+                        $success .= " <br><small class=\"text-warning\"><strong>Next step:</strong> assign an accommodation to complete this student profile. <a href=\"{$assignUrl}\">Assign now</a>.</small>";
                     }
                     
                     // Reset form or redirect

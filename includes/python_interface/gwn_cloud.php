@@ -1394,6 +1394,15 @@ if (!function_exists('blockDevice')) {
         $gwnResult = gwnBlockClient($macNormalized, $reason);
         $gwnSuccess = ($gwnResult !== false);
 
+        // Notify the student that their device has been blocked
+        if (function_exists('createNotification') && $userId > 0) {
+            $blockMsg = "Your device access has been suspended. Reason: $reason";
+            createNotification($userId, $blockMsg, 'device_rejection', $performedBy, 'device_rejection', $deviceId);
+            if (function_exists('sendNotificationEmail')) {
+                sendNotificationEmail($userId, 'Device Access Suspended', $blockMsg);
+            }
+        }
+
         return array(
             'success' => true,
             'message' => $gwnSuccess
@@ -1484,6 +1493,15 @@ if (!function_exists('unblockDevice')) {
 
         $gwnResult = gwnUnblockClient($macNormalized, $reason);
         $gwnSuccess = ($gwnResult !== false);
+
+        // Notify the student that their device access has been restored
+        if (function_exists('createNotification') && $userId > 0) {
+            $unblockMsg = "Your device access has been restored. Reason: $reason";
+            createNotification($userId, $unblockMsg, 'device_approval', $performedBy, 'device_approval', $deviceId);
+            if (function_exists('sendNotificationEmail')) {
+                sendNotificationEmail($userId, 'Device Access Restored', $unblockMsg);
+            }
+        }
 
         return array(
             'success' => true,

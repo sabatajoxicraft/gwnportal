@@ -1,6 +1,6 @@
 -- MySQL dump 10.13  Distrib 8.0.44, for Linux (x86_64)
 --
--- Host: localhost    Database: gwn_wifi_system
+-- Host: localhost    Database: joxicaxs_wifi
 -- ------------------------------------------------------
 -- Server version	8.0.44
 
@@ -328,11 +328,11 @@ CREATE TABLE `voucher_logs` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Dumping events for database 'gwn_wifi_system'
+-- Dumping events for database 'joxicaxs_wifi'
 --
 
 --
--- Dumping routines for database 'gwn_wifi_system'
+-- Dumping routines for database 'joxicaxs_wifi'
 --
 /*!50003 DROP PROCEDURE IF EXISTS `truncate_if_exists` */;
 /*!50003 SET @saved_cs_client      = @@character_set_client */ ;

@@ -2,6 +2,7 @@
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/helpers/VoucherMonthHelper.php';
+require_once '../../includes/services/StudentService.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -92,6 +93,12 @@ $allowed_device_statuses = ['all', 'has_devices', 'needs_approval'];
 if (!in_array($device_status, $allowed_device_statuses, true)) {
     $device_status = 'all';
 }
+
+StudentService::backfillMissingStudentRecords(
+    $conn,
+    $accommodation_filter > 0 ? $accommodation_filter : null,
+    'active'
+);
 
 // All accommodations for the filter dropdown
 $accomStmt = safeQueryPrepare($conn, "SELECT id, name FROM accommodations ORDER BY name");

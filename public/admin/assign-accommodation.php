@@ -2,6 +2,7 @@
 require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/db.php';
+require_once '../../includes/services/StudentService.php';
 
 requireRole('admin');
 
@@ -43,8 +44,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $ins->bind_param("ii", $user_id, $accommodation_id);
     if ($ins->execute()) {
         // If student, also update students.accommodation_id
-        if ($user['role_name'] === 'student') {
-            safeQueryPrepare($conn, "UPDATE students SET accommodation_id = ? WHERE user_id = ?")->execute([$accommodation_id, $user_id]);
+        if (strtolower((string)$user['role_name']) === 'student') {
+            StudentService::ensureStudentRecord($conn, $user_id, $accommodation_id, 'active');
         }
         logActivity($conn, $_SESSION['user_id'], 'assign_accommodation', "Assigned {$user['first_name']} {$user['last_name']} (ID {$user_id}) to accommodation ID {$accommodation_id}", $_SERVER['REMOTE_ADDR']);
         redirect(BASE_URL . "/admin/view-user.php?id={$user_id}", 'Accommodation assigned successfully.', 'success');
@@ -115,4 +116,3 @@ require_once '../../includes/components/header.php';
 </div>
 
 <?php require_once '../../includes/components/footer.php'; ?>
-

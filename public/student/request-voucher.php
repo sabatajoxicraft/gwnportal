@@ -4,6 +4,7 @@ require_once '../../includes/db.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/python_interface.php';
 require_once '../../includes/helpers/VoucherMonthHelper.php';
+require_once '../../includes/services/StudentService.php';
 
 $pageTitle = "Request WiFi Voucher";
 $activePage = "student-voucher";
@@ -15,6 +16,8 @@ $userId = $_SESSION['user_id'] ?? 0;
 $studentId = $_SESSION['student_id'] ?? 0;
 
 $conn = getDbConnection();
+$studentLinkageMissing = false;
+$studentLinkageMessage = '';
 
 // Fallback: resolve studentId from user_id if session value is missing or zero
 if (!$studentId && $userId) {
@@ -28,11 +31,30 @@ if (!$studentId && $userId) {
     }
 }
 
+// Self-heal: if student user has accommodation assignment but no students row yet,
+// create a students row so student listing and voucher flows stay consistent.
+if (!$studentId && $userId) {
+    $repairedStudentId = StudentService::ensureStudentRecordFromAssignment($conn, (int)$userId, 'active');
+    if ($repairedStudentId > 0) {
+        $studentId = $repairedStudentId;
+        $_SESSION['student_id'] = $studentId;
+    }
+}
+
 // Verify student is active (STATUS column may be uppercase in schema; normalize for comparison)
-$stmtStatus = safeQueryPrepare($conn, "SELECT STATUS AS status FROM students WHERE id = ?");
-$stmtStatus->bind_param("i", $studentId);
-$stmtStatus->execute();
-$studentRow = $stmtStatus->get_result()->fetch_assoc();
+$studentRow = null;
+if ($studentId > 0) {
+    $stmtStatus = safeQueryPrepare($conn, "SELECT id, STATUS AS status FROM students WHERE id = ?");
+    $stmtStatus->bind_param("i", $studentId);
+    $stmtStatus->execute();
+    $studentRow = $stmtStatus->get_result()->fetch_assoc();
+}
+
+if (!$studentRow) {
+    $studentLinkageMissing = true;
+    $studentLinkageMessage = 'Your student profile setup is incomplete. Please ask your manager or admin to assign your accommodation so your account can be activated for voucher requests.';
+}
+
 $studentActive = ($studentRow && strtolower($studentRow['status'] ?? '') === 'active');
 
 // Current month in both formats for robust matching (legacy data may use "2026-02" format).
@@ -201,6 +223,20 @@ include '../../includes/components/header.php';
                                         </tr>
                                     </table>
                                 </div>
+                            </div>
+                        </div>
+
+                    <?php elseif ($studentLinkageMissing): ?>
+                        <!-- Student linkage missing -->
+                        <div class="card border-warning">
+                            <div class="card-header bg-warning text-dark">
+                                <h5 class="mb-0"><i class="bi bi-person-exclamation me-2"></i>Profile Setup Incomplete</h5>
+                            </div>
+                            <div class="card-body text-center">
+                                <div class="mb-3">
+                                    <i class="bi bi-person-lines-fill text-warning" style="font-size: 3rem;"></i>
+                                </div>
+                                <p class="lead"><?= htmlEscape($studentLinkageMessage) ?></p>
                             </div>
                         </div>
 

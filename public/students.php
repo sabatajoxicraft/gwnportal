@@ -3,6 +3,7 @@ require_once '../includes/config.php';
 require_once '../includes/functions.php';
 require_once '../includes/permissions.php';
 require_once '../includes/helpers/VoucherMonthHelper.php';
+require_once '../includes/services/StudentService.php';
 
 // Require manager login
 requireManagerLogin();
@@ -132,6 +133,10 @@ if (!in_array($sort, $allowed_sorts, true)) {
 $allowed_device_statuses = ['all', 'has_devices', 'needs_approval'];
 if (!in_array($device_status, $allowed_device_statuses, true)) {
     $device_status = 'all';
+}
+
+if ($accommodation_id > 0) {
+    StudentService::backfillMissingStudentRecords($conn, $accommodation_id, 'active');
 }
 
 // Query params to carry across pagination and tab links
