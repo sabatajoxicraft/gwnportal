@@ -269,15 +269,10 @@ include '../../includes/components/header.php';
                                 <p class="text-muted">Click the button below to generate your monthly WiFi voucher.</p>
                                 <form method="post" action="" id="request-voucher-form">
                                     <input type="hidden" name="csrf_token" value="<?= htmlEscape(getCsrfToken()) ?>">
-                                    <button type="submit" class="btn btn-primary btn-lg" id="request-button">
+                                    <button type="submit" class="btn btn-primary btn-lg" id="request-button"
+                                            data-loading-text="Generating your voucher... Please wait">
                                         <i class="bi bi-download me-2"></i>Request Voucher
                                     </button>
-                                    <div class="mt-3" id="request-loading" style="display: none;">
-                                        <div class="spinner-border text-primary" role="status">
-                                            <span class="visually-hidden">Loading...</span>
-                                        </div>
-                                        <p class="mt-2 text-muted">Generating your voucher... Please wait.</p>
-                                    </div>
                                 </form>
                             </div>
                         </div>
@@ -346,11 +341,5 @@ include '../../includes/components/header.php';
     </div>
 </div>
 
-<script>
-    document.getElementById('request-voucher-form')?.addEventListener('submit', function() {
-        document.getElementById('request-button').disabled = true;
-        document.getElementById('request-loading').style.display = 'block';
-    });
-</script>
-
+<?php // Loading/disable-on-submit state is handled globally by assets/js/form-loading.js ?>
 <?php include '../../includes/components/footer.php'; ?>

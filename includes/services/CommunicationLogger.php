@@ -265,5 +265,9 @@ class CommunicationLogger {
         if (!empty($transportMeta['voucher_month'])) {
             $details['voucher_month'] = substr((string) $transportMeta['voucher_month'], 0, 32);
         }
+
+        if (!empty($transportMeta['duplicate_blocked'])) {
+            $details['duplicate_blocked'] = true;
+        }
     }
 }

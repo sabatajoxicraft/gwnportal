@@ -4,6 +4,7 @@ require_once '../../includes/db.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/services/CommunicationLogger.php';
 require_once '../../includes/services/TwilioService.php';
+require_once '../../includes/services/VoucherNotificationGuard.php';
 
 header('Content-Type: text/plain');
 
@@ -66,24 +67,7 @@ if (!in_array($messageStatus, ['failed', 'undelivered'], true)) {
     twilioVoucherCallbackOk();
 }
 
-$conn     = getDbConnection();
-$sidLike  = '%"message_sid":"' . $messageSid . '"%';
-$flagLike = '%"status_callback":true%';
-$stmtSeen = safeQueryPrepare(
-    $conn,
-    "SELECT id FROM activity_log WHERE action = 'communication_whatsapp_failed' AND details LIKE ? AND details LIKE ? LIMIT 1",
-    false
-);
-
-if (twilioVoucherUsableStmt($stmtSeen)) {
-    $stmtSeen->bind_param('ss', $sidLike, $flagLike);
-    $stmtSeen->execute();
-    $seen = $stmtSeen->get_result()->fetch_assoc();
-    $stmtSeen->close();
-    if ($seen) {
-        twilioVoucherCallbackOk();
-    }
-}
+$conn = getDbConnection();
 
 $monthAlt = '';
 $dt = DateTime::createFromFormat('F Y', $voucherMonth);
@@ -159,7 +143,45 @@ if ($studentName === '') {
     $studentName = 'Student';
 }
 
+// Concurrency-safe duplicate guard: Twilio may retry this status callback
+// for the same MessageSid/event, and this endpoint has no ambient
+// transaction, so wrap reserve()->send->markSent()/release() in our own
+// transaction. The FOR UPDATE lock taken inside reserve() is held until
+// commit(), serializing any concurrent/retried callback for this exact
+// (user, voucher code) pair so the SMS fallback cannot be sent twice.
+$conn->begin_transaction();
+$guard = VoucherNotificationGuard::reserve($conn, $userId, $voucherCode);
+
+if (!$guard['allowed']) {
+    $conn->commit();
+    error_log("twilio-voucher-status: duplicate SMS fallback blocked for user $userId, voucher $voucherCode (previous send at " . ($guard['previous_sent_at'] ?? 'unknown') . ")");
+    CommunicationLogger::logSms(
+        $phoneNumber,
+        'voucher',
+        false,
+        $userId,
+        null,
+        [
+            'transport'         => 'twilio',
+            'transport_error'   => 'duplicate_blocked',
+            'duplicate_blocked' => true,
+            'fallback_from'     => 'whatsapp',
+            'voucher_code'      => $voucherCode,
+            'voucher_month'     => $voucherMonth,
+        ]
+    );
+    twilioVoucherCallbackOk();
+}
+
 $smsMeta = TwilioService::sendVoucherMessageDetailed($phoneNumber, $studentName, $voucherMonth, $voucherCode, 'SMS');
+
+if (!empty($smsMeta['success'])) {
+    VoucherNotificationGuard::markSent($conn, $guard['lock_id']);
+} else {
+    VoucherNotificationGuard::release($conn, $guard['lock_id']);
+}
+$conn->commit();
+
 CommunicationLogger::logSms(
     $phoneNumber,
     'voucher',

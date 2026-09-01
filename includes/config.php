@@ -119,6 +119,45 @@ require_once __DIR__ . '/db.php';
 // Application settings from env file
 define('APP_NAME', $_ENV['APP_NAME'] ?? 'JoxiSphere');
 
+// ============================================================================
+// APPLICATION VERSION
+// Read from version.json, stamped at the repo root by the deploy workflow
+// (.github/workflows/ftp-deploy.yml → "Stamp release version metadata").
+// Falls back to '1.0.0' on a fresh dev checkout where version.json is absent.
+// ============================================================================
+if (!defined('APP_VERSION')) {
+    $_appVersion = '1.0.0';
+    $_versionCandidates = [
+        __DIR__ . '/../version.json',      // repo root (standard layout)
+        __DIR__ . '/../public/version.json', // web root (when public/ is deployed as root)
+    ];
+
+    foreach ($_versionCandidates as $_versionFile) {
+        if (!is_file($_versionFile) || !is_readable($_versionFile)) {
+            continue;
+        }
+
+        $_versionRaw = @file_get_contents($_versionFile);
+        if ($_versionRaw === false || $_versionRaw === '') {
+            continue;
+        }
+
+        $_versionData = json_decode($_versionRaw, true);
+        if (!is_array($_versionData) || !isset($_versionData['semantic_version'])) {
+            continue;
+        }
+
+        $_versionValue = trim((string)$_versionData['semantic_version']);
+        if ($_versionValue !== '') {
+            $_appVersion = $_versionValue;
+            break;
+        }
+    }
+
+    define('APP_VERSION', $_appVersion);
+    unset($_appVersion, $_versionCandidates, $_versionFile, $_versionRaw, $_versionData, $_versionValue);
+}
+
 // Timezone constants.
 // APP_TIMEZONE      – local timezone for all display/UI output.
 // ACTIVITY_LOG_STORAGE_TIMEZONE – timezone used when writing activity_log timestamps.

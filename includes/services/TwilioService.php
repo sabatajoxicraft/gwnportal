@@ -6,6 +6,14 @@
  */
 class TwilioService
 {
+    /** Twilio error code for authentication failures (invalid/expired Account SID or Auth Token). */
+    private const AUTH_ERROR_CODE = 20003;
+
+    /** Minimum seconds between escalation emails, to prevent alert storms from fallback pairs/retries. */
+    private const AUTH_ALERT_MIN_INTERVAL_SECONDS = 900; // 15 minutes
+
+    private const AUTH_ALERT_RECIPIENT = 'support@joxicraft.co.za';
+
     /**
      * Normalize a phone number to E.164 format.
      * Mirrors the global formatPhoneNumber() function.
@@ -51,6 +59,115 @@ class TwilioService
             'twilio_code'    => 0,
             'error'          => '',
         ];
+    }
+
+    /**
+     * Path to the durable, file-based lock used to rate-limit auth-failure escalation emails.
+     * Lives in the system temp dir, matching the on-disk caching pattern used elsewhere
+     * in the codebase (see gwnTokenCacheFile()).
+     */
+    private static function authAlertLockFile()
+    {
+        return rtrim(sys_get_temp_dir(), '\\/') . DIRECTORY_SEPARATOR . 'gwn_twilio_auth_alert.lock';
+    }
+
+    /**
+     * Escalate Twilio authentication failures (error code 20003) to support via email.
+     * Rate-limited to at most one email per AUTH_ALERT_MIN_INTERVAL_SECONDS to avoid alert
+     * storms from SMS/WhatsApp fallback pairs and retries. Never throws and never triggers
+     * further Twilio sends, so it cannot recurse back into this notification path.
+     *
+     * The cool-down check and the send itself happen inside the same file lock, so
+     * concurrent requests (e.g. SMS + WhatsApp fallback attempts) block on one another
+     * instead of racing past the check and sending duplicate alerts. The cool-down
+     * timestamp is only persisted once sendAppEmail() actually succeeds, so a failed
+     * delivery does not suppress retries for the full interval.
+     *
+     * Deliberately omits recipient phone numbers and message bodies from the email body.
+     *
+     * @param int    $twilioCode Twilio error code returned in the API response, if any.
+     * @param string $logPrefix  Non-sensitive context label (e.g. "Twilio voucher").
+     */
+    private static function notifyAuthFailure($twilioCode, $logPrefix)
+    {
+        if ((int) $twilioCode !== self::AUTH_ERROR_CODE) {
+            return;
+        }
+
+        $file = self::authAlertLockFile();
+
+        $fp = @fopen($file, 'c+');
+        if ($fp === false) {
+            // Can't dedupe reliably; fail open so the underlying failure is still surfaced.
+            self::sendAuthAlertEmail($logPrefix);
+            return;
+        }
+
+        if (!flock($fp, LOCK_EX)) {
+            fclose($fp);
+            self::sendAuthAlertEmail($logPrefix);
+            return;
+        }
+
+        $contents = stream_get_contents($fp);
+        $last     = (int) trim((string) $contents);
+
+        if ($last > 0 && (time() - $last) < self::AUTH_ALERT_MIN_INTERVAL_SECONDS) {
+            flock($fp, LOCK_UN);
+            fclose($fp);
+            return;
+        }
+
+        // Hold the lock across the send itself so concurrent fallback attempts block
+        // here rather than racing past the cool-down check above.
+        $sent = self::sendAuthAlertEmail($logPrefix);
+
+        if ($sent) {
+            // Only persist the cool-down once the email actually went out; a failed
+            // send must not suppress retries for the full interval. Capture the
+            // timestamp only now so a slow send doesn't understate the cool-down.
+            $now = time();
+            ftruncate($fp, 0);
+            rewind($fp);
+            fwrite($fp, (string) $now);
+            fflush($fp);
+        }
+
+        flock($fp, LOCK_UN);
+        fclose($fp);
+    }
+
+    /**
+     * Sends the auth-failure escalation email itself. Split out from notifyAuthFailure()
+     * so the cool-down lock can be held across the call without duplicating the send logic
+     * on the "can't dedupe reliably" fail-open paths.
+     *
+     * @param string $logPrefix Non-sensitive context label (e.g. "Twilio voucher").
+     * @return bool true if the email was sent successfully, false otherwise.
+     */
+    private static function sendAuthAlertEmail($logPrefix)
+    {
+        if (!function_exists('sendAppEmail')) {
+            error_log('Twilio auth escalation: sendAppEmail() unavailable; cannot notify ' . self::AUTH_ALERT_RECIPIENT);
+            return false;
+        }
+
+        $subject = 'Twilio Authentication Failure (Error 20003)';
+        $body    = "Twilio rejected a request with authentication error code 20003.\n\n"
+            . "Context: {$logPrefix}\n"
+            . "Time: " . date('Y-m-d H:i:s') . "\n\n"
+            . "This typically means the configured Twilio Account SID / Auth Token is invalid, "
+            . "expired, or has been rotated. Please verify the Twilio credentials for this environment.\n\n"
+            . "This is an automated alert. To prevent alert storms, at most one notification is sent "
+            . "every " . self::AUTH_ALERT_MIN_INTERVAL_SECONDS . " seconds after a successful send.";
+
+        try {
+            return sendAppEmail(self::AUTH_ALERT_RECIPIENT, $subject, $body, false, 'twilio_alert') !== false;
+        } catch (\Throwable $e) {
+            // Never let escalation failures mask the underlying Twilio error.
+            error_log('Twilio auth escalation email failed: ' . $e->getMessage());
+            return false;
+        }
     }
 
     private static function executeTwilioRequest($url, array $data, $logPrefix, $method)
@@ -102,6 +219,7 @@ class TwilioService
 
         $meta['error'] = (string) ($decoded['message'] ?? $response ?? 'Unknown Twilio error');
         error_log($logPrefix . " failed (" . $meta['http_code'] . "): " . $meta['error']);
+        self::notifyAuthFailure($meta['twilio_code'], $logPrefix);
         return $meta;
     }
 
@@ -213,6 +331,7 @@ class TwilioService
         }
 
         error_log("Twilio SMS failed ($httpCode): " . ($result['message'] ?? $response));
+        self::notifyAuthFailure($result['code'] ?? 0, 'Twilio SMS');
         return false;
     }
 
@@ -294,6 +413,7 @@ class TwilioService
         } else {
             error_log("Twilio WhatsApp failed ($httpCode): " . ($result['message'] ?? $response));
         }
+        self::notifyAuthFailure($twilioCode, 'Twilio WhatsApp');
         return false;
     }
 
@@ -373,6 +493,7 @@ class TwilioService
         }
 
         error_log("Twilio invitation WhatsApp failed ($httpCode): " . ($result['message'] ?? $response));
+        self::notifyAuthFailure($result['code'] ?? 0, 'Twilio invitation WhatsApp');
         return false;
     }
 
@@ -582,6 +703,7 @@ class TwilioService
         }
 
         error_log("Twilio credentials failed ($httpCode): " . ($result['message'] ?? $response));
+        self::notifyAuthFailure($result['code'] ?? 0, 'Twilio credentials');
         return false;
     }
 
@@ -660,6 +782,7 @@ class TwilioService
         }
 
         error_log("Twilio invitation SMS failed ($httpCode): " . ($result['message'] ?? $response));
+        self::notifyAuthFailure($result['code'] ?? 0, 'Twilio invitation SMS');
         return false;
     }
 }

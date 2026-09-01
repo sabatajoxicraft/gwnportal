@@ -193,16 +193,10 @@ require_once '../includes/components/header.php';
                                     </div>
                                     
                                     <div class="d-grid">
-                                        <button type="submit" class="btn btn-success" id="send-button">
+                                        <button type="submit" class="btn btn-success" id="send-button"
+                                                data-loading-text="Sending voucher... This may take a few moments">
                                             <i class="bi bi-send"></i> Send Voucher
                                         </button>
-                                    </div>
-                                    
-                                    <div class="mt-3 text-center" id="loading" style="display: none;">
-                                        <div class="spinner-border text-primary" role="status">
-                                            <span class="visually-hidden">Loading...</span>
-                                        </div>
-                                        <p class="mt-2">Sending voucher... This may take a few moments.</p>
                                     </div>
                                 </form>
                             <?php endif; ?>
@@ -212,14 +206,7 @@ require_once '../includes/components/header.php';
             </div>
         </div>
     </div>
-    
-    <script>
-        // Show loading indicator on form submission
-        document.getElementById('send-voucher-form')?.addEventListener('submit', function() {
-            document.getElementById('send-button').disabled = true;
-            document.getElementById('loading').style.display = 'block';
-        });
-    </script>
 
+<?php // Loading/disable-on-submit state is handled globally by assets/js/form-loading.js ?>
 <?php require_once '../includes/components/footer.php'; ?>
 

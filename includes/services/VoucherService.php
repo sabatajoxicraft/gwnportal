@@ -2,6 +2,7 @@
 require_once __DIR__ . '/GwnService.php';
 require_once __DIR__ . '/CommunicationLogger.php';
 require_once __DIR__ . '/TwilioService.php';
+require_once __DIR__ . '/VoucherNotificationGuard.php';
 require_once __DIR__ . '/../helpers/VoucherMonthHelper.php';
 
 class VoucherService extends GwnService {
@@ -218,6 +219,7 @@ class VoucherService extends GwnService {
                 ? TwilioService::buildVoucherCallbackUrl((int)$student['user_id'], $voucher_code, $month, $sendMethod)
                 : '';
             $sendMeta    = $this->sendVoucherMessageWithAudit(
+                $conn,
                 (int)$student['user_id'],
                 $phoneNumber,
                 $studentName,
@@ -240,6 +242,7 @@ class VoucherService extends GwnService {
                     ? TwilioService::buildVoucherCallbackUrl((int)$student['user_id'], $voucher_code, $month, $fallbackMethod)
                     : '';
                 $fallbackMeta = $this->sendVoucherMessageWithAudit(
+                    $conn,
                     (int)$student['user_id'],
                     $fallbackNumber,
                     $studentName,
@@ -555,6 +558,7 @@ class VoucherService extends GwnService {
     }
 
     private function sendVoucherMessageWithAudit(
+        $conn,
         int $userId,
         string $number,
         string $studentName,
@@ -564,6 +568,48 @@ class VoucherService extends GwnService {
         string $callbackUrl = '',
         array $extraTransportMeta = []
     ): array {
+        // Concurrency-safe duplicate guard: block re-notifying the SAME
+        // recipient about the SAME voucher code within the dedup window.
+        // This runs BEFORE the Twilio call and, when $conn already has an
+        // open transaction (as it does here, inside sendStudentVoucher's
+        // transaction), the FOR UPDATE lock it takes is held until that
+        // transaction commits, serializing any concurrent duplicate attempt
+        // for this exact (user, voucher code) pair. A brand new voucher code
+        // (e.g. from a replacement) is a different guard key and is never
+        // blocked by a prior send.
+        $guard = VoucherNotificationGuard::reserve($conn, $userId, $voucherCode);
+
+        if (!$guard['allowed']) {
+            error_log("VoucherService::sendVoucherMessageWithAudit: Duplicate notification blocked for user $userId, voucher $voucherCode (previous send at " . ($guard['previous_sent_at'] ?? 'unknown') . ")");
+
+            $blockedTransportMeta = array_merge([
+                'transport'         => 'twilio',
+                'http_code'         => 0,
+                'transport_error'   => 'duplicate_blocked',
+                'twilio_code'       => 0,
+                'message_status'    => 'duplicate_blocked',
+                'duplicate_blocked' => true,
+                'voucher_code'      => $voucherCode,
+                'voucher_month'     => $month,
+            ], $extraTransportMeta);
+
+            if (strtoupper((string)$method) === 'WHATSAPP') {
+                CommunicationLogger::logWhatsApp($number, 'voucher', false, $userId, null, $blockedTransportMeta);
+            } else {
+                CommunicationLogger::logSms($number, 'voucher', false, $userId, null, $blockedTransportMeta);
+            }
+
+            return [
+                'success'           => false,
+                'sid'               => null,
+                'http_code'         => 0,
+                'transport_error'   => 'duplicate_blocked',
+                'twilio_code'       => 0,
+                'message_status'    => 'duplicate_blocked',
+                'duplicate_blocked' => true,
+            ];
+        }
+
         $meta = TwilioService::sendVoucherMessageDetailed(
             $number,
             $studentName,
@@ -572,6 +618,15 @@ class VoucherService extends GwnService {
             $method,
             $callbackUrl !== '' ? $callbackUrl : null
         );
+
+        // Only commit the successful-notification state once Twilio has
+        // confirmed the send; failed sends release the reservation so
+        // legitimate retries/fallbacks are never blocked.
+        if (!empty($meta['success'])) {
+            VoucherNotificationGuard::markSent($conn, $guard['lock_id']);
+        } else {
+            VoucherNotificationGuard::release($conn, $guard['lock_id']);
+        }
 
         $transportMeta = array_merge([
             'transport'      => 'twilio',

@@ -16,18 +16,27 @@ env:
   # Dedicated FTP account is rooted at the site directory, so '.' is the site root.
   FTP_SERVER_DIR: "."
 
+permissions:
+  contents: write
+
 jobs:
   deploy:
+    # Production site root is mirrored with --delete, so only main may deploy,
+    # including manual workflow_dispatch runs from other refs.
+    if: github.ref == 'refs/heads/main'
     name: Deploy via explicit FTPS
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Not continue-on-error: a failed baseline lookup must abort the deploy
+      # rather than silently republish a downgraded version as "latest".
       - name: Stamp release version metadata
         id: version_stamp
-        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ github.token }}
           VERSION_BASE: 1.0.0
@@ -35,6 +44,7 @@ jobs:
           python3 - <<'PY'
           import json
           import os
+          import sys
           from datetime import datetime, timezone
           from urllib.request import Request, urlopen
           from urllib.error import URLError, HTTPError
@@ -62,33 +72,65 @@ jobs:
           release_label = ""
           is_breaking = False
 
-          if repo and token:
-              req = Request(
-                  f"https://api.github.com/repos/{repo}/releases/latest",
-                  headers={
-                      "Authorization": f"Bearer {token}",
-                      "Accept": "application/vnd.github+json",
-                      "X-GitHub-Api-Version": "2022-11-28",
-                      "User-Agent": "gwn-portal-deploy",
-                  },
+          if not (repo and token):
+              print(
+                  "::error::GITHUB_REPOSITORY/GITHUB_TOKEN unavailable; cannot "
+                  "determine the release baseline. Refusing to stamp a version.",
+                  file=sys.stderr,
               )
-              try:
-                  with urlopen(req, timeout=8) as response:
-                      payload = json.loads(response.read().decode("utf-8"))
-                      release_tag = str(payload.get("tag_name") or "").strip()
-                      text_blob = " ".join([
-                          str(payload.get("name") or ""),
-                          str(payload.get("body") or ""),
-                          release_tag,
-                      ]).upper()
-                      if "BREAKING" in text_blob:
-                          is_breaking = True
-                          release_label = "BREAKING"
-                      parsed_release = parse_semver(release_tag)
-                      if parsed_release:
-                          latest = parsed_release
-              except (HTTPError, URLError, TimeoutError, ValueError):
-                  pass
+              raise SystemExit(1)
+
+          req = Request(
+              f"https://api.github.com/repos/{repo}/releases/latest",
+              headers={
+                  "Authorization": f"Bearer {token}",
+                  "Accept": "application/vnd.github+json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+                  "User-Agent": "gwn-portal-deploy",
+              },
+          )
+          try:
+              with urlopen(req, timeout=8) as response:
+                  payload = json.loads(response.read().decode("utf-8"))
+                  release_tag = str(payload.get("tag_name") or "").strip()
+                  text_blob = " ".join([
+                      str(payload.get("name") or ""),
+                      str(payload.get("body") or ""),
+                      release_tag,
+                  ]).upper()
+                  if "BREAKING" in text_blob:
+                      is_breaking = True
+                      release_label = "BREAKING"
+                  parsed_release = parse_semver(release_tag)
+                  if parsed_release:
+                      latest = parsed_release
+                  elif release_tag:
+                      print(
+                          "::error::Latest release tag "
+                          f"'{release_tag}' is not semver; refusing to guess a baseline.",
+                          file=sys.stderr,
+                      )
+                      raise SystemExit(1)
+          except HTTPError as exc:
+              # 404 is the only benign case: the repo genuinely has no
+              # releases yet, so VERSION_BASE is the correct baseline.
+              if exc.code != 404:
+                  print(
+                      f"::error::Release baseline lookup failed (HTTP {exc.code}). "
+                      "Refusing to stamp a version that could downgrade the "
+                      "published release.",
+                      file=sys.stderr,
+                  )
+                  raise SystemExit(1)
+              print("No existing release found (HTTP 404); using VERSION_BASE.")
+          except (URLError, TimeoutError, ValueError) as exc:
+              print(
+                  f"::error::Release baseline lookup failed ({type(exc).__name__}: {exc}). "
+                  "Refusing to stamp a version that could downgrade the "
+                  "published release.",
+                  file=sys.stderr,
+              )
+              raise SystemExit(1)
 
           major, minor, _patch = latest
           if is_breaking:
@@ -123,37 +165,23 @@ jobs:
               json.dump(metadata, handle, indent=2)
               handle.write("\n")
 
+          output_path = os.getenv("GITHUB_OUTPUT")
+          if output_path:
+              with open(output_path, "a", encoding="utf-8") as handle:
+                  handle.write(f"semantic_version={semantic_version}\n")
+
           print(f"Stamped version.json => {semantic_version}")
           PY
 
-      - name: Ensure fallback version metadata
-        if: always()
+      # Stamping is now mandatory; a literal 1.0.0 fallback would downgrade the
+      # published release, so verify instead of fabricating a version.
+      - name: Verify version metadata
         run: |
-          if [ "${{ steps.version_stamp.outcome }}" != "success" ]; then
-            echo "::warning::Version stamping failed. Deploy will continue with fallback metadata."
-          fi
           if [ ! -s version.json ]; then
-            cat > version.json <<EOF
-          {
-            "semantic_version": "1.0.0",
-            "major_version": 1,
-            "minor_version": 0,
-            "patch_version": ${GITHUB_RUN_NUMBER:-0},
-            "git_sha": "${GITHUB_SHA}",
-            "short_sha": "${GITHUB_SHA::7}",
-            "branch_name": "${GITHUB_REF_NAME}",
-            "release_tag": "",
-            "release_label": "",
-            "is_breaking": 0,
-            "deployment_environment": "production",
-            "deployed_at_utc": "$(date -u '+%Y-%m-%d %H:%M:%S')",
-            "workflow_name": "${GITHUB_WORKFLOW}",
-            "workflow_run_id": "${GITHUB_RUN_ID}",
-            "workflow_run_number": "${GITHUB_RUN_NUMBER}",
-            "source": "fallback"
-          }
-          EOF
+            echo "ERROR: version.json was not produced by the stamp step. Aborting deploy." >&2
+            exit 1
           fi
+          cat version.json
 
       - name: Write .env from secret
         env:
@@ -260,3 +288,56 @@ jobs:
           rm -f "$LFTP_SCRIPT"
           echo "ERROR: All 3 deploy attempts failed." >&2
           exit 1
+
+      # Establishes the cumulative version baseline: the next run reads this
+      # release via /releases/latest and bumps from it instead of VERSION_BASE.
+      # The job is main-only, so any successful deploy here is production.
+      - name: Publish release tag for deployed version
+        if: success()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -u
+          VERSION=$(python3 -c "import json;print(json.load(open('version.json')).get('semantic_version',''))" 2>/dev/null || echo "")
+          if [ -z "$VERSION" ]; then
+            echo "::warning::No semantic_version in version.json; skipping release creation."
+            exit 0
+          fi
+          TAG="v${VERSION}"
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; nothing to do."
+            exit 0
+          fi
+
+          # Never publish a release that would move "latest" backwards, e.g. if
+          # the baseline lookup produced a lower version than what is published.
+          CURRENT=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName 2>/dev/null || echo "")
+          if [ -n "$CURRENT" ]; then
+            if ! python3 - "$CURRENT" "$VERSION" <<'PY'
+          import re, sys
+
+          def parse(value):
+              m = re.match(r"^v?(\d+)\.(\d+)\.(\d+)$", (value or "").strip())
+              return tuple(int(g) for g in m.groups()) if m else None
+
+          current, candidate = parse(sys.argv[1]), parse(sys.argv[2])
+          if current is None:
+              sys.exit(0)
+          sys.exit(0 if candidate is not None and candidate > current else 1)
+          PY
+            then
+              echo "::warning::Computed version $VERSION is not greater than published $CURRENT; skipping release creation."
+              exit 0
+            fi
+          fi
+
+          if ! gh release create "$TAG" \
+                --repo "$GITHUB_REPOSITORY" \
+                --target "$GITHUB_SHA" \
+                --title "$TAG" \
+                --latest \
+                --notes "Automated production deploy ${TAG} from ${GITHUB_SHA} (run ${GITHUB_RUN_NUMBER})."; then
+            echo "::warning::Could not create release $TAG; deploy already succeeded."
+          fi

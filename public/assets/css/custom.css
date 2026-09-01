@@ -366,6 +366,134 @@ body {
 	animation: pulse 1.5s infinite;
 }
 
+/* ============================================================================
+   Global Form Submission Loading State
+   Portal-wide, reusable, inline-SVG loading indicator applied automatically to
+   every action/form-submit button. Behavior lives in
+   public/assets/js/form-loading.js (loaded from every footer variant).
+
+   Opt-out: add data-no-loading to a <form> (or an individual submit button)
+   to skip this behavior for forms that intentionally manage their own state.
+   Override the accessible processing text with data-loading-text="..." on the
+   submit button (or the form, as a fallback).
+   ============================================================================ */
+
+/* Inline SVG spinner injected into the clicked submit button */
+.gwn-spinner {
+	display: inline-block;
+	vertical-align: -0.125em;
+	animation: gwn-spinner-rotate 0.85s linear infinite;
+}
+
+.gwn-spinner-track {
+	stroke: currentColor;
+	opacity: 0.25;
+}
+
+.gwn-spinner-arc {
+	stroke: currentColor;
+}
+
+@keyframes gwn-spinner-rotate {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+/* The clicked submit button while its form submission is in-flight */
+.gwn-btn-loading {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.5rem;
+	cursor: progress !important;
+	pointer-events: none;
+}
+
+/* Other submit controls in the same form: disabled only (blocks duplicate submits) */
+.gwn-btn-disabled-duplicate {
+	cursor: not-allowed !important;
+}
+
+/* Portal-wide indeterminate progress bar fixed to the top of the viewport,
+   shown for the duration of any tracked submission (incl. programmatic
+   form.submit() calls that have no visible submitter to decorate). */
+.gwn-page-loading-bar {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 3px;
+	z-index: 2000;
+	overflow: hidden;
+	opacity: 0;
+	transition: opacity 0.15s ease-in-out;
+	pointer-events: none;
+}
+
+html.gwn-loading .gwn-page-loading-bar {
+	opacity: 1;
+}
+
+.gwn-page-loading-bar svg {
+	width: 200%;
+	height: 100%;
+	display: block;
+}
+
+.gwn-page-loading-bar-fill {
+	stroke: var(--primary-color, #4e54c8);
+	stroke-width: 6;
+	fill: none;
+	stroke-dasharray: 90 220;
+	animation: gwn-bar-sweep 1.1s linear infinite;
+}
+
+@keyframes gwn-bar-sweep {
+	to {
+		stroke-dashoffset: -310;
+	}
+}
+
+/* Screen-reader-only live region announcing processing status */
+.gwn-sr-only-status {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+/* Respect reduced-motion preference: keep the cue visible but remove motion */
+@media (prefers-reduced-motion: reduce) {
+	.gwn-spinner,
+	.gwn-page-loading-bar-fill {
+		animation: none !important;
+	}
+
+	.gwn-spinner-arc {
+		stroke-dasharray: none;
+		opacity: 0.85;
+	}
+
+	.gwn-page-loading-bar {
+		opacity: 0;
+	}
+
+	html.gwn-loading .gwn-page-loading-bar {
+		opacity: 1;
+		background: var(--primary-color, #4e54c8);
+	}
+
+	.gwn-page-loading-bar svg {
+		display: none;
+	}
+}
+
 /* Footer Styling */
 footer {
 	background-color: var(--dark-color);
