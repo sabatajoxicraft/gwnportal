@@ -1,0 +1,331 @@
+name: Remote Migrate - Voucher Expiry
+
+on:
+  workflow_dispatch:
+
+env:
+  # Temporary workaround: ftp.joxicraft.co.za is the only reachable FTP endpoint,
+  # but its FTPS certificate is issued to *.aserv.co.za/aserv.co.za (not the connect
+  # hostname). Certificate validity is still verified; only hostname-checking is
+  # disabled. Revert once the host cert matches or a correct endpoint is available.
+  FTP_SERVER: ftp.joxicraft.co.za
+  FTP_PORT: 21
+  # Dedicated FTP account is rooted at the site directory, so '.' is the site root.
+  FTP_SERVER_DIR: "."
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Generate migration filename and token
+        run: |
+          FILENAME="migrate_$(openssl rand -hex 8).php"
+          TOKEN=$(openssl rand -hex 32)
+          echo "::add-mask::$TOKEN"
+          echo "MIGRATION_FILENAME=$FILENAME" >> "$GITHUB_ENV"
+          echo "MIGRATION_TOKEN=$TOKEN"  >> "$GITHUB_ENV"
+
+      - name: Create PHP migration script
+        run: |
+          cat > "${GITHUB_WORKSPACE}/${MIGRATION_FILENAME}" << 'PHPEOF'
+          <?php
+          $expected = 'TOKEN_PLACEHOLDER';
+          $provided = $_GET['token'] ?? '';
+          if (!hash_equals($expected, $provided)) {
+              http_response_code(403);
+              exit('Forbidden');
+          }
+
+          $configPaths = [__DIR__ . '/../includes/config.php', __DIR__ . '/includes/config.php'];
+          $configLoaded = false;
+          foreach ($configPaths as $_cp) {
+              if (file_exists($_cp)) { require_once $_cp; $configLoaded = true; break; }
+          }
+          if (!$configLoaded) { http_response_code(500); exit('Config not found'); }
+
+          if (!isset($conn)) {
+              if (function_exists('getDbConnection')) {
+                  $conn = getDbConnection();
+              } else {
+                  http_response_code(500);
+                  exit('No database connection');
+              }
+          }
+
+          $errors = [];
+
+          // 0. Snapshot existing indexes on voucher_logs before changing anything, so we
+          //    can verify below that this column-only migration adds/drops no index.
+          $indexesBefore = [];
+          $res = $conn->query(
+              "SELECT DISTINCT INDEX_NAME FROM information_schema.STATISTICS
+               WHERE TABLE_SCHEMA = DATABASE()
+                 AND TABLE_NAME = 'voucher_logs'"
+          );
+          if ($res) {
+              while ($row = $res->fetch_assoc()) {
+                  $indexesBefore[] = $row['INDEX_NAME'];
+              }
+              sort($indexesBefore);
+          } else {
+              $errors[] = 'Pre-migration index snapshot query failed: ' . $conn->error;
+          }
+
+          // 1. Add voucher_expires_at only if it does not already exist (idempotent).
+          $colExists = 0;
+          $stmt = $conn->prepare(
+              "SELECT COUNT(*) FROM information_schema.COLUMNS
+               WHERE TABLE_SCHEMA = DATABASE()
+                 AND TABLE_NAME = 'voucher_logs'
+                 AND COLUMN_NAME = 'voucher_expires_at'"
+          );
+          if ($stmt) {
+              $stmt->execute();
+              $stmt->bind_result($colExists);
+              $stmt->fetch();
+              $stmt->close();
+          } else {
+              $errors[] = 'Column existence check failed: ' . $conn->error;
+          }
+
+          if (!$errors && (int)$colExists === 0) {
+              if (!$conn->query(
+                  'ALTER TABLE voucher_logs ADD COLUMN voucher_expires_at DATETIME NULL AFTER voucher_month'
+              )) {
+                  $errors[] = 'Add voucher_expires_at column: ' . $conn->error;
+              }
+          }
+
+          // 2. Back-fill NULL rows from voucher_month, supporting the 'Y-m' ("2026-02")
+          //    and 'F Y' ("February 2026") stored formats, to 23:59:59 on the last day
+          //    of that calendar month. Rows matching neither format are left NULL.
+          if (!$errors) {
+              $updateSql = "UPDATE voucher_logs
+                  SET voucher_expires_at = CONCAT(
+                          DATE_FORMAT(
+                              LAST_DAY(
+                                  CASE
+                                      WHEN voucher_month REGEXP '^[0-9]{4}-[0-9]{2}$'
+                                          THEN STR_TO_DATE(CONCAT(voucher_month, '-01'), '%Y-%m-%d')
+                                      WHEN voucher_month REGEXP '^[A-Za-z]+ [0-9]{4}$'
+                                          THEN STR_TO_DATE(CONCAT('01 ', voucher_month), '%d %M %Y')
+                                      ELSE NULL
+                                  END
+                              ),
+                              '%Y-%m-%d'
+                          ),
+                          ' 23:59:59'
+                      )
+                  WHERE voucher_expires_at IS NULL
+                    AND (
+                          voucher_month REGEXP '^[0-9]{4}-[0-9]{2}$'
+                       OR voucher_month REGEXP '^[A-Za-z]+ [0-9]{4}$'
+                    )";
+              if (!$conn->query($updateSql)) {
+                  $errors[] = 'Backfill voucher_expires_at: ' . $conn->error;
+              }
+          }
+
+          // 3. Verify the resulting column exists with the expected type, nullability,
+          //    and that it is positioned immediately after voucher_month.
+          $colOk = false;
+          $expiresPos = null;
+          $res = $conn->query(
+              "SELECT DATA_TYPE, IS_NULLABLE, ORDINAL_POSITION FROM information_schema.COLUMNS
+               WHERE TABLE_SCHEMA = DATABASE()
+                 AND TABLE_NAME = 'voucher_logs'
+                 AND COLUMN_NAME = 'voucher_expires_at'"
+          );
+          if ($res && ($row = $res->fetch_assoc())) {
+              $expiresPos = (int)$row['ORDINAL_POSITION'];
+              if (strtolower($row['DATA_TYPE']) === 'datetime' && strtoupper($row['IS_NULLABLE']) === 'YES') {
+                  $colOk = true;
+              } else {
+                  $errors[] = 'voucher_expires_at has unexpected type/nullability: '
+                      . $row['DATA_TYPE'] . '/' . $row['IS_NULLABLE'];
+              }
+          } else {
+              $errors[] = 'Column verification query failed or column missing: ' . $conn->error;
+          }
+
+          $monthPos = null;
+          $res = $conn->query(
+              "SELECT ORDINAL_POSITION FROM information_schema.COLUMNS
+               WHERE TABLE_SCHEMA = DATABASE()
+                 AND TABLE_NAME = 'voucher_logs'
+                 AND COLUMN_NAME = 'voucher_month'"
+          );
+          if ($res && ($row = $res->fetch_assoc())) {
+              $monthPos = (int)$row['ORDINAL_POSITION'];
+          } else {
+              $errors[] = 'voucher_month position query failed: ' . $conn->error;
+          }
+
+          if ($colOk && $monthPos !== null && $expiresPos !== ($monthPos + 1)) {
+              $errors[] = "voucher_expires_at is not positioned immediately after voucher_month (voucher_month position {$monthPos}, voucher_expires_at position {$expiresPos})";
+          }
+
+          // 4. Verify the back-fill actually completed for every recognised voucher_month.
+          $res = $conn->query(
+              "SELECT COUNT(*) AS c FROM voucher_logs
+               WHERE voucher_expires_at IS NULL
+                 AND (
+                       voucher_month REGEXP '^[0-9]{4}-[0-9]{2}$'
+                    OR voucher_month REGEXP '^[A-Za-z]+ [0-9]{4}$'
+                 )"
+          );
+          if ($res && ($row = $res->fetch_assoc())) {
+              if ((int)$row['c'] > 0) {
+                  $errors[] = 'Backfill incomplete: ' . $row['c'] . ' row(s) with a recognised voucher_month are still NULL';
+              }
+          } else {
+              $errors[] = 'Backfill verification query failed: ' . $conn->error;
+          }
+
+          // 5. This migration creates no indexes, so verify the index set on voucher_logs
+          //    is unchanged, and that the expected pre-existing indexes are still present.
+          $indexesAfter = [];
+          $res = $conn->query(
+              "SELECT DISTINCT INDEX_NAME FROM information_schema.STATISTICS
+               WHERE TABLE_SCHEMA = DATABASE()
+                 AND TABLE_NAME = 'voucher_logs'"
+          );
+          if ($res) {
+              while ($row = $res->fetch_assoc()) {
+                  $indexesAfter[] = $row['INDEX_NAME'];
+              }
+              sort($indexesAfter);
+          } else {
+              $errors[] = 'Post-migration index snapshot query failed: ' . $conn->error;
+          }
+
+          if ($indexesBefore !== $indexesAfter) {
+              $errors[] = 'Index set on voucher_logs changed unexpectedly. Before: ['
+                  . implode(', ', $indexesBefore) . ']; After: [' . implode(', ', $indexesAfter) . ']';
+          }
+          if (!in_array('PRIMARY', $indexesAfter, true)) {
+              $errors[] = 'Expected PRIMARY key index on voucher_logs is missing';
+          }
+          if (!in_array('idx_voucher_first_used_at', $indexesAfter, true)) {
+              $errors[] = 'Expected existing index idx_voucher_first_used_at on voucher_logs is missing';
+          }
+
+          if ($errors) {
+              http_response_code(500);
+              echo 'ERRORS: ' . implode('; ', $errors);
+          } else {
+              echo 'OK. Column voucher_expires_at present (DATETIME NULL, immediately after voucher_month). Backfill verified complete. Existing indexes on voucher_logs unchanged (PRIMARY, idx_voucher_first_used_at confirmed).';
+          }
+          PHPEOF
+          sed -i "s|TOKEN_PLACEHOLDER|${MIGRATION_TOKEN}|" "${GITHUB_WORKSPACE}/${MIGRATION_FILENAME}"
+
+      - name: Install deploy tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp
+
+      - name: Upload migration script via explicit FTPS
+        env:
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          if [ -z "$FTP_USERNAME" ] || [ -z "$FTP_PASSWORD" ]; then
+            echo "ERROR: FTP credentials are missing." >&2
+            exit 1
+          fi
+
+          REMOTE_PATH="public/${MIGRATION_FILENAME}"
+          echo "REMOTE_SCRIPT_PATH=${REMOTE_PATH}" >> "$GITHUB_ENV"
+
+          _FTP_USER=$(printf '%s' "$FTP_USERNAME" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\$/\\$/g; s/`/\\`/g')
+          _FTP_PASS=$(printf '%s' "$FTP_PASSWORD" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\$/\\$/g; s/`/\\`/g')
+
+          LFTP_SCRIPT=$(mktemp -p "$RUNNER_TEMP" lftp_migrate_XXXXXX)
+          chmod 600 "$LFTP_SCRIPT"
+          trap 'rm -f "${LFTP_SCRIPT:-}"' EXIT
+          cat > "$LFTP_SCRIPT" <<LFTP_EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-allow yes
+          set ftp:ssl-force yes
+          set ftp:ssl-protect-data yes
+          set ftp:passive-mode on
+          set ftp:sync-mode on
+          set ssl:verify-certificate yes
+          set ssl:check-hostname no
+          set net:timeout 120
+          set net:max-retries 2
+          set net:reconnect-interval-base 10
+          set net:reconnect-interval-max 20
+          open ftp://$FTP_SERVER:$FTP_PORT
+          user "$_FTP_USER" "$_FTP_PASS"
+          mkdir -f "public"
+          put "${GITHUB_WORKSPACE}/${MIGRATION_FILENAME}" -o "$REMOTE_PATH"
+          bye
+          LFTP_EOF
+
+          if ! lftp -f "$LFTP_SCRIPT"; then
+            echo "ERROR: lftp upload failed; aborting before HTTP execution." >&2
+            exit 1
+          fi
+
+      - name: Execute migration via HTTP
+        run: |
+          ROOT_STATUS=$(curl --silent --output "${GITHUB_WORKSPACE}/mig_root.txt" --write-out "%{http_code}" \
+            "https://student.joxicraft.co.za/${MIGRATION_FILENAME}?token=${MIGRATION_TOKEN}" || true)
+          ROOT_STATUS=${ROOT_STATUS:-000}
+          ROOT_BODY=$(cat "${GITHUB_WORKSPACE}/mig_root.txt" 2>/dev/null || true)
+
+          PUB_STATUS=$(curl --silent --output "${GITHUB_WORKSPACE}/mig_pub.txt" --write-out "%{http_code}" \
+            "https://student.joxicraft.co.za/public/${MIGRATION_FILENAME}?token=${MIGRATION_TOKEN}" || true)
+          PUB_STATUS=${PUB_STATUS:-000}
+          PUB_BODY=$(cat "${GITHUB_WORKSPACE}/mig_pub.txt" 2>/dev/null || true)
+
+          if { [ "$ROOT_STATUS" = "200" ] && ! echo "$ROOT_BODY" | grep -qi "error"; }; then
+            echo "Migration succeeded."
+          elif { [ "$PUB_STATUS" = "200" ] && ! echo "$PUB_BODY" | grep -qi "error"; }; then
+            echo "Migration succeeded."
+          else
+            echo "Migration failed. Status root/public: ${ROOT_STATUS}/${PUB_STATUS}"
+            exit 1
+          fi
+
+      - name: Cleanup remote migration script
+        if: always()
+        env:
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          if [ -n "${REMOTE_SCRIPT_PATH}" ] && [ -n "$FTP_USERNAME" ] && [ -n "$FTP_PASSWORD" ]; then
+            _FTP_USER=$(printf '%s' "$FTP_USERNAME" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\$/\\$/g; s/`/\\`/g')
+            _FTP_PASS=$(printf '%s' "$FTP_PASSWORD" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\$/\\$/g; s/`/\\`/g')
+
+            LFTP_SCRIPT=$(mktemp -p "$RUNNER_TEMP" lftp_cleanup_XXXXXX)
+            chmod 600 "$LFTP_SCRIPT"
+            trap 'rm -f "${LFTP_SCRIPT:-}"' EXIT
+            cat > "$LFTP_SCRIPT" <<LFTP_EOF
+          set cmd:fail-exit yes
+          set ftp:ssl-allow yes
+          set ftp:ssl-force yes
+          set ftp:ssl-protect-data yes
+          set ftp:passive-mode on
+          set ftp:sync-mode on
+          set ssl:verify-certificate yes
+          set ssl:check-hostname no
+          set net:timeout 120
+          set net:max-retries 1
+          open ftp://$FTP_SERVER:$FTP_PORT
+          user "$_FTP_USER" "$_FTP_PASS"
+          rm "$REMOTE_SCRIPT_PATH"
+          bye
+          LFTP_EOF
+
+            lftp -f "$LFTP_SCRIPT" || true
+          fi
+
+      - name: Cleanup local temp files
+        if: always()
+        run: |
+          rm -f "${GITHUB_WORKSPACE}/${MIGRATION_FILENAME:-nonexistent_placeholder}"
+          rm -f "${GITHUB_WORKSPACE}/mig_root.txt"
+          rm -f "${GITHUB_WORKSPACE}/mig_pub.txt"
