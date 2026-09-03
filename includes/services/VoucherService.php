@@ -111,6 +111,11 @@ class VoucherService extends GwnService {
     /**
      * Check if a voucher has already been sent for this user/month.
      * Returns the existing voucher_logs row or null.
+     *
+     * Only ACTIVE (non-revoked) 'sent' rows count as a duplicate. A voucher that
+     * was revoked/deactivated for the current month must not block a fresh
+     * issuance or a retry, so it is intentionally excluded here. On a legacy
+     * schema without the is_active column the filter is transparently dropped.
      */
     public function getExistingVoucher($conn, $userId, $month) {
         $monthAlt = '';
@@ -118,9 +123,14 @@ class VoucherService extends GwnService {
         if ($dt) {
             $monthAlt = $dt->format('Y-m');
         }
-        $sql = "SELECT voucher_code, voucher_month, sent_via, sent_at FROM voucher_logs WHERE user_id = ? AND (voucher_month = ? OR voucher_month = ?) AND status = 'sent' LIMIT 1";
-        $stmt = safeQueryPrepare($conn, $sql, false);
-        if (!$stmt || $stmt instanceof DummyStatement) return null;
+        $sqlActive = "SELECT voucher_code, voucher_month, sent_via, sent_at FROM voucher_logs WHERE user_id = ? AND (voucher_month = ? OR voucher_month = ?) AND status = 'sent' AND is_active = 1 LIMIT 1";
+        $sqlLegacy = "SELECT voucher_code, voucher_month, sent_via, sent_at FROM voucher_logs WHERE user_id = ? AND (voucher_month = ? OR voucher_month = ?) AND status = 'sent' LIMIT 1";
+        $stmt = safeQueryPrepare($conn, $sqlActive, false);
+        if (!$this->isUsableStmt($stmt)) {
+            // Legacy schema without is_active: fall back to the unfiltered check.
+            $stmt = safeQueryPrepare($conn, $sqlLegacy, false);
+        }
+        if (!$this->isUsableStmt($stmt)) return null;
         $stmt->bind_param("iss", $userId, $month, $monthAlt);
         $stmt->execute();
         return $stmt->get_result()->fetch_assoc() ?: null;
@@ -210,6 +220,14 @@ class VoucherService extends GwnService {
         $groupId = $result['groupId'];
         $deviceNum = $result['deviceNum'];
         $groupName = $result['groupName'] ?? '';
+        // Authoritative intended expiry (final second of the voucher's calendar
+        // month in the business timezone). Prefer the value computed alongside
+        // creation; fall back to re-deriving it from the month string.
+        $voucherExpiresAt = $result['expiresAt'] ?? null;
+        if (empty($voucherExpiresAt)) {
+            $fallbackWindow = VoucherMonthHelper::getWindow((string)$month);
+            $voucherExpiresAt = $fallbackWindow ? $fallbackWindow['expiresAt']->format('Y-m-d H:i:s') : null;
+        }
         
         // Step 2: Send voucher code to student via preferred method (SMS OR WhatsApp, not both)
         $messageSent = false;
@@ -264,23 +282,39 @@ class VoucherService extends GwnService {
         }
         
         // Step 3: Log to voucher_logs (inside transaction)
+        // Three-tier prepare for forward/backward compatibility:
+        //   1. full + voucher_expires_at (current schema)
+        //   2. full without voucher_expires_at (pre-expiry-migration schema)
+        //   3. legacy without gwn ids (oldest schema)
+        // Whichever the live schema supports is used; nothing is silently dropped
+        // beyond columns that genuinely do not exist yet.
+        $sqlExpiry = "INSERT INTO voucher_logs (user_id, voucher_code, voucher_month, voucher_expires_at, sent_via, status, sent_at, gwn_voucher_id, gwn_group_id)
+                      VALUES (?, ?, ?, ?, ?, 'sent', NOW(), ?, ?)";
         $sqlFull   = "INSERT INTO voucher_logs (user_id, voucher_code, voucher_month, sent_via, status, sent_at, gwn_voucher_id, gwn_group_id) 
                       VALUES (?, ?, ?, ?, 'sent', NOW(), ?, ?)";
         $sqlLegacy = "INSERT INTO voucher_logs (user_id, voucher_code, voucher_month, sent_via, status, sent_at) 
                       VALUES (?, ?, ?, ?, 'sent', NOW())";
-        $stmt      = safeQueryPrepare($conn, $sqlFull, false);
-        $useLegacy = !$this->isUsableStmt($stmt);
-        if ($useLegacy) {
+
+        $insertMode = 'expiry';
+        $stmt = ($voucherExpiresAt !== null) ? safeQueryPrepare($conn, $sqlExpiry, false) : false;
+        if (!$this->isUsableStmt($stmt)) {
+            $insertMode = 'full';
+            $stmt = safeQueryPrepare($conn, $sqlFull, false);
+        }
+        if (!$this->isUsableStmt($stmt)) {
+            $insertMode = 'legacy';
             $stmt = safeQueryPrepare($conn, $sqlLegacy, false);
         }
 
         $voucherLogsOk = false;
         if ($this->isUsableStmt($stmt)) {
-            if ($useLegacy) {
-                $stmt->bind_param("isss", $student['user_id'], $voucher_code, $month, $loggedSendMethod);
-            } else {
-                $gwn_voucher_id = 0;
+            $gwn_voucher_id = 0;
+            if ($insertMode === 'expiry') {
+                $stmt->bind_param("issssii", $student['user_id'], $voucher_code, $month, $voucherExpiresAt, $loggedSendMethod, $gwn_voucher_id, $groupId);
+            } elseif ($insertMode === 'full') {
                 $stmt->bind_param("isssii", $student['user_id'], $voucher_code, $month, $loggedSendMethod, $gwn_voucher_id, $groupId);
+            } else {
+                $stmt->bind_param("isss", $student['user_id'], $voucher_code, $month, $loggedSendMethod);
             }
             $voucherLogsOk = $stmt->execute();
             if (!$voucherLogsOk) {
@@ -326,6 +360,7 @@ class VoucherService extends GwnService {
             return [
                 'voucher_month' => $month,
                 'voucher_code' => $voucher_code,
+                'voucher_expires_at' => $voucherExpiresAt,
                 'sent_via' => $loggedSendMethod,
                 'sent_at' => date('Y-m-d H:i:s')
             ];
@@ -349,37 +384,82 @@ class VoucherService extends GwnService {
         }
     }
 
-    public function createAndRetrieveVoucher($student_id, $accommodationName, $studentName, $month) {
+    /**
+     * Compute the calendar-aligned validity window for a voucher month.
+     *
+     * Pure/testable helper (no I/O). All boundaries are evaluated in the business
+     * timezone (VOUCHER_TZ = Africa/Johannesburg, fixed UTC+2, no DST). The
+     * returned expiry is the final second of the calendar month, so it is correct
+     * for 28/29/30/31-day months. `expiration_days` is the whole number of calendar
+     * days from the exact issuance timestamp to the month-end boundary and is sent
+     * as GWN's creation-relative expiration cap. `effect_duration_days` is capped
+     * to that value because GWN may reject an effect duration greater than
+     * expiration. Since neither field is an absolute timestamp, issuance is refused
+     * when less than one full day remains; this conservative limitation prevents a
+     * relative GWN duration from crossing into the next Johannesburg month.
+     *
+     * @param  string                 $month e.g. "February 2026" or "2026-02"
+     * @param  DateTimeImmutable|null  $now   injectable clock for testing
+     * @return array{valid: bool, reason: string, expires_at: ?string, expiration_days: int, duration_days: int, effect_duration_days: int}
+     */
+    public static function planCalendarWindow(string $month, ?DateTimeImmutable $now = null): array {
+        $tz  = new DateTimeZone(VOUCHER_TZ);
+        $now = $now ?: new DateTimeImmutable('now', $tz);
+
+        $window = VoucherMonthHelper::getWindow($month);
+        if ($window === null) {
+            return ['valid' => false, 'reason' => 'invalid_month', 'expires_at' => null, 'expiration_days' => 0, 'duration_days' => 0, 'effect_duration_days' => 0];
+        }
+
+        $expiresAtStr = $window['expiresAt']->format('Y-m-d H:i:s');
+
+        if ($now < $window['monthStart']) {
+            return ['valid' => false, 'reason' => 'future_month', 'expires_at' => $expiresAtStr, 'expiration_days' => 0, 'duration_days' => 0, 'effect_duration_days' => 0];
+        }
+        if ($now > $window['expiresAt']) {
+            return ['valid' => false, 'reason' => 'expired_month', 'expires_at' => $expiresAtStr, 'expiration_days' => 0, 'duration_days' => 0, 'effect_duration_days' => 0];
+        }
+
+        $secondsToExpiry = $window['expiresAt']->getTimestamp() - $now->getTimestamp();
+        $days = (int)floor($secondsToExpiry / 86400);
+        if ($days < 1) {
+            return ['valid' => false, 'reason' => 'insufficient_validity_window', 'expires_at' => $expiresAtStr, 'expiration_days' => 0, 'duration_days' => 0, 'effect_duration_days' => 0];
+        }
+
+        // GWN's effectDurationMap starts when the voucher is activated, while
+        // expiration is creation-relative. The API contract/error codes indicate
+        // the effect duration cannot exceed expiration, so clamp both to the
+        // conservative creation-relative window. This sacrifices late-month
+        // activation time rather than permitting validity past month end.
+        $effectDurationDays = min($days, (int)$window['monthStart']->format('t'));
+        return [
+            'valid' => true,
+            'reason' => 'ok',
+            'expires_at' => $expiresAtStr,
+            'expiration_days' => $days,
+            'duration_days' => $effectDurationDays,
+            'effect_duration_days' => $effectDurationDays,
+        ];
+    }
+
+    public function createAndRetrieveVoucher($student_id, $accommodationName, $studentName, $month, ?DateTimeImmutable $now = null) {
         $deviceNum = (int)(defined('GWN_ALLOWED_DEVICES') ? GWN_ALLOWED_DEVICES : 2);
         if ($deviceNum < 1) $deviceNum = 1;
-        $durationDays = 30;
 
-        $tz     = new DateTimeZone(VOUCHER_TZ);
-        $now    = new DateTimeImmutable('now', $tz);
-        $window = VoucherMonthHelper::getWindow((string)$month);
-
-        if ($window !== null) {
-            // Use midnight of next-month as the GWN expiry boundary; this
-            // keeps the voucher alive through 23:59:59 of the last day.
-            $expiryBoundary = $window['nextMonthStart'];
-        } else {
-            $expiryBoundary = $now->modify('first day of next month')->setTime(0, 0, 0);
+        // Calendar-aligned validity window. Refuse to issue for a month that is
+        // not currently valid (future or already expired), because persisting a
+        // voucher whose stored expiry is in the past would be an invalid record.
+        // Normal issuance is always for the current month; future months are
+        // already rejected upstream in sendStudentVoucher().
+        $plan = self::planCalendarWindow((string)$month, $now);
+        if (!$plan['valid']) {
+            error_log("VoucherService::createAndRetrieveVoucher: refusing issuance for student $student_id, month='$month' (reason={$plan['reason']})");
+            return false;
         }
+        $expirationDays = $plan['expiration_days'];
+        $durationDays   = $plan['effect_duration_days'];
+        $intendedExpiry = $plan['expires_at'];
 
-        // Safety: if boundary is already in the past (e.g. reissue for an
-        // expired month), push forward to the next calendar month boundary.
-        if ($expiryBoundary <= $now) {
-            $expiryBoundary = $now->modify('first day of next month')->setTime(0, 0, 0);
-        }
-
-        $secondsToBoundary = $expiryBoundary->getTimestamp() - $now->getTimestamp();
-        $expirationDays = (int)max(1, ceil($secondsToBoundary / 86400));
-
-        // Duration must not exceed expiration (GWN API rejects it otherwise)
-        if ($durationDays > $expirationDays) {
-            $durationDays = $expirationDays;
-        }
-        
         $randomSuffix = bin2hex(random_bytes(4));
         $groupName = $accommodationName . ' - ' . $studentName . ' - ' . $month . ' - ' . $randomSuffix;
         
@@ -460,7 +540,8 @@ class VoucherService extends GwnService {
             'code'     => $voucher_code,
             'groupId'  => $groupId,
             'deviceNum' => $deviceNum,
-            'groupName' => $groupName
+            'groupName' => $groupName,
+            'expiresAt' => $intendedExpiry
         ];
     }
 
@@ -516,7 +597,22 @@ class VoucherService extends GwnService {
             error_log("VoucherService::replaceVoucher: Voucher log ID $voucherLogId not found");
             return false;
         }
-        
+
+        // Guard: a replacement reissues the SAME calendar month. If that month has
+        // already expired we must NOT carry it forward - doing so would persist a
+        // voucher whose stored expiry is in the past. Reject with a clear signal so
+        // the caller can direct the manager to issue a fresh voucher for the
+        // current month instead. (Device-limit replacements are only meaningful
+        // while the voucher's month is still valid.)
+        $replacementPlan = self::planCalendarWindow((string)$oldVoucher['voucher_month']);
+        if (!$replacementPlan['valid']) {
+            error_log("VoucherService::replaceVoucher: refusing to replace voucher $voucherLogId - month '{$oldVoucher['voucher_month']}' cannot be safely reissued (reason={$replacementPlan['reason']})");
+            return ['error' => $replacementPlan['reason'], 'voucher_month' => $oldVoucher['voucher_month']];
+        }
+
+        // Validate immediately before revocation. In particular, a late-month
+        // replacement with less than one full day remaining must not revoke a
+        // still-usable voucher that cannot be replaced safely by GWN.
         // Step 1: Revoke the old voucher in our DB
         $revoked = revokeVoucher($voucherLogId, 'Replaced: incorrect device limit', $revokedByUserId);
         if (!$revoked) {
@@ -546,6 +642,81 @@ class VoucherService extends GwnService {
         }
         
         return $result;
+    }
+
+    /**
+     * Service-level renewal boundary for an existing voucher.
+     *
+     * IMPORTANT - why this does not "renew into a month":
+     * The GWN renew endpoint (voucher/vouchers/renew) accepts ONLY { id, networkId }.
+     * It has no parameter for a target month, expiry, or duration, and the GWN API
+     * documentation does not define what new validity window a renew produces (see
+     * error 16017: an unused/expired voucher or an expired group cannot be renewed).
+     * Because that semantic is unproven, we must NOT call renew and then persist a
+     * fabricated voucher_month / voucher_expires_at as though GWN had honoured a
+     * target month - that would claim a success the remote payload cannot guarantee
+     * and would invent state the API never returned.
+     *
+     * This method is therefore a deliberately narrow, honest boundary:
+     *   - It validates the requested calendar month with the pure planner
+     *     (planCalendarWindow / VoucherMonthHelper), so callers still get a clear
+     *     invalid_month / future_month / expired_month signal and the calendar
+     *     window (28/29/30/31-day correct, never a fixed 30 days).
+     *   - It NEVER fabricates a payment, billing state, expiry, or any GWN field.
+     *   - For a genuine month-targeted renewal it returns renew_not_supported: the
+     *     correct action is to issue a fresh voucher for the current month via
+     *     createAndRetrieveVoucher(), whose expiry GWN can actually enforce.
+     *   - Every path returns an explicit code and logs its reason - no silent
+     *     fallbacks and no partial DB writes.
+     *
+     * @param int         $voucherLogId    voucher_logs.id to renew
+     * @param int         $renewedByUserId user requesting the renewal (for logging)
+     * @param string|null $targetMonth     month to renew into; defaults to the
+     *                                      current business-timezone month
+     * @return array{success: bool, error?: string, voucher_month?: string, planned_expires_at?: ?string}
+     */
+    public function renewStudentVoucher($voucherLogId, $renewedByUserId, $targetMonth = null) {
+        $conn = getDbConnection();
+
+        $stmt = safeQueryPrepare($conn, "SELECT id, user_id, voucher_month, gwn_voucher_id, is_active FROM voucher_logs WHERE id = ?", false);
+        if (!$this->isUsableStmt($stmt)) {
+            return ['success' => false, 'error' => 'db_error'];
+        }
+        $stmt->bind_param('i', $voucherLogId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$row) {
+            error_log("VoucherService::renewStudentVoucher: voucher log $voucherLogId not found");
+            return ['success' => false, 'error' => 'not_found'];
+        }
+
+        if ($targetMonth === null) {
+            $targetMonth = (new DateTimeImmutable('now', new DateTimeZone(VOUCHER_TZ)))->format('F Y');
+        }
+
+        // Calendar boundary: validate the requested month and compute its window.
+        // This rejects future/expired/invalid months with a clear reason before we
+        // decide anything else.
+        $plan = self::planCalendarWindow((string)$targetMonth);
+        if (!$plan['valid']) {
+            error_log("VoucherService::renewStudentVoucher: refusing renewal of $voucherLogId for month='$targetMonth' (reason={$plan['reason']})");
+            return ['success' => false, 'error' => $plan['reason'], 'voucher_month' => $targetMonth];
+        }
+
+        // The GWN renew payload cannot target a calendar month or return an
+        // authoritative new expiry, so a month-targeted renewal is not a supported
+        // operation. Return a clear signal (and the planner's intended expiry, for
+        // display only) instead of calling renew and persisting fabricated state.
+        // The caller should issue a fresh voucher for the current month instead.
+        error_log("VoucherService::renewStudentVoucher: month-targeted renewal is not supported by the GWN renew endpoint (voucher $voucherLogId, month='$targetMonth'); issue a new voucher instead");
+        return [
+            'success' => false,
+            'error' => 'renew_not_supported',
+            'voucher_month' => $targetMonth,
+            'planned_expires_at' => $plan['expires_at'],
+        ];
     }
 
     /**

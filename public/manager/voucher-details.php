@@ -4,25 +4,32 @@ require_once '../../includes/functions.php';
 require_once '../../includes/helpers/ActivityLogHelper.php';
 
 requireManagerLogin();
+require_once '../../includes/helpers/VoucherMonthHelper.php';
 
-// Helper function to format month display
+// Helper function to format month display. Parsed explicitly in VOUCHER_TZ
+// (rather than via strtotime()/date(), which depend on the server's default
+// PHP timezone) so the displayed month never drifts across a TZ boundary.
 function formatVoucherMonth($month) {
     if (empty($month)) return '';
-    
+
+    $tz = new DateTimeZone(VOUCHER_TZ);
+
     // Try to parse as YYYY-MM format
     if (preg_match('/^(\d{4})-(\d{2})$/', $month)) {
-        $timestamp = strtotime($month . '-01');
-        return date('M Y', $timestamp); // e.g., "Feb 2026"
+        try {
+            return (new DateTimeImmutable($month . '-01', $tz))->format('M Y'); // e.g., "Feb 2026"
+        } catch (Exception $e) {
+            return $month;
+        }
     }
-    
+
     // Try to parse as "Month YYYY" format
-    $timestamp = strtotime('1 ' . $month);
-    if ($timestamp !== false) {
-        return date('M Y', $timestamp); // e.g., "Feb 2026"
+    try {
+        return (new DateTimeImmutable('1 ' . $month, $tz))->format('M Y'); // e.g., "Feb 2026"
+    } catch (Exception $e) {
+        // If all else fails, return original
+        return $month;
     }
-    
-    // If all else fails, return original
-    return $month;
 }
 
 $voucher_id = $_GET['id'] ?? 0;
@@ -63,15 +70,36 @@ if (!empty($voucher['first_used_mac'])) {
     }
 }
 
-// Calculate expiry: vouchers are valid through 23:59:59 of the last day of
-// the month in the business timezone. Using start-of-last-day (Y-m-t) causes
-// the voucher to appear expired all day on the final day — fixed here.
-require_once '../../includes/helpers/VoucherMonthHelper.php';
-$_vw         = VoucherMonthHelper::getWindow($voucher['voucher_month']);
-$expiry_date = $_vw ? $_vw['expiresAt']->format('Y-m-d')
-                    : date('Y-m-t', strtotime($voucher['voucher_month']));
-$is_expired  = $_vw ? (new DateTimeImmutable('now', new DateTimeZone(VOUCHER_TZ)) > $_vw['expiresAt'])
-                    : (time() > strtotime($expiry_date . ' 23:59:59'));
+// Determine expiry. Prefer the authoritative persisted value (voucher_expires_at,
+// the final second of the voucher's calendar month in the business timezone);
+// fall back to re-deriving it from voucher_month for legacy rows (or a
+// pre-migration schema where the column is absent). Using start-of-last-day
+// (Y-m-t) would make the voucher look expired all day on the final day.
+$_tzNow = new DateTimeImmutable('now', new DateTimeZone(VOUCHER_TZ));
+$_tz    = new DateTimeZone(VOUCHER_TZ);
+if (!empty($voucher['voucher_expires_at'])) {
+    $expiry_dt = new DateTimeImmutable($voucher['voucher_expires_at'], $_tz);
+} else {
+    $_vw = VoucherMonthHelper::getWindow($voucher['voucher_month']);
+    if ($_vw) {
+        $expiry_dt = $_vw['expiresAt'];
+    } else {
+        // Last-resort legacy fallback (unparseable month / pre-migration schema).
+        // Parsed explicitly in VOUCHER_TZ (instead of strtotime()/date(), which
+        // rely on the server's default PHP timezone) so the comparison stays
+        // timezone-correct. A truly unparseable string is treated as expired,
+        // matching the previous fail-safe behaviour.
+        try {
+            $expiry_dt = (new DateTimeImmutable($voucher['voucher_month'], $_tz))
+                ->modify('last day of this month')
+                ->setTime(23, 59, 59);
+        } catch (Exception $e) {
+            $expiry_dt = $_tzNow->modify('-1 second');
+        }
+    }
+}
+$expiry_date = $expiry_dt->format('Y-m-d');
+$is_expired  = $_tzNow > $expiry_dt;
 $is_revoked = isset($voucher['is_active']) && $voucher['is_active'] == 0;
 $can_revoke = $voucher['status'] === 'sent' && !$is_revoked && !$is_expired;
 
@@ -165,7 +193,7 @@ require_once '../../includes/components/header.php';
                     <div class="row mb-3">
                         <div class="col-sm-4 fw-bold">Expiry Date:</div>
                         <div class="col-sm-8">
-                            <?= date('F j, Y', strtotime($expiry_date)) ?>
+                            <?= htmlEscape($expiry_dt->format('F j, Y')) ?>
                             <?php if ($is_expired): ?>
                                 <span class="text-danger ms-2">(Expired)</span>
                             <?php endif; ?>
@@ -375,7 +403,7 @@ require_once '../../includes/components/header.php';
                                 <div class="timeline-content">
                                     <h6 class="mb-1">Expired</h6>
                                     <small class="text-muted">
-                                        <?= date('M j, Y', strtotime($expiry_date)) ?>
+                                        <?= htmlEscape($expiry_dt->format('M j, Y')) ?>
                                     </small>
                                 </div>
                             </div>

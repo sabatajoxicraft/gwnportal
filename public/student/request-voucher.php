@@ -4,6 +4,7 @@ require_once '../../includes/db.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/python_interface.php';
 require_once '../../includes/helpers/VoucherMonthHelper.php';
+require_once '../../includes/helpers/ActivityLogHelper.php';
 require_once '../../includes/services/StudentService.php';
 
 $pageTitle = "Request WiFi Voucher";
@@ -64,11 +65,17 @@ $currentMonth    = $_vNow->format('F Y');   // "February 2026"
 $currentMonthAlt = $_vNow->format('Y-m');   // "2026-02"
 unset($_vNow);
 
-// Check eligibility: has the student received an active voucher this month?
-// Fallback omits is_active filter if the column doesn't exist yet.
+// Check eligibility: has the student received an ACTIVE voucher this month?
+// A revoked/inactive voucher for the current month must NOT block a new request
+// or a retry, so the check is restricted to is_active = 1. On a legacy schema
+// without the is_active column the filter is transparently dropped.
 $queryErrorMessage = '';
 $stmtCheck = safeQueryPrepare($conn,
-    "SELECT * FROM voucher_logs WHERE user_id = ? AND (voucher_month = ? OR voucher_month = ?) AND status = 'sent'");
+    "SELECT * FROM voucher_logs WHERE user_id = ? AND (voucher_month = ? OR voucher_month = ?) AND status = 'sent' AND is_active = 1");
+if (!$stmtCheck || $stmtCheck instanceof DummyStatement) {
+    $stmtCheck = safeQueryPrepare($conn,
+        "SELECT * FROM voucher_logs WHERE user_id = ? AND (voucher_month = ? OR voucher_month = ?) AND status = 'sent'");
+}
 $stmtCheck->bind_param("iss", $userId, $currentMonth, $currentMonthAlt);
 $stmtCheck->execute();
 $existingVoucher = $stmtCheck->get_result()->fetch_assoc();
@@ -203,13 +210,32 @@ include '../../includes/components/header.php';
                                             <td class="text-end fw-bold">Month:</td>
                                             <td class="text-start"><?= htmlEscape($existingVoucher['voucher_month']) ?></td>
                                         </tr>
+                                        <?php
+                                            // Valid Until: prefer the persisted authoritative expiry;
+                                            // fall back to deriving it from the month for legacy rows.
+                                            $validUntilDisplay = '';
+                                            if (!empty($existingVoucher['voucher_expires_at'])) {
+                                                $validUntilDisplay = (new DateTimeImmutable($existingVoucher['voucher_expires_at'], new DateTimeZone(VOUCHER_TZ)))->format('M j, Y');
+                                            } else {
+                                                $_evw = VoucherMonthHelper::getWindow($existingVoucher['voucher_month'] ?? '');
+                                                if ($_evw) {
+                                                    $validUntilDisplay = $_evw['expiresAt']->format('M j, Y');
+                                                }
+                                            }
+                                        ?>
+                                        <?php if ($validUntilDisplay !== ''): ?>
+                                        <tr>
+                                            <td class="text-end fw-bold">Valid Until:</td>
+                                            <td class="text-start"><?= htmlEscape($validUntilDisplay) ?></td>
+                                        </tr>
+                                        <?php endif; ?>
                                         <tr>
                                             <td class="text-end fw-bold">Sent Via:</td>
                                             <td class="text-start"><?= htmlEscape($existingVoucher['sent_via']) ?></td>
                                         </tr>
                                         <tr>
                                             <td class="text-end fw-bold">Date:</td>
-                                            <td class="text-start"><?= date('M j, Y g:i A', strtotime($existingVoucher['sent_at'])) ?></td>
+                                            <td class="text-start"><?= ActivityLogHelper::formatTimestamp($existingVoucher['sent_at']) ?></td>
                                         </tr>
                                         <tr>
                                             <td class="text-end fw-bold">Status:</td>
@@ -310,7 +336,7 @@ include '../../includes/components/header.php';
                                                     <td><code><?= htmlEscape($voucher['voucher_code']) ?></code></td>
                                                     <td><?= htmlEscape($voucher['voucher_month']) ?></td>
                                                     <td><?= htmlEscape($voucher['sent_via']) ?></td>
-                                                    <td><?= $voucher['sent_at'] ? date('M j, Y', strtotime($voucher['sent_at'])) : '-' ?></td>
+                                                    <td><?= $voucher['sent_at'] ? htmlEscape((new DateTimeImmutable($voucher['sent_at'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone(VOUCHER_TZ))->format('M j, Y')) : '-' ?></td>
                                                     <td>
                                                         <?php if (!empty($voucher['revoked_at'])): ?>
                                                             <span class="badge bg-danger">Revoked</span>

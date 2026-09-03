@@ -123,6 +123,7 @@ CREATE TABLE IF NOT EXISTS voucher_logs (
     gwn_voucher_id INT NULL,
     gwn_group_id INT NULL,
     voucher_month VARCHAR(20) NOT NULL,
+    voucher_expires_at DATETIME NULL,
     sent_via ENUM('SMS', 'WhatsApp') NOT NULL,
     status ENUM('sent', 'failed', 'pending') NOT NULL DEFAULT 'pending',
     sent_at TIMESTAMP NULL,

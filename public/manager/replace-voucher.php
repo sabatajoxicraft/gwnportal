@@ -46,6 +46,18 @@ if (isset($voucher['is_active']) && !$voucher['is_active']) {
 $voucherService = new VoucherService();
 $result = $voucherService->replaceVoucher($voucher_log_id, $user_id);
 
+if (is_array($result) && isset($result['error'])) {
+    // Replacement was refused for a clear, specific reason (no partial changes were made).
+    if ($result['error'] === 'expired_month') {
+        redirect(BASE_URL . '/manager/voucher-history.php',
+            'This voucher\'s month has already expired, so it cannot be replaced. Please send a new voucher for the current month instead.',
+            'warning');
+    }
+    redirect(BASE_URL . '/manager/voucher-history.php',
+        'Voucher could not be replaced. Please try sending a new voucher manually.',
+        'danger');
+}
+
 if ($result) {
     logActivity($conn, $user_id, 'voucher_replaced', 
         'Replaced voucher ' . $voucher['voucher_code'] . ' with ' . ($result['voucher_code'] ?? 'new voucher') . 
